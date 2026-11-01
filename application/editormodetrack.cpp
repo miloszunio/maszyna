@@ -773,12 +773,8 @@ void editor_mode::render_track_selection()
 		ImGui::Separator();
 		ImGui::Spacing();
 		ImGui::TextDisabled("%s", STR_C("Or start with:"));
-		auto const width{std::floor((ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x) * 0.5f)};
-		if (ImGui::Button(STR_C("Lay a track  (L)"), ImVec2(width, ImGui::GetFrameHeight() * 1.4f)))
+		if (ImGui::Button(STR_C("Lay a track  (L)"), ImVec2(-1.0f, ImGui::GetFrameHeight() * 1.4f)))
 			show_track_tab(track_tab::lay);
-		ImGui::SameLine();
-		if (ImGui::Button(STR_C("Tutorial"), ImVec2(width, ImGui::GetFrameHeight() * 1.4f)))
-			m_first_steps_open = true;
 		return;
 	}
 	// the properties belong to the select tool and to the switch tool, the other tools show the track they work with
@@ -804,7 +800,7 @@ void editor_mode::render_track_selection()
 	if (false == sheet)
 	{
 		ImGui::TextUnformatted(name_of(*track).c_str());
-		ImGui::TextDisabled("%s, %.2f m", STR_C(type_name(*track)), track->Length());
+		ImGui::TextDisabled("%s, %.2f m", STR_C(track_type_name(*track)), track->Length());
 		return;
 	}
 	render_path_ui();
@@ -1191,15 +1187,15 @@ void editor_mode::render_turnout_ui()
 		char const *const frogtip{"Cuts the rails of the switch at its frog and lays wing rails and check rails.\n"
 		                          "Off for a switch whose include has its own model of them"};
 		char const *const nosetip{"The nose of the frog moves with the blades over to the wing rail of the track set, leaving no gap; the frog has no check rails"};
-		ImGui::BeginDisabled(false == track_features::crossings);
+		ImGui::BeginDisabled(false == Global.Frogs);
 		if (frogs)
 			toggle_chips("switchfrogs", {{STR_C("Frog and check rails made from the rails"), &frogs, frogtip}, {STR_C("Movable nose"), &movable, nosetip}});
 		else
 			toggle_chips("switchfrogs", {{STR_C("Frog and check rails made from the rails"), &frogs, frogtip}});
 		ImGui::EndDisabled();
-		if (false == track_features::crossings && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-			ImGui::SetTooltip("%s", STR_C("Switched off in this build of the simulator"));
-		if (track_features::crossings && (frogs != track->SwitchExtension->m_frogs || movable != track->SwitchExtension->m_movablenose))
+		if (false == Global.Frogs && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			ImGui::SetTooltip("%s", STR_C("Turned on with frogs yes in eu07.ini"));
+		if (Global.Frogs && (frogs != track->SwitchExtension->m_frogs || movable != track->SwitchExtension->m_movablenose))
 		{
 			auto const before{editor_track::capture(*track)};
 			track->SwitchExtension->m_frogs = frogs;
@@ -1426,7 +1422,7 @@ void editor_mode::render_path_ui()
 		return;
 	}
 	render_track_name(*track);
-	ImGui::TextDisabled("%s, %.2f m", STR_C(type_name(*track)), track->Length());
+	ImGui::TextDisabled("%s, %.2f m", STR_C(track_type_name(*track)), track->Length());
 	if (track->eType == tt_Normal && false == track->m_paths.empty())
 	{
 		// the track at a glance: tiles of its length, radius, grade, cant and speed, going on to the next row at the edge
@@ -1517,7 +1513,8 @@ void editor_mode::render_path_ui()
 			item_tooltip("(+) joined with another track, (-) a free end");
 
 			auto &path = track->m_paths[i];
-			if (false == geometry)
+			// the second path of a tributary is only kept to be written back, nothing is drawn nor run on it
+			if (false == geometry || (track->m_tributary && i > 0))
 			{
 				auto const &start = path.points[segment_data::point::start];
 				auto const &end = path.points[segment_data::point::end];
@@ -2233,7 +2230,7 @@ std::string editor_mode::track_shaping(bool const Joined) const
 
 void editor_mode::draw_empty_scenery_hint()
 {
-	if (m_terrain_open || (m_track_tab != track_tab::path && m_track_tab != track_tab::lay) || (m_lay.active && false == m_lay.points.empty()) || m_first_steps_open || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+	if (m_terrain_open || (m_track_tab != track_tab::path && m_track_tab != track_tab::lay) || (m_lay.active && false == m_lay.points.empty()) || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
 		return;
 	auto const &paths{simulation::Paths.sequence()};
 	if (std::any_of(paths.begin(), paths.end(), [](TTrack const *Track) { return Track != nullptr && false == Track->m_editorremoved; }))
@@ -2250,7 +2247,7 @@ void editor_mode::draw_empty_scenery_hint()
 		rows.emplace_back("L", "the lay tool");
 	rows.emplace_back("LMB", "on the ground: the first point, then the bends of the line, the curves at them made by themselves");
 	rows.emplace_back("Enter", "lays the track clicked");
-	rows.emplace_back("F1", "all the shortcuts, and the tutorial");
+	rows.emplace_back("F1", "all the shortcuts");
 	auto const width{std::min(high.x - low.x - 2.0f * pad, std::round(font * 30.0f))};
 	auto const column{std::round(picture * 5.0f)};
 	auto const wrap{width - 2.0f * pad - column};
