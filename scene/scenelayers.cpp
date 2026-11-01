@@ -855,7 +855,7 @@ bool node_layers::pending() const
 namespace
 {
 // marks of the lines the editor keeps track of
-std::array<char const *, 11> const editormarks{"//$p", "//$h", "//$r", "//$b", "//$c", "//$o", "//$s", "//$k", "//$a", "//$n", "//$f"};
+std::array<char const *, 12> const editormarks{"//$p", "//$h", "//$r", "//$b", "//$c", "//$o", "//$s", "//$k", "//$a", "//$n", "//$f", "//$w"};
 
 // other tools put lines of their own after some of these marks: Rainsted its includes after //$r, the launcher the descriptions
 // of the trainsets after //$o. The editor's lines of them are told by their first word
@@ -867,6 +867,10 @@ bool editor_line(char const *Mark, std::string const &Text)
 	    {"//$o", {"on"}},
 	    {"//$s", {"#", "station"}},
 	    {"//$k", {"#", "mark", "via"}},
+<<<<<<< HEAD
+=======
+	    {"//$w", {"#", "area", "outline", "template", "end"}},
+>>>>>>> 7463f5e13 (fix(editor): the filled areas kept as //$w lines, //$f being the fitted tracks of the profile tool)
 	}};
 	auto const lookup{std::find_if(words.begin(), words.end(), [&](auto const &Entry) { return Entry.first == Mark; })};
 	if (lookup == words.end())
