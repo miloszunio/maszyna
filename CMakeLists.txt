@@ -218,6 +218,7 @@ set(SOURCES
 "editor/editorGroundFollow.cpp"
 "editor/editorAlignmentStore.cpp"
 "editor/editorSwitchStore.cpp"
+"editor/editorFillStore.cpp"
 "editor/editorSwitchCurve.cpp"
 "editor/editorKilometrage.cpp"
 "editor/editorStation.cpp"
