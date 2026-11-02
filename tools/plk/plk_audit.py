@@ -17,6 +17,7 @@ Sprawdza:
   L      najkrotsze proste i luki w torach glownych (tab. 9.1)
   i      pochylenie podluzne torow glownych (tab. 10.1)
   Rv     zaokraglenie zalomow niwelety (tab. 10.2)
+  zderzaki prosta miedzy lukami odwrotnymi (zakleszczenie zderzakow, pkt 9.2)
   rozjazd  skosy zakazane w torach glownych (rozp. 2026 par. 23), rozstaw torow przy polaczeniu (tab. 11.2),
            odcinki posrednie miedzy rozjazdami (pkt 11.3)
   styk   szczeliny, zalamania i skoki przechylki na stykach
@@ -144,6 +145,21 @@ def grade_max(line_type):
 def vertical_radius_min(speed):
     # tab. 10.2, linie typu P, M i T
     return (max(0.77 * speed * speed, 5000.0), max(0.35 * speed * speed, 5000.0), max(0.25 * speed * speed, 2000.0))
+
+
+def buffer_straight_min(r1, r2):
+    """Najkrotsza prosta miedzy lukami odwrotnymi, by nie zakleszczyly sie zderzaki (ST-T1-A6 pkt 9.2.9-10, EN 13803-2;
+    tablica jak u A. Massela, tabl. 7.4): wg promienia zastepczego R1 R2 / (R1 + R2); -1: zadna prosta nie wystarczy."""
+    eq = r1 * r2 / (r1 + r2)
+    table = ((110.0, 0.0), (100.0, 6.0), (95.0, 7.0), (92.5, 7.5), (90.0, 8.0), (85.0, 9.0), (80.0, 10.2), (75.0, 11.5))
+    if eq >= 110.0:
+        return 0.0
+    if eq < 75.0:
+        return -1.0
+    for i in range(1, len(table)):
+        if eq >= table[i][0]:
+            return table[i - 1][1] if abs(table[i - 1][0] - eq) < 1e-9 else table[i][1]
+    return table[-1][1]
 
 
 # tab. 11.2: (promien, skos) -> (najmniejszy rozstaw torow polaczonych [m], predkosc na bok [km/h])
@@ -725,6 +741,19 @@ class Audit:
                 elements[-1][3] = item
             else:
                 elements.append([k, item[0].length, item, item])
+        # luki odwrotne: prosta miedzy nimi a zakleszczenie zderzakow
+        arcs = [(i, e) for i, e in enumerate(elements) if abs(e[0]) > 1e-6]
+        for (ia, a), (ib, b) in zip(arcs, arcs[1:]):
+            if a[0] * b[0] >= 0.0:
+                continue
+            between = elements[ia + 1:ib]
+            if any(abs(e[0]) > 1e-6 for e in between):
+                continue
+            straight = sum(e[1] for e in between)
+            need = buffer_straight_min(1.0 / abs(a[0]), 1.0 / abs(b[0]))
+            if need != 0.0 and (need < 0.0 or straight < need - 0.05):
+                self.add("zderzaki", "P2", b[2][2], straight, max(need, 0.0), "m", b[2][0].point(0.0),
+                         f"luki odwrotne R {1 / abs(a[0]):.0f} / {1 / abs(b[0]):.0f} m" + (" - za ciasne na kazda prosta" if need < 0 else ""))
         for index in range(1, len(elements) - 1):
             k, length, first, last = elements[index]
             track = first[2]
@@ -1045,7 +1074,7 @@ def main():
         print(f"\n{title}")
         if not counts:
             print("  wszystko w normie (P1)")
-        for check in ("R", "D", "I", "dD/ds", "dD/dt", "dI/dt", "dI", "L", "i", "Rv", "rozjazd", "styk"):
+        for check in ("R", "D", "I", "dD/ds", "dD/dt", "dI/dt", "dI", "L", "zderzaki", "i", "Rv", "rozjazd", "styk"):
             if check not in counts:
                 continue
             p1, p2, worst = counts[check]

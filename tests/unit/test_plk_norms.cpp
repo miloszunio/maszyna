@@ -29,3 +29,11 @@ TEST_CASE("plk: sudden change of cant deficiency (tab. 9.15, 9.16)") {
 	auto const each{plk::deficiency(40.0, 300.0)};
 	CHECK(2.0 * each < plk::at(plk::sudden_deficiency_max(plk::track_kind::connection, 40.0), plk::level::p1));
 }
+
+TEST_CASE("plk: straight between reverse curves against buffer locking") {
+	CHECK(plk::buffer_straight_min(300.0, 300.0) == doctest::Approx(0.0));
+	// R 180 + R 180: equivalent 90 m, 8 m (A. Massel, przyklad 7.2)
+	CHECK(plk::buffer_straight_min(180.0, 180.0) == doctest::Approx(8.0));
+	CHECK(plk::buffer_straight_min(140.0, 140.0) == doctest::Approx(-1.0));
+	CHECK(plk::buffer_straight_min(200.0, 200.0) == doctest::Approx(6.0));
+}

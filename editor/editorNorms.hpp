@@ -100,4 +100,26 @@ inline double between_sudden_min(double const Speed)
 	return Speed <= 100.0 ? 0.15 * Speed : 0.25 * Speed;
 }
 
+// the least straight between reverse curves of radii R1, R2 so that the buffers of the vehicles don't lock (ST-T1-A6 pkt 9.2.9-10,
+// EN 13803-2 rozdz. 8.4; the table as in A. Massel, "Projektowanie linii i stacji kolejowych", tabl. 7.4): of the equivalent
+// radius R1 R2 / (R1 + R2), 0 from 110 m up; below 75 m no straight is enough (-1)
+inline double buffer_straight_min(double const R1, double const R2)
+{
+	if (R1 <= 0.0 || R2 <= 0.0)
+		return 0.0;
+	auto const equivalent{R1 * R2 / (R1 + R2)};
+	static double const table[][2]{{110.0, 0.0}, {100.0, 6.0}, {95.0, 7.0}, {92.5, 7.5}, {90.0, 8.0}, {85.0, 9.0}, {80.0, 10.2}, {75.0, 11.5}};
+	if (equivalent >= table[0][0])
+		return 0.0;
+	if (equivalent < 75.0)
+		return -1.0;
+	for (int i = 1; i < 8; ++i)
+		if (equivalent >= table[i][0])
+		{
+			// between the rows the longer straight, the table gives no rule for between
+			return table[i - 1][0] - equivalent < 1e-9 ? table[i - 1][1] : table[i][1];
+		}
+	return table[7][1];
+}
+
 } // namespace plk

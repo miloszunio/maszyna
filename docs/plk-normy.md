@@ -4,6 +4,8 @@ Zebrane 2 listopada 2026 na kolejne poprawki edytora gałęzi `gse`. Punktem wyj
 
 Progi z ST-T1-A6: **P0** to wartość zalecana, **P1** normalna dopuszczalna, **P2** graniczna, która wymaga zgody Zakładu Linii Kolejowych i jest przewidziana głównie przy modernizacji.
 
+Wyciąg z podręczników (Bałuch, Massel, Cieślakowski, Sysak) jest w `docs/literatura-kolejowa.md`.
+
 ## Źródła i gdzie są
 
 | Dokument | Status | Dostęp |
@@ -233,7 +235,8 @@ Progi z ST-T1-A6: **P0** to wartość zalecana, **P1** normalna dopuszczalna, **
   - Rmin wg tab. 9.2 dla rodzaju toru;
   - I wg tab. 9.7;
   - ΔI wg tab. 9.15, z wstawką prostą wg tab. 9.16;
-  - progi P0, P1 lub P2.
+  - progi P0, P1 lub P2;
+  - prosta między łukami odwrotnymi chroniąca przed zakleszczeniem zderzaków (pkt 9.2.9–10).
 - **`tools/plk/plk_audit.py`**: kontrola i poprawa (przechyłka, prędkość) całej scenerii, opis w `tools/plk/README.md`.
 
 ## Co z tego wynika dla edytora (pomysły na poprawki)

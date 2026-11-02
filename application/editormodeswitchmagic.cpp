@@ -195,6 +195,14 @@ bool editor_mode::plan_magic_search(switch_link &Plan, int const Level) const
 				Deficiency = plk::deficiency(speed, Link.radius);
 				if (Deficiency > plk::at(plk::deficiency_max(kind, Link.radius), norm) + 0.5)
 					return false;
+				// buffers of the vehicles: reverse curves this tight need the straight between them (pkt 9.2.9-10), and the first
+				// curve turned against the one of the switch can't have it at all
+				auto const buffers{plk::buffer_straight_min(Link.radius, Link.radius)};
+				if (buffers < 0.0 || Link.insert < buffers - 0.01)
+					return false;
+				auto const switch_bend{piece_curvature(paths[1])};
+				if (switch_bend * first < 0.0 && plk::buffer_straight_min(1.0 / std::abs(switch_bend), Link.radius) != 0.0)
+					return false;
 				auto const a{signed_deficiency(first)};
 				auto const b{signed_deficiency(last)};
 				Sudden = std::abs(a - switch_deficiency);
@@ -222,12 +230,23 @@ bool editor_mode::plan_magic_search(switch_link &Plan, int const Level) const
 			auto const usable = [&](editor_track::branch_link const &Link) {
 				return Link.valid && std::abs(Link.trim) <= 0.01 && false == Link.pieces.empty() && Link.before >= -0.01;
 			};
-			if (usable(link) && false == keeps_norms(link, To, here, deficiency, sudden) && link.reverse && link.insert < insert - 1e-6)
+			if (usable(link) && false == keeps_norms(link, To, here, deficiency, sudden) && link.reverse)
 			{
-				// the curves meeting change the deficiency too much at once: the straight between them
-				auto apart{editor_track::link_branch(branch_start(paths[1]), radius, To, kink, insert, false, true)};
-				if (usable(apart))
+				// the curves meeting change the deficiency too much at once, or lock the buffers: the straight between them, as long
+				// as the speed (tab. 9.16) and the buffers ask; the radius of the fit changes with it, so again until it holds
+				auto length{insert};
+				for (int pass = 0; pass < 3; ++pass)
+				{
+					auto apart{editor_track::link_branch(branch_start(paths[1]), radius, To, kink, length, false, true)};
+					if (false == usable(apart))
+						break;
+					auto const buffers{plk::buffer_straight_min(apart.radius, apart.radius)};
+					auto const needed{std::max(insert, std::ceil(std::max(buffers, 0.0) / 0.05 - 1e-6) * 0.05)};
 					link = std::move(apart);
+					if (buffers < 0.0 || needed <= length + 1e-6)
+						break;
+					length = needed;
+				}
 			}
 			if (false == usable(link) || false == keeps_norms(link, To, here, deficiency, sudden))
 				link.valid = false;
