@@ -10,6 +10,7 @@ http://mozilla.org/MPL/2.0/.
 #include "stdafx.h"
 #include "application/drivermode.h"
 #include "application/driveruilayer.h"
+#include "vehicle/graph/graph_preview.h"
 
 #include "utilities/Globals.h"
 #include "application/application.h"
@@ -174,6 +175,8 @@ bool driver_mode::update()
 	Timer::subsystem.sim_environment.start();
 	simulation::Environment.update();
 	Timer::subsystem.sim_environment.stop();
+	// live preview connections of the vehicle graph editor
+	vgraph::preview_update();
 
 	if (deltatime != 0.0 || false == simulation::is_ready)
 	{
