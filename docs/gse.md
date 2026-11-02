@@ -63,6 +63,7 @@ Najpierw próbowany jest wybrany wzorzec rozjazdu, potem pozostałe dla tej same
 - Pilnowany jest niedomiar przechyłki łuków (tab. 9.7).
 - Pilnowane są nagłe zmiany niedomiaru (tab. 9.15): przy rozjeździe, między łukami odwrotnymi i w miejscu, gdzie połączenie dochodzi do toru. Gdy łuki odwrotne zmieniałyby niedomiar zbyt gwałtownie, wstawiana jest między nie prosta o długości z tab. 9.16.
 - Pasek stanu podaje prędkość, I i największą nagłą zmianę I.
+- Łuki odwrotne ciaśniejsze niż R_z = 110 m dostają prostą chroniącą przed zakleszczeniem zderzaków (np. 8 m przy R 180 + R 180).
 
 ### Teren: wycinanie osobnej powierzchni
 Jest w panelu Teren, w sekcji Wypełnienie, jako przycisk **„Wytnij jako osobną powierzchnię”**. Służy do kawałków terenu, które mają mieć inną teksturę niż reszta wygenerowanego terenu, np. plac, peron, rampa albo pole. Jak to działa:
@@ -95,4 +96,4 @@ Jest w menu **Mapa → Minimapa**.
 
 ## Normy
 
-Parametry PLK do kolejnych poprawek edytora (ST-T1-A6, rozporządzenie z 17.09.2026, źródła i pomysły) są zebrane w `docs/plk-normy.md`.
+Wyciąg z podręczników jest w `docs/literatura-kolejowa.md`. Parametry PLK do kolejnych poprawek edytora (ST-T1-A6, rozporządzenie z 17.09.2026, źródła i pomysły) są zebrane w `docs/plk-normy.md`.
