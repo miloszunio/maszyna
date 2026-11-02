@@ -206,6 +206,15 @@ void editor_mode::render_switch_ui()
 			++shown;
 		}
 	}
+	if (kind == switch_kind::single)
+	{
+		ImGui::Checkbox(STR_C("Magic"), &tool.magic);
+		item_tooltip("Dragged towards a track it can't lead into as the track lies (too tight, its end curved or short), the switch "
+		             "gets that track laid anew behind its diverging end: taken back from its free end as far as it takes and joined "
+		             "with a straight, the curve of the switch or a reverse curve of R 180 m or more with the straight between the "
+		             "curves of ST-T1-A6. The template armed first, then the other ones for the rail from 1:9 on");
+	}
+
 	// how to place it with the mouse
 	std::vector<std::pair<char const *, char const *>> how;
 	switch (kind)

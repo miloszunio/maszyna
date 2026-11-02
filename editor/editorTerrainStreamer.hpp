@@ -159,6 +159,9 @@ class terrain_streamer
 	void water(std::vector<heightmap::water_body> Water);
 	// material of the bodies of water which don't name their own
 	void water_material(std::string const &Material);
+	// pieces of the ground cut out of the terrain with a material of their own, drawn with the water
+	std::vector<heightmap::surface_patch> const &patches() const { return m_manifest.patches; }
+	void patches(std::vector<heightmap::surface_patch> Patches);
 	// modifiers: added or replaced by name
 	void modifier(heightmap::modifier Modifier);
 	// many at once, as the formation of all the tracks: each chunk they reach is led anew once
@@ -182,6 +185,7 @@ class terrain_streamer
 		bool manifest{false}; // the palette, the water (and its material) and the modifiers below were changed
 		std::vector<heightmap::layer_def> layers;
 		std::vector<heightmap::water_body> water;
+		std::vector<heightmap::surface_patch> patches;
 		std::string water_material;
 		std::vector<heightmap::modifier> modifiers;
 		std::vector<heightmap::grass_def> grass;

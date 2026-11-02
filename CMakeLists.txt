@@ -244,6 +244,7 @@ set(SOURCES
 "application/editormodestraights.cpp"
 "application/editormodelay.cpp"
 "application/editormodeswitchplace.cpp"
+"application/editormodeswitchmagic.cpp"
 "application/editormodetrackgizmo.cpp"
 "application/editormoderecords.cpp"
 "application/editormodeswitchdrive.cpp"

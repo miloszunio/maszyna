@@ -15218,3 +15218,75 @@ msgstr "Poprzedni semafor SBL: %s"
 
 msgid "Its track circuit and the block signal before it: open its station in Signalling"
 msgstr "Jego izolację i poprzedni semafor SBL zobaczysz, gdy otworzysz jego stację w SRK"
+
+msgid "Magic"
+msgstr "Magic"
+
+msgid "Dragged towards a track it can't lead into as the track lies (too tight, its end curved or short), the switch gets that track laid anew behind its diverging end: taken back from its free end as far as it takes and joined with a straight, the curve of the switch or a reverse curve of R 180 m or more with the straight between the curves of ST-T1-A6. The template armed first, then the other ones for the rail from 1:9 on"
+msgstr "Gdy tor, do którego ciągniesz rozjazd, nie daje się połączyć tak, jak leży (za ciasno, zakrzywiony lub krótki koniec), rozjazd układa go od nowa za swoim końcem zwrotnym: skraca tor od wolnego końca tak daleko, jak trzeba, i łączy prostą, łukiem rozjazdu albo łukiem odwrotnym R 180 m lub więcej z prostą wstawką między łukami wg ST-T1-A6. Najpierw uzbrojony wzorzec, potem pozostałe dla danej szyny od 1:9 wzwyż"
+
+msgid "Magic: no switch fits with the track taken back up to %.0f m"
+msgstr "Magic: żaden rozjazd nie pasuje nawet po skróceniu toru o %.0f m"
+
+msgid "Magic: %s, the track behind it taken back %.1f m"
+msgstr "Magic: %s, tor za nim skrócony o %.1f m"
+
+msgid ", a reverse curve R %.0f m with %.1f m straight between"
+msgstr ", łuk odwrotny R %.0f m z prostą %.1f m pomiędzy"
+
+msgid ", a curve R %.0f m"
+msgstr ", łuk R %.0f m"
+
+msgid "Cut out as a separate surface"
+msgstr "Wytnij jako osobną powierzchnię"
+
+msgid "Takes the area within the outline out of the terrain and puts it back as a separate surface\nwith the same heights and the material chosen in the palette, turned by the angle above.\nThe surfaces are listed below, where their material can be changed or they can be given back to the terrain"
+msgstr "Wyjmuje obszar w obrysie z terenu i wstawia go z powrotem jako osobną powierzchnię\no tych samych wysokościach i materiale wybranym w palecie, obróconym o kąt powyżej.\nPowierzchnie są na liście poniżej, gdzie można zmienić ich materiał albo oddać je terenowi"
+
+msgid "Nothing cut out: no chunk under the outline"
+msgstr "Nic nie wycięto: pod obrysem nie ma kawałka terenu"
+
+msgid "surface %d"
+msgstr "powierzchnia %d"
+
+msgid "Cut out as %s with %s, Ctrl+Z puts it back"
+msgstr "Wycięto jako %s z %s, Ctrl+Z przywraca"
+
+msgid "Surfaces cut out of the terrain"
+msgstr "Powierzchnie wycięte z terenu"
+
+msgid "%s, %zu points, %s"
+msgstr "%s, %zu punktów, %s"
+
+msgid "Material##patch"
+msgstr "Materiał##patch"
+
+msgid "From the palette##patch"
+msgstr "Z palety##patch"
+
+msgid "Repeat (m)##patch"
+msgstr "Powtarzanie (m)##patch"
+
+msgid "of the material"
+msgstr "wg materiału"
+
+msgid "Turned by (deg)##patch"
+msgstr "Obrót (st.)##patch"
+
+msgid "Lift (m)##patch"
+msgstr "Uniesienie (m)##patch"
+
+msgid "Metres the surface lies over the heights taken from the terrain"
+msgstr "Ile metrów powierzchnia leży nad wysokościami wziętymi z terenu"
+
+msgid "Outline it again##patch"
+msgstr "Obrysuj ponownie##patch"
+
+msgid "Puts the outline of the surface back as the outline of the Fill tool"
+msgstr "Przywraca obrys powierzchni jako obrys narzędzia Wypełnienie"
+
+msgid "Give back to the terrain##patch"
+msgstr "Oddaj terenowi##patch"
+
+msgid "Surface removed, the hole under it closed"
+msgstr "Powierzchnię usunięto, dziura pod nią zamknięta"

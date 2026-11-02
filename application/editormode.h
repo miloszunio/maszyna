@@ -650,6 +650,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool terrain_clicking() const { return m_terrain_tool == terrain_tool::chunks || m_terrain_tool == terrain_tool::spacing || m_terrain_tool == terrain_tool::water || m_terrain_tool == terrain_tool::fill; }
 	// fills the outlined area with the material of the chosen palette entry, turned by m_paint_rotation
 	void fill_terrain_area();
+	// the outlined area cut out of the terrain with its heights kept, as a separate surface with the chosen material
+	void cut_out_surface();
+	void render_patches_ui();
 	// the brush, the hovered chunk and the outlines of water drawn over the viewport
 	void draw_terrain_overlay();
 	// forgets what's known about the ground, after the terrain changed
@@ -776,6 +779,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	float m_terrain_convert_spacing{1.0f}; // point spacing the selected chunks are converted to
 	bool m_terrain_convert_paint{true}; // chunks converted to 0.5 m get paint samples every 0.5 m too
 	std::vector<glm::dvec3> m_paint_outline; // of the area filled with a material
+	int m_patch_selected{-1}; // surface cut out of the terrain chosen in the list
 	float m_paint_feather{0.0f}; // metres the filled material blends in over across the outline, 0: sharp
 	float m_paint_rotation{0.0f}; // degrees the textures of the filled material are turned by
 	float m_water_selected_level{0.0f}; // level of the chosen water, while it's edited
@@ -1557,6 +1561,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		int connection{-1};
 		int connection_kind{0}; // the kind of connection chosen last, taken again when the connections are chosen
 		std::string rail_pick{"60E1"}; // the rail whose templates are listed first where the track doesn't tell its rail
+		// magic: a switch which can't lead into the track it's dragged to gets it laid anew behind its diverging end (editormodeswitchmagic.cpp)
+		bool magic{false};
 		int connection_second{-1};
 		double connection_radius{0.0};
 		double connection_gap{6.0};
@@ -2027,8 +2033,27 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		double moved{0.0};
 		std::vector<segment_data> paths;
 		std::string reason;
+		// magic: the track led into taken back from its free end by cut and joined at landing, with the template of index shape
+		bool magic{false};
+		int shape{-1};
+		double cut{0.0};
+		editor_track::branch_end landing;
 	};
 	bool plan_switch_link(switch_link &Plan) const;
+	// editormodeswitchmagic.cpp
+	std::vector<curve_sample> magic_frame(editor_track::snap_target const &Target, editor_track::chain &Chain) const;
+	bool plan_magic_link(switch_link &Plan) const;
+	bool plan_magic_search(switch_link &Plan) const;
+	TTrack *magic_cut(switch_link const &Plan, std::vector<std::pair<TTrack *, editor_track::state>> &States, std::vector<TTrack *> &Created, std::vector<TTrack *> &Removed);
+	void insert_magic_switch(switch_link const &Plan);
+	// the last plan of magic, asked for each frame of the drag: the search takes a while
+	struct magic_memo
+	{
+		std::vector<double> key;
+		bool found{false};
+		switch_link plan;
+	};
+	mutable magic_memo m_magic_memo;
 	void insert_linked_switch(switch_link const &Plan);
 	bool plan_branch_link(editor_track::branch_link &Link, std::string &Reason) const;
 	void finish_branch_link(editor_track::branch_link const &Link);
