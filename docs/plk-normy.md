@@ -1,6 +1,6 @@
 # Normy PLK do edytora: ściąga
 
-Zebrane 2 listopada 2026 na kolejne poprawki edytora gałęzi `gse`. Punktem wyjścia był sylabus „Projektowanie linii kolejowych” Politechniki Poznańskiej (dr inż. M. Pawłowski) i jego lista literatury. Liczby niżej pochodzą z dokumentów źródłowych i są przepisane do tabel. Przy rozbieżności rozstrzyga oryginał.
+Zebrane 2 listopada 2026 na kolejne poprawki edytora gałęzi `ficzery`. Punktem wyjścia był sylabus „Projektowanie linii kolejowych” Politechniki Poznańskiej (dr inż. M. Pawłowski) i jego lista literatury. Liczby niżej pochodzą z dokumentów źródłowych i są przepisane do tabel. Przy rozbieżności rozstrzyga oryginał.
 
 Progi z ST-T1-A6: **P0** to wartość zalecana, **P1** normalna dopuszczalna, **P2** graniczna, która wymaga zgody Zakładu Linii Kolejowych i jest przewidziana głównie przy modernizacji.
 

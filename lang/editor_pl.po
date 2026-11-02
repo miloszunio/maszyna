@@ -15380,3 +15380,78 @@ msgstr "Materiał wybrany w palecie, z jego powtarzaniem i obrotem, dla wszystki
 
 msgid "Go to##patch"
 msgstr "Idź do##patch"
+
+msgid "The scenery has no terrain yet. It's made in the Terrain field of work"
+msgstr "Sceneria nie ma jeszcze terenu. Robi się go w dziale Teren"
+
+msgid "Material##features"
+msgstr "Materiał##features"
+
+msgid "Cut out a surface"
+msgstr "Wytnij powierzchnię"
+
+msgid "LMB adds a point of the outline, Shift+LMB takes the last one back. The surface cut out keeps the heights of the terrain and follows them when the terrain is changed; only its texture is its own"
+msgstr "LPM dodaje punkt obrysu, Shift+LPM cofa ostatni. Wycięta powierzchnia ma wysokości terenu i nadąża za nimi, gdy teren się zmieni; własną ma tylko teksturę"
+
+msgid "Takes the area within the outline out of the terrain and puts it back as a separate surface\nwith the heights of the terrain and the material chosen in the palette, turned by the angle above"
+msgstr "Wyjmuje obszar w obrysie z terenu i wstawia go jako osobną powierzchnię\nz wysokościami terenu i materiałem wybranym w palecie, obróconym o kąt powyżej"
+
+msgid "Clear the outline##features"
+msgstr "Wyczyść obrys##features"
+
+msgid "Track bed and slopes"
+msgstr "Torowisko i skarpy"
+
+msgid "Along the formation modifiers of the terrain (the ones the tracks shape it with) the track bed, the embankments and the cuttings are cut out as surfaces of their own, each up to the length below, to be given textures of their own. The embankments stay shaped by the modifiers; the pieces keep the heights of the terrain"
+msgstr "Wzdłuż modyfikatorów torowiska (tych, którymi tory kształtują teren) torowisko, nasypy i przekopy są wycinane jako osobne powierzchnie, każda nie dłuższa niż długość poniżej, żeby dać im własne tekstury. Nasypy dalej kształtują modyfikatory; kawałki mają wysokości terenu"
+
+msgid "Formation modifiers: %zu"
+msgstr "Modyfikatory torowiska: %zu"
+
+msgid "The whole scenery"
+msgstr "Cała sceneria"
+
+msgid "All the modifiers; the chunks under them are read from their files, so it takes time and memory"
+msgstr "Wszystkie modyfikatory; chunki pod nimi są wczytywane z plików, więc trwa to i zajmuje pamięć"
+
+msgid "Longest piece (m)"
+msgstr "Najdłuższy kawałek (m)"
+
+msgid "Farthest slope (m)"
+msgstr "Najdalsza skarpa (m)"
+
+msgid "From the edge of the track bed; the slope ends sooner where it meets the ground"
+msgstr "Od krawędzi torowiska; skarpa kończy się wcześniej, gdzie spotyka teren"
+
+msgid "Slope tolerance (m)"
+msgstr "Tolerancja skarpy (m)"
+
+msgid "How far the ground may lie off the slope of the modifier (1:1.5) and still count as the slope"
+msgstr "O ile teren może odstawać od skarpy modyfikatora (1:1,5), żeby nadal liczył się jako skarpa"
+
+msgid "Cut the track bed and the slopes"
+msgstr "Wytnij torowisko i skarpy"
+
+msgid "The pieces cut before along the same modifiers are made anew. Ctrl+Z takes it back"
+msgstr "Kawałki wycięte wcześniej wzdłuż tych samych torów są robione od nowa. Ctrl+Z cofa"
+
+msgid "No formation modifier there"
+msgstr "Brak tam modyfikatora torowiska"
+
+msgid "Cut along %zu modifiers: track bed %zu, embankments %zu, cuttings %zu pieces (%zu made before replaced). Ctrl+Z takes it back"
+msgstr "Wycięto wzdłuż %zu modyfikatorów: torowisko %zu, nasypy %zu, przekopy %zu kawałków (zastąpiono %zu wcześniejszych). Ctrl+Z cofa"
+
+msgid "LMB adds a point of the outline of a surface cut out of the terrain to texture it, Shift+LMB takes the last one back"
+msgstr "LPM dodaje punkt obrysu powierzchni wycinanej z terenu do teksturowania, Shift+LPM cofa ostatni"
+
+msgid "The track bed, the embankments and the cuttings along the tracks cut into pieces up to 100 m, to texture them"
+msgstr "Torowisko, nasypy i przekopy wzdłuż torów pocięte na kawałki do 100 m, do teksturowania"
+
+msgid "Surfaces cut out to texture them: the Features field of work (F7)"
+msgstr "Wycinanie powierzchni do teksturowania: dział Ficzery (F7)"
+
+msgid "Features"
+msgstr "Ficzery"
+
+msgid "Ours: surfaces cut out of the terrain to texture them, the track bed and the slopes cut into pieces"
+msgstr "Nasze: powierzchnie wycinane z terenu do teksturowania, torowisko i skarpy pocięte na kawałki"

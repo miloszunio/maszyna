@@ -266,6 +266,26 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		                   }});
 		break;
 	}
+	case work_area::features:
+	{
+		// ours: the surfaces cut out of the terrain
+		Buttons.push_back({icon::area_fill, STR_C("Cut out a surface"), nullptr,
+		                   STR_C("LMB adds a point of the outline of a surface cut out of the terrain to texture it, Shift+LMB takes the last one back"),
+		                   m_feature_tool == feature_tool::cut_out, [this]() {
+			                   m_feature_tool = feature_tool::cut_out;
+			                   m_terrain_tool = terrain_tool::fill;
+		                   }});
+		Buttons.push_back({icon::profile, STR_C("Track bed and slopes"), nullptr,
+		                   STR_C("The track bed, the embankments and the cuttings along the tracks cut into pieces up to 100 m, to texture them"),
+		                   m_feature_tool == feature_tool::track_bed, [this]() {
+			                   m_feature_tool = feature_tool::track_bed;
+			                   m_terrain_tool = terrain_tool::none;
+		                   }});
+		auto const orthophoto{m_orthophoto.enabled()};
+		Buttons.push_back({icon::orthophoto, STR_C("Orthophoto"), nullptr, STR_C("Aerial imagery of geoportal.gov.pl under the scenery, laid out by the origin of the scenery"), orthophoto,
+		                   [this, orthophoto]() { choose_orthophoto(false == orthophoto); }, true});
+		break;
+	}
 	}
 }
 
@@ -431,7 +451,7 @@ void editor_mode::render_viewport_gizmo()
 	// the gizmo moves the models and the tracks; on the terrain the mouse is the brush's
 	// in the tracks the row stays with the gizmo hidden, so it can be brought out with a click
 	auto const tracks{ui()->mode() == nodebank_panel::TRACK};
-	if ((false == tracks && false == m_gizmo_enabled) || current_work_area() == work_area::terrain || (tracks && track_plan_tab()))
+	if ((false == tracks && false == m_gizmo_enabled) || m_terrain_open || (tracks && track_plan_tab()))
 		return;
 	auto const tooltip{STR_C("What the handles of the gizmo on the selection do when dragged; Ctrl held snaps the values")};
 	auto const on{gizmo_shown()};

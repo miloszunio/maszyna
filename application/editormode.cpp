@@ -2063,15 +2063,7 @@ void editor_mode::render_terrain_ui()
                 forget_ground_shapes();
             }
         }
-        ImGui::BeginDisabled(layers.empty());
-        if (ImGui::Button(STR_C("Cut out as a separate surface")))
-            cut_out_surface();
-        ImGui::EndDisabled();
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("%s", STR_C("Takes the area within the outline out of the terrain and puts it back as a separate surface\n"
-                                    "with the same heights and the material chosen in the palette, turned by the angle above.\n"
-                                    "The surfaces are listed below, where their material can be changed or they can be given back to the terrain"));
-        render_patches_ui();
+        ImGui::TextDisabled("%s", STR_C("Surfaces cut out to texture them: the Features field of work (F7)"));
         auto const &grasskinds = m_streamer.grass_kinds();
         ImGui::BeginDisabled(grasskinds.empty());
         if (ImGui::Button(STR_C("Grow grass")))
@@ -4084,7 +4076,7 @@ void editor_mode::render_patches_ui()
         glm::dvec2 low;
         glm::dvec2 high;
         patch.bounds(low, high);
-        minimap_go_to((low + high) * 0.5);
+        go_to_plan((low + high) * 0.5);
     }
     ImGui::SameLine();
     if (ImGui::Button(STR_C("Give back to the terrain##patch")))
@@ -4934,7 +4926,10 @@ void editor_mode::terrain_workspace(bool const Open)
 {
     m_terrain_open = Open;
     if (false == Open)
+    {
         m_terrain_tool = terrain_tool::none;
+        m_features_open = false;
+    }
     else if (m_streamer.active())
         m_terrain_spacing = m_streamer.manifest().spacing;
 }
@@ -4962,7 +4957,10 @@ editor_mode::texture_offer editor_mode::terrain_texture_offer(char const *None)
 void editor_mode::render_terrain_tool_options()
 {
     // the orthophoto has its settings among the base layers in the layers window, see render_base_layers()
-    render_terrain_ui();
+    if (m_features_open)
+        render_features_ui();
+    else
+        render_terrain_ui();
 }
 
 void editor_mode::render_object_menu()
@@ -5919,7 +5917,7 @@ editor_mode::work_area editor_mode::current_work_area() const
 {
 	// the terrain is shown over the tracks, see the tool options window
 	if (m_terrain_open)
-		return work_area::terrain;
+		return m_features_open ? work_area::features : work_area::terrain;
 	if (m_track_window_open)
 		return m_track_tab == track_tab::catenary ? work_area::catenary : work_area::tracks;
 	if (m_roadtool.window)
@@ -5952,6 +5950,15 @@ void editor_mode::choose_work_area(work_area const Area)
 		m_track_window_open = false;
 		m_roadtool.window = false;
 		terrain_workspace(true);
+		m_features_open = false;
+		break;
+	case work_area::features:
+		m_track_window_open = false;
+		m_roadtool.window = false;
+		terrain_workspace(true);
+		m_features_open = true;
+		// the outline of the surface is drawn as with Fill
+		m_terrain_tool = m_feature_tool == feature_tool::cut_out ? terrain_tool::fill : terrain_tool::none;
 		break;
 	}
 }
@@ -5971,8 +5978,9 @@ void editor_mode::render_workspaces()
 	    {STR_C("Roads"), work_area::roads, editor_icons::icon::work_roads, STR_C("Roads and junctions, level crossings, the points where the traffic comes and goes")},
 	    {STR_C("Terrain"), work_area::terrain, editor_icons::icon::work_terrain, STR_C("Heightmap terrain: chunks, sculpting, painting, water, orthophoto")},
 	    {STR_C("Catenary"), work_area::catenary, editor_icons::icon::work_catenary, STR_C("The overhead catenary: poles with cantilevers, gantries, the wires of the chains")},
+	    {STR_C("Features"), work_area::features, editor_icons::icon::work_terrain, STR_C("Ours: surfaces cut out of the terrain to texture them, the track bed and the slopes cut into pieces")},
 	};
-	char const *const keys[] = {"F2", "F3", "F4", "F5", "F6"};
+	char const *const keys[] = {"F2", "F3", "F4", "F5", "F6", "F7"};
 	auto const current{current_work_area()};
 	auto const &style{ImGui::GetStyle()};
 	auto *list{ImGui::GetWindowDrawList()};
@@ -6130,7 +6138,7 @@ void editor_mode::render_shortcuts_window()
 	      {"Ctrl+Shift+F11", "Export scenery dump"},
 	      {"F11", "Leave the editor"},
 	      {"F10", "Quit the simulator"}}},
-	    {"Fields of work", {{"F2", "Surroundings"}, {"F3", "Tracks"}, {"F4", "Roads"}, {"F5", "Terrain"}, {"F6", "Catenary"}}},
+	    {"Fields of work", {{"F2", "Surroundings"}, {"F3", "Tracks"}, {"F4", "Roads"}, {"F5", "Terrain"}, {"F6", "Catenary"}, {"F7", "Features"}}},
 	    {"Camera",
 	     {{"RMB held, mouse", "Look around"},
 	      {"RMB held, W S A D", "Fly forwards, back, left, right (arrows in the legacy scheme)"},
@@ -7015,6 +7023,7 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         case GLFW_KEY_F4: choose_work_area(work_area::roads); break;
         case GLFW_KEY_F5: choose_work_area(work_area::terrain); break;
         case GLFW_KEY_F6: choose_work_area(work_area::catenary); break;
+        case GLFW_KEY_F7: choose_work_area(work_area::features); break;
         // the edit modes in the order of the toolbar; in the track mode the digits typed as a value were taken already
         case GLFW_KEY_1: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::MODIFY); break;
         case GLFW_KEY_2: handled = ui()->mode() != nodebank_panel::TRACK; if (handled) choose_edit_mode(nodebank_panel::ADD); break;
