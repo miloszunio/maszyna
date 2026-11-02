@@ -857,7 +857,7 @@ bool editor_mode::plan_switch_link(switch_link &Plan) const
 			return false;
 	}
 	if (shape.length > line.length - 0.02)
-		return false;
+		return tool.magic && plan_magic_link(Plan);
 	auto const kink{glm::radians(m_joints.kink_angle() * 0.5)};
 	auto const plan = [&](double const Along) {
 		Plan.along = Along;
@@ -884,11 +884,19 @@ bool editor_mode::plan_switch_link(switch_link &Plan) const
 			return true;
 	}
 	Plan.moved = 0.0;
-	return plan(snapped);
+	if (plan(snapped))
+		return true;
+	// too tight as the track lies: magic lays the track behind the diverging end anew
+	return tool.magic && plan_magic_link(Plan);
 }
 
 void editor_mode::insert_linked_switch(switch_link const &Plan)
 {
+	if (Plan.magic)
+	{
+		insert_magic_switch(Plan);
+		return;
+	}
 	std::vector<std::pair<TTrack *, editor_track::state>> states;
 	std::vector<TTrack *> created;
 	std::vector<TTrack *> removed;

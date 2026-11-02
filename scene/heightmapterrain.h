@@ -155,6 +155,27 @@ struct water_body
 	std::vector<glm::dvec2> outline; // x, z
 };
 
+// piece of the ground cut out of the terrain and drawn on its own with a material of its own (a yard, a platform of beaten earth, a
+// field of other crops): the terrain is cut away within the outline, the heights it had there are kept on a grid of the piece, so it
+// lies where the ground was and stays as it was cut whatever happens to the terrain later
+struct surface_patch
+{
+	std::string name;
+	std::string material; // empty: the first material of the palette
+	float size{0.f}; // metres the texture repeats at; 0: the size given by the material, or 8 m
+	float rotation{0.f}; // degrees the texture is turned by, counterclockwise seen from above
+	float lift{0.f}; // metres the surface lies over the heights kept
+	std::vector<glm::dvec2> outline; // x, z
+	glm::dvec2 origin{0.0}; // x, z of the first point of the grid
+	double spacing{1.0};
+	int columns{0}; // points along x
+	int rows{0}; // points along z
+	std::vector<float> heights; // rows of growing z
+
+	// height kept at specified point, interpolated between the points of the grid; false out of the grid
+	bool height(double X, double Z, double &Height) const;
+};
+
 // modifier of the terrain: a corridor along a line (axis of a track or a road) with a formation of specified
 // height and width, and slopes from its edges to the ground
 struct corridor_point
@@ -242,6 +263,7 @@ struct manifest
 	bool compress{true}; // pack files store their data compressed with zstd
 	float spacing{default_spacing}; // point spacing of new chunks
 	std::vector<water_body> water;
+	std::vector<surface_patch> patches;
 	std::vector<modifier> modifiers;
 	std::vector<grass_def> grass; // the grass palette
 };
