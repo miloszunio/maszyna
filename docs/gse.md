@@ -80,6 +80,10 @@ Wycięte powierzchnie są na liście pod przyciskiem. Dla każdej można:
 
 Powierzchnie zapisują się w `terrain.yaml` w sekcji `patches`. Ctrl+Z działa jak dla reszty terenu.
 
+Wycięta powierzchnia nie trzyma już własnych wysokości, tylko bierze je z terenu (`follow: true`), więc po zmianie terenu sama się dopasowuje. Budują się tylko powierzchnie w promieniu 1,5 km od kamery, dlatego sceneria może ich mieć dziesiątki tysięcy. Przy ponad 200 powierzchniach zapisują się do osobnego pliku obok `terrain.yaml` (`patches_file`).
+
+Lista ma filtr po słowach w nazwie (np. `L132 nasyp`), przycisk „Idź do” i przycisk „Materiał z palety dla wszystkich pokazanych”. Ten ostatni zmienia teksturę wszystkich przefiltrowanych powierzchni naraz, a Ctrl+Z to cofa.
+
 ### Minimapa z wyszukiwarką miejscowości
 Jest w menu **Mapa → Minimapa**.
 - Pokazuje tory scenerii z góry, z północą u góry, i kamerę jako strzałkę w kierunku patrzenia. W tle jest siatka kilometrowa.
@@ -89,6 +93,10 @@ Jest w menu **Mapa → Minimapa**.
 - Wyszukiwarka zna 3337 miast i wsi z prostokąta opisującego sieć IRT Dolnego Śląska. To dolnośląskie oraz kawałki opolskiego, wielkopolskiego i lubuskiego. Polskie znaki nie mają znaczenia, więc „zabkowice” znajdzie Ząbkowice Śląskie. Klik pokazuje miejscowość na mapie, a dwuklik lub Enter przenosi tam kamerę.
 - Miejscowości są rozmieszczane według początku scenerii w układzie PUWG 1992. Ten początek bierze się z ustawień ortofotomapy albo z linii `//$g` w scenerii. Jeśli go brak, okno proponuje początek sieci IRT (E 305000, N 353000).
 - Dane miejscowości pochodzą z Państwowego Rejestru Nazw Geograficznych, przez pakiet `polskie-miejscowosci` (licencja CC0), według stanu z 2021 r.
+
+## Skąd są dane scenerii
+
+Cała droga od surowych osi IRT do scenerii (korekcja planu wg A6, tor 2, rozjazdy, profil z NMT, teren, nasypy, kontrole, poprawki PLK i kawałki terenu pod torowiskiem) jest opisana w `docs/irt-konwersja.md`. Narzędzia leżą w `tools/irt/`.
 
 ## Kontrola całej scenerii
 
