@@ -81,3 +81,7 @@ Jest w menu **Mapa → Minimapa**.
 - Wyszukiwarka zna 3337 miast i wsi z prostokąta opisującego sieć IRT Dolnego Śląska. To dolnośląskie oraz kawałki opolskiego, wielkopolskiego i lubuskiego. Polskie znaki nie mają znaczenia, więc „zabkowice” znajdzie Ząbkowice Śląskie. Klik pokazuje miejscowość na mapie, a dwuklik lub Enter przenosi tam kamerę.
 - Miejscowości są rozmieszczane według początku scenerii w układzie PUWG 1992. Ten początek bierze się z ustawień ortofotomapy albo z linii `//$g` w scenerii. Jeśli go brak, okno proponuje początek sieci IRT (E 305000, N 353000).
 - Dane miejscowości pochodzą z Państwowego Rejestru Nazw Geograficznych, przez pakiet `polskie-miejscowosci` (licencja CC0), według stanu z 2021 r.
+
+## Normy
+
+Parametry PLK do kolejnych poprawek edytora (ST-T1-A6, rozporządzenie z 17.09.2026, źródła i pomysły) są zebrane w `docs/plk-normy.md`.
