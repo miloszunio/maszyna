@@ -518,7 +518,7 @@ std::optional<double> editor_track::branch_shift(branch_end const &From, glm::dv
 	return cross(tangent, gap) / determinant;
 }
 
-editor_track::branch_link editor_track::link_branch(branch_end const &From, double const Radius, branch_end const &To, double const Kink, double const Insert, bool const Stretch)
+editor_track::branch_link editor_track::link_branch(branch_end const &From, double const Radius, branch_end const &To, double const Kink, double const Insert, bool const Stretch, bool const ForceInsert)
 {
 	branch_link result;
 	if (glm::length(From.direction) < 1e-9 || glm::length(To.direction) < 1e-9 || Radius < 1.0)
@@ -533,7 +533,7 @@ editor_track::branch_link editor_track::link_branch(branch_end const &From, doub
 		return result;
 	std::vector<std::pair<double, int>> arcs;
 	auto const reverse = [&]() {
-		auto fit{fit_reverse(offset, tangent, turn, 0.0)};
+		auto fit{ForceInsert ? std::optional<reverse_fit>{} : fit_reverse(offset, tangent, turn, 0.0)};
 		if (false == fit.has_value() || 2.0 / fit->radius > 1.0 / kReverseNoInsert)
 		{
 			fit = fit_reverse(offset, tangent, turn, Insert);
