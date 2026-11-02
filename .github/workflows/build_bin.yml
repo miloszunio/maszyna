@@ -325,6 +325,10 @@ jobs:
             "- Linux: $base/maszyna-linux-x64.tar.gz" \
             "" \
             "Unpack over a MaSzyna installation (the game data isn't included). Build log: $RUN_URL")"
+          # the description of the branch, when it has one in docs/<branch>.md, shown under the links
+          if description="$(gh api -H "Accept: application/vnd.github.raw" "repos/$GH_REPO/contents/docs/$slug.md?ref=$SHA" 2>/dev/null)" && [ -n "$description" ]; then
+            notes="$(printf '%s\n\n---\n\n%s' "$notes" "$description")"
+          fi
 
           gh release delete "$tag" --yes --cleanup-tag || true
           gh release create "$tag" \
