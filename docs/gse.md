@@ -91,7 +91,7 @@ Jest w menu **Mapa → Minimapa**.
 - Kółko myszy przybliża, przeciąganie przesuwa mapę, a dwuklik przenosi tam kamerę. Opcja „Podążaj za kamerą” trzyma mapę na kamerze.
 - Po najechaniu myszą widać współrzędne i najbliższą miejscowość.
 - Wyszukiwarka zna 3337 miast i wsi z prostokąta opisującego sieć IRT Dolnego Śląska. To dolnośląskie oraz kawałki opolskiego, wielkopolskiego i lubuskiego. Polskie znaki nie mają znaczenia, więc „zabkowice” znajdzie Ząbkowice Śląskie. Klik pokazuje miejscowość na mapie, a dwuklik lub Enter przenosi tam kamerę.
-- Miejscowości są rozmieszczane według początku scenerii w układzie PUWG 1992. Ten początek bierze się z ustawień ortofotomapy albo z linii `//$g` w scenerii. Jeśli go brak, okno proponuje początek sieci IRT (E 305000, N 353000).
+- Miejscowości są rozmieszczane według początku scenerii w układzie PUWG 1992. Ten początek bierze się z ustawień ortofotomapy albo z linii `//$g` w scenerii. Linia `//$g` może też leżeć w pliku dołączonym przez `include` na początku scenerii (tak ma sceneria IRT). Jeśli go brak, okno proponuje początek sieci IRT (E 305000, N 353000).
 - Dane miejscowości pochodzą z Państwowego Rejestru Nazw Geograficznych, przez pakiet `polskie-miejscowosci` (licencja CC0), według stanu z 2021 r.
 
 ## Skąd są dane scenerii
