@@ -86,3 +86,15 @@ float basic_node::radius_() {
 }
 
 } // namespace scene
+
+// vehicles defined by a graph (vehicle/graph/graph_vehicle.cpp, part of the game): the movers of the tests have no graph ---------
+
+#include "McZapkie/MOVER.h"
+
+void TMoverParameters::compute_movement_graph_(double const /*Deltatime*/) {}
+
+void TMoverParameters::graph_forces(double &Tractive, double &Brake) const
+{
+	Tractive = 0.0;
+	Brake = 0.0;
+}
