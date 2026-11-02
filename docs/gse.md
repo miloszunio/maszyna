@@ -11,15 +11,26 @@ Paczkę rozpakowuje się na istniejącą instalację MaSzyny. Danych gry w niej 
 
 ## Skąd jest kod
 
+Stan na 2 listopada 2026: w `gse` są scalone wszystkie bieżące gałęzie Hirka i maj00ra z repozytorium MaSzyna-EU07.
+
 | Źródło | Co daje |
 |---|---|
-| `feat/gl46-migration` (Hirek) | renderer OpenGL 4.6 i edytor w ImGui, na tej gałęzi oparta jest `gse` |
-| `master` (MaSzyna-EU07) | bieżące poprawki symulatora, m.in. radio FM i pompa paliwa |
+| `feat/gl46-migration` (Hirek) | renderer OpenGL 4.6 i edytor w ImGui; `gse` stoi na tej gałęzi. Od 1.11 także małe raporty z awarii (crash dump), sprawdzanie procesora przy starcie i `eu07_starter` |
+| `master` (MaSzyna-EU07) | bieżące poprawki symulatora, m.in. radio FM, pompa paliwa i budzenie fizyki pojazdów przez przewody |
+| `feat/vhg` (Hirek) | pojazdy opisane grafem (`.vhg`): bloki logiki i kabiny, `-graph-run`, `-graph-catalog`, kurki przewodów na sprzęgach |
+| `feat/switch-blades` (maj00r) | iglice rozjazdów oraz całe późniejsze prace maj00ra nad torami i edytorem |
 | `fix/imgui-panels-no-auto-detach` | panele ImGui nie odklejają się same od głównego okna |
-| `feat/switch-blades` (maj00r) | iglice rozjazdów |
-| `feat/track-uneven` (część) | nierówności toru i opis drgań kabiny |
+| `feat/track-uneven` (maj00r) | nierówności toru i opis drgań kabiny |
+| `fix/cab-lighting` (maj00r), część | walidator materiałów (`tools/materials`) i krzywa tonów AgX, która nie zaczernia ciemnych części kabiny |
 
-Celowo pominięte: `vhg`, `cab-lighting` i `rail-crossings`, bo kłóciły się z resztą, oraz refaktor `track-uneven` pod Sonara, który nie zmienia działania.
+Scalone, ale bez zmian w kodzie, bo ich zawartość już tu jest w późniejszej postaci:
+- `feat/track-join` i `feat/rail-crossings` maj00ra weszły wcześniej przez `switch-blades`;
+- `feat/editor-filling`, `feat/improve-loading-times`, `feat/mini-generation` i `feat/dynobj-seasonal-models` Hirka weszły wcześniej przez `gl46-migration`.
+
+Celowo pominięte:
+- z `fix/cab-lighting`: ambient occlusion (GTAO), parallax i zmiany oświetlenia. Są napisane dla starego renderera OpenGL 3.3, którego w gl46 już nie ma, i trzeba by je przenieść ręcznie;
+- refaktor `track-uneven` pod Sonara, który nie pasuje do segmentów z gl46 i nie zmienia działania;
+- `feat/avx2-support`, `fix/default-shader-reflections`, `fix/reflections-and-burned-colors` i `staging`: stara linia sprzed gl46.
 
 ## Nasze zmiany w edytorze
 
