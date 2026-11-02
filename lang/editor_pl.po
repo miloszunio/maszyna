@@ -14778,3 +14778,45 @@ msgstr "Oddaj terenowi##patch"
 
 msgid "Surface removed, the hole under it closed"
 msgstr "Powierzchnię usunięto, dziura pod nią zamknięta"
+
+msgid "Minimap"
+msgstr "Minimapa"
+
+msgid "The tracks seen from above around the camera, with the towns and villages and a search of them"
+msgstr "Tory widziane z góry wokół kamery, z miastami i wsiami oraz wyszukiwarką"
+
+msgid "Find a town or village..."
+msgstr "Szukaj miasta lub wsi..."
+
+msgid " - town"
+msgstr " - miasto"
+
+msgid "%zu found; a click shows it, a double click or Enter takes the camera there"
+msgstr "Znaleziono: %zu; klik pokazuje na mapie, dwuklik lub Enter przenosi tam kamerę"
+
+msgid "Nothing found in the area of the network"
+msgstr "Nic nie znaleziono w obszarze sieci"
+
+msgid "The origin of the scenery in PUWG 1992 isn't known, the towns can't be laid out. It's set with the orthophoto."
+msgstr "Nie znam początku scenerii w PUWG 1992, więc nie da się rozmieścić miejscowości. Ustawia się go w ustawieniach ortofotomapy."
+
+msgid "Origin of the IRT network (E 305000, N 353000)"
+msgstr "Początek sieci IRT (E 305000, N 353000)"
+
+msgid "The origin the IRT converter lays the tracks of Lower Silesia out from"
+msgstr "Początek, od którego konwerter IRT rozkłada tory Dolnego Śląska"
+
+msgid "Follow the camera"
+msgstr "Podążaj za kamerą"
+
+msgid "On the map: wheel zooms, dragging moves it, a double click takes the camera there"
+msgstr "Na mapie: kółko przybliża, przeciąganie przesuwa, dwuklik przenosi tam kamerę"
+
+msgid "%.1f km per pixel"
+msgstr "%.1f km na piksel"
+
+msgid "%.0f m per pixel"
+msgstr "%.0f m na piksel"
+
+msgid "  near %s (%.1f km)"
+msgstr "  koło: %s (%.1f km)"

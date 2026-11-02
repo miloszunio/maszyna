@@ -749,6 +749,27 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	float m_water_selected_level{0.0f}; // level of the chosen water, while it's edited
 	bool m_water_level_dragged{false};
 	std::string m_terrain_status;
+	// the minimap: the tracks seen from above around the camera, the towns and villages of the area and a search
+	// of them, the camera taken where it's double clicked (editormodeminimap.cpp)
+	void render_minimap_window();
+	bool minimap_origin(glm::dvec2 &Origin); // easting, northing of the scenery origin in EPSG:2180; false: not known
+	void minimap_go_to(glm::dvec2 const &Plan); // x, z
+	struct minimap_state
+	{
+		bool open{false};
+		bool follow{true}; // the map kept around the camera
+		double scale{20.0}; // metres per pixel
+		glm::dvec2 centre{0.0}; // x, z in the middle of the map, when it doesn't follow
+		char query[128]{};
+		std::vector<int> found; // places matching the query
+		std::string searched; // query the found ones are for
+		int marked{-1}; // place shown on the map
+		std::vector<glm::vec4> lines; // the tracks in the plan: x0, z0, x1, z1
+		std::size_t tracks{0}; // the count they were made from
+		double built{-1.0};
+		bool dragged{false};
+	};
+	minimap_state m_minimap;
 	// the window listing the chunks of the terrain, the files they're kept in and their triangles (editormodeterrainchunks.cpp)
 	void render_terrain_chunks_window();
 	// the camera brought over the chunk, to look at the whole of it

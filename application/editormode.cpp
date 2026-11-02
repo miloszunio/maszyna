@@ -1707,6 +1707,7 @@ bool editor_mode::update()
     render_empty_scenery_hint();
     render_switch_designer();
     render_environment_window();
+    render_minimap_window();
     if (m_terrain_open)
         render_terrain_chunks_window();
     else
@@ -4304,6 +4305,10 @@ void editor_mode::render_map_menu()
         choose_orthophoto(false == enabled);
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("Aerial imagery of geoportal.gov.pl under the scenery, laid out by the origin of the scenery"));
+    if (ImGui::MenuItem(STR_C("Minimap"), nullptr, m_minimap.open))
+        m_minimap.open = !m_minimap.open;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("The tracks seen from above around the camera, with the towns and villages and a search of them"));
     // the settings among the base layers in the layers window
     if (ImGui::MenuItem(STR_C("Orthophoto settings..."), nullptr, orthophoto_settings_open()))
     {
