@@ -171,9 +171,14 @@ struct surface_patch
 	int columns{0}; // points along x
 	int rows{0}; // points along z
 	std::vector<float> heights; // rows of growing z
+	// the surface follows the terrain under it (its heights, holes or not) instead of heights of its own, on a grid of the spacing
+	// laid from 0; the grid and heights above are unused
+	bool follow{false};
 
 	// height kept at specified point, interpolated between the points of the grid; false out of the grid
 	bool height(double X, double Z, double &Height) const;
+	// x, z of the corners of the box around the outline
+	void bounds(glm::dvec2 &Low, glm::dvec2 &High) const;
 };
 
 // modifier of the terrain: a corridor along a line (axis of a track or a road) with a formation of specified
@@ -264,10 +269,17 @@ struct manifest
 	float spacing{default_spacing}; // point spacing of new chunks
 	std::vector<water_body> water;
 	std::vector<surface_patch> patches;
+	// file next to the manifest the patches are kept in, a line each (many of them, as cut along tracks, load faster so); empty:
+	// in the manifest, unless there are more than patches_inline
+	std::string patches_file;
 	std::vector<modifier> modifiers;
 	std::vector<grass_def> grass; // the grass palette
 };
 
+// past this many the patches are saved to their own file (manifest::patches_file)
+std::size_t constexpr patches_inline{200};
+bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches);
+bool save_patches(std::string const &Path, std::vector<surface_patch> const &Patches);
 bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Error = nullptr);
 bool save_manifest(std::string const &Path, manifest const &Manifest, std::string *Error = nullptr);
 

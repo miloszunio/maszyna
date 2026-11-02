@@ -340,6 +340,13 @@ class terrain_streamer
 	glm::dvec3 m_velocity{0.0};
 	double m_cameratime{0.0};
 	bool m_hascamera{false};
+	// the pieces cut out of the terrain are made around where the camera was, within patch_reach, again when it moves patch_move away
+	static constexpr double patch_reach{1500.0};
+	static constexpr double patch_move{200.0};
+	glm::dvec2 m_patchcentre{1e12};
+	bool m_patchpending{false}; // some waited for chunks not loaded
+	bool m_patchloaded{false}; // a chunk came since they were made
+	double m_patchtried{0.0};
 	std::vector<chunk_key> m_ring; // offsets of the chunks around a point, the nearest first
 	int m_ringradius{-1};
 	double m_pixel{0.0}; // metres a pixel of the top view spans; none in the 3D view

@@ -15359,3 +15359,24 @@ msgstr "Tor docelowy##magic"
 
 msgid "The kind of the track the switch leads into, for the least radius (tab. 9.2) and cant deficiency (tab. 9.7): a main track (szlakowy, glowny zasadniczy) or a side one; by its speed: main from 80 km/h"
 msgstr "Rodzaj toru, do którego prowadzi rozjazd, dla najmniejszego promienia (tab. 9.2) i niedomiaru przechyłki (tab. 9.7): tor główny (szlakowy, główny zasadniczy) albo boczny; wg prędkości: główny od 80 km/h"
+
+msgid "Surfaces cut out of the terrain: %zu"
+msgstr "Powierzchnie wycięte z terenu: %zu"
+
+msgid "Filter by name, words apart by spaces..."
+msgstr "Filtr po nazwie, słowa oddzielone spacjami..."
+
+msgid "%zu shown"
+msgstr "pokazanych: %zu"
+
+msgid "Material of the palette to all shown"
+msgstr "Materiał z palety dla wszystkich pokazanych"
+
+msgid "%s given to %zu surfaces, Ctrl+Z takes it back"
+msgstr "%s nadany %zu powierzchniom, Ctrl+Z cofa"
+
+msgid "The material chosen in the palette, with its repeat and rotation, to all the surfaces the filter shows"
+msgstr "Materiał wybrany w palecie, z jego powtarzaniem i obrotem, dla wszystkich powierzchni pokazanych przez filtr"
+
+msgid "Go to##patch"
+msgstr "Idź do##patch"

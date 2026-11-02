@@ -3912,6 +3912,13 @@ void editor_mode::cut_out_surface()
             }
             patch.heights[index] = value;
         }
+    // the surface follows the terrain under it: its heights stay those of the terrain, edited or not; the ones taken above told only
+    // that there is ground under the outline
+    patch.follow = true;
+    patch.spacing = 1.0;
+    patch.heights.clear();
+    patch.columns = 0;
+    patch.rows = 0;
     auto patches = m_streamer.patches();
     // a name not taken yet
     for (int number = static_cast<int>(patches.size()) + 1;; ++number)
@@ -3938,12 +3945,64 @@ void editor_mode::render_patches_ui()
     if (patches.empty())
         return;
     ImGui::Separator();
-    ImGui::TextUnformatted(STR_C("Surfaces cut out of the terrain"));
-    std::optional<std::pair<std::size_t, std::string>> dropped;
-    if (ImGui::BeginListBox("##patches", ImVec2(-FLT_MIN, std::min(6.0f, static_cast<float>(patches.size()) + 0.5f) * ImGui::GetTextLineHeightWithSpacing())))
+    ImGui::Text(STR_C("Surfaces cut out of the terrain: %zu"), patches.size());
+    // a filter by name, for the many cut along the tracks (e.g. "nasyp", "L132 torowisko")
+    static char filter[96]{};
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::InputTextWithHint("##patchfilter", STR_C("Filter by name, words apart by spaces..."), filter, sizeof(filter));
+    std::vector<std::string> words;
     {
-        for (std::size_t i = 0; i < patches.size(); ++i)
+        std::istringstream split{std::string{filter}};
+        std::string word;
+        while (split >> word)
         {
+            std::transform(word.begin(), word.end(), word.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
+            words.push_back(word);
+        }
+    }
+    std::vector<int> shown;
+    shown.reserve(patches.size());
+    for (int i = 0; i < static_cast<int>(patches.size()); ++i)
+    {
+        auto name{patches[i].name};
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
+        if (std::all_of(words.begin(), words.end(), [&](std::string const &Word) { return name.find(Word) != std::string::npos; }))
+            shown.push_back(i);
+    }
+    if (false == words.empty())
+    {
+        ImGui::TextDisabled(STR_C("%zu shown"), shown.size());
+        auto const &layers = m_streamer.manifest().layers;
+        ImGui::SameLine();
+        ImGui::BeginDisabled(layers.empty() || shown.empty());
+        if (ImGui::SmallButton(STR_C("Material of the palette to all shown")))
+        {
+            auto const &chosen = layers[std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1)];
+            auto all{patches};
+            for (auto const index : shown)
+            {
+                all[index].material = chosen.material;
+                all[index].size = chosen.size;
+                all[index].rotation = chosen.rotation;
+            }
+            m_streamer.patches(std::move(all));
+            m_terrain_status = format(STR_C("%s given to %zu surfaces, Ctrl+Z takes it back"), chosen.material.c_str(), shown.size());
+            ImGui::EndDisabled();
+            return;
+        }
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("%s", STR_C("The material chosen in the palette, with its repeat and rotation, to all the surfaces the filter shows"));
+    }
+    std::optional<std::pair<std::size_t, std::string>> dropped;
+    if (ImGui::BeginListBox("##patches", ImVec2(-FLT_MIN, std::min(8.0f, static_cast<float>(shown.size()) + 0.5f) * ImGui::GetTextLineHeightWithSpacing())))
+    {
+        ImGuiListClipper clipper;
+        clipper.Begin(static_cast<int>(shown.size()));
+        while (clipper.Step())
+        for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+        {
+            auto const i{static_cast<std::size_t>(shown[row])};
             ImGui::PushID(static_cast<int>(i));
             auto const material = patches[i].material.empty() ? std::string(STR_C("default material")) : patches[i].material;
             if (ImGui::Selectable(format(STR_C("%s, %zu points, %s"), patches[i].name.c_str(), patches[i].outline.size(), material.c_str()).c_str(), static_cast<int>(i) == m_patch_selected))
@@ -4019,6 +4078,14 @@ void editor_mode::render_patches_ui()
     }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("Puts the outline of the surface back as the outline of the Fill tool"));
+    ImGui::SameLine();
+    if (ImGui::Button(STR_C("Go to##patch")))
+    {
+        glm::dvec2 low;
+        glm::dvec2 high;
+        patch.bounds(low, high);
+        minimap_go_to((low + high) * 0.5);
+    }
     ImGui::SameLine();
     if (ImGui::Button(STR_C("Give back to the terrain##patch")))
     {
