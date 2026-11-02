@@ -980,6 +980,7 @@ def main():
                "features": []}
     master = open(os.path.join(args.outdir, "irt_sceneria.inc"), "w", encoding="utf-8")
     master.write(f"// tory z IRT po korekcji ST-T1-A6; origin EPSG:2180 E={origin[0]:.0f} N={origin[1]:.0f}\n")
+    master.write(f"//$g PUWG1992 {origin[0]/1000:.3f} {origin[1]/1000:.3f}\n")
 
     import pickle
     import sys
@@ -1157,6 +1158,7 @@ def main():
     with open(os.path.join(args.outdir, "irt_tory.inc"), "w", encoding="utf-8") as fh:
         fh.write("// torowisko Dolnego Slaska z IRT (Geoportal Dolnego Slaska), geometria wg PKP PLK ST-T1-A6 (17.04.2025)\n")
         fh.write(f"// origin EPSG:2180 E={origin[0]:.0f} N={origin[1]:.0f}; X = -(E - E0), Z = N - N0, Y = m n.p.m.\n")
+        fh.write(f"//$g PUWG1992 {origin[0]/1000:.3f} {origin[1]/1000:.3f}\n")
         fh.write(f"// podsypka: {args.bed_tex} (profil 0,2 / 0,5 / 1,1 jak w edytorze), szyny {args.rail_tex}\n")
         if lay.switches:
             fh.write("//$r # switches placed in the track editor, the simulation skips these lines\n")
