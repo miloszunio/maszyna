@@ -824,7 +824,8 @@ bool eu07_application::push_mode(mode const Mode)
 void eu07_application::set_title(std::string const &Title)
 {
 
-	glfwSetWindowTitle(m_windows.front(), Title.c_str());
+	// the number of the build in every title, so it's seen which one runs
+	glfwSetWindowTitle(m_windows.front(), (Title + "  [" + BUILD_LABEL + "]").c_str());
 }
 
 void eu07_application::set_progress(float const Progress, float const Subtaskprogress)
@@ -1349,6 +1350,7 @@ int eu07_application::create_main_window()
 		ErrorLog("Bad init: failed to create glfw window");
 		return -1;
 	}
+	glfwSetWindowTitle(mainwindow, (Global.AppName + "  [" + BUILD_LABEL + "]").c_str());
 
 	if ((m_gfxbackend->after_window != nullptr) && (false == m_gfxbackend->after_window(mainwindow)))
 	{

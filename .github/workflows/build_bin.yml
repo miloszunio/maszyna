@@ -292,9 +292,17 @@ jobs:
           name: maszyna-linux-x64-${{ env.CONFIG_LINUX }}
           path: dist/maszyna-linux-x64
 
+      - name: Number of the build
+        run: |
+          # the same number the exe shows (CMakeLists.txt takes GITHUB_RUN_NUMBER): one more with every build
+          echo "BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
+
       - name: Pack
         run: |
           cd dist
+          for folder in maszyna-windows-x64 maszyna-linux-x64; do
+            printf '%s nr %s\n%s\n' "${{ github.ref_name }}" "$BUILD_NUMBER" "${{ github.sha }}" > "$folder/WERSJA.txt"
+          done
 
           find maszyna-linux-x64 -type f -exec sh -c 'file -b "$1" | grep -q "^ELF" && chmod +x "$1"' _ {} \;
           if [ -d maszyna-linux-x64/linuxpython64/bin ]; then
@@ -318,6 +326,8 @@ jobs:
           base="${{ github.server_url }}/${{ github.repository }}/releases/download/$tag"
 
           notes="$(printf '%s\n' \
+            "**Wersja: $BRANCH nr $BUILD_NUMBER** (to samo w tytule okna gry i w pliku WERSJA.txt)" \
+            "" \
             "Automatic build of branch \`$BRANCH\`, commit $SHA, replaced by every push to the branch." \
             "" \
             "Download without a GitHub account:" \
@@ -337,7 +347,7 @@ jobs:
             --target "$SHA" \
             --prerelease \
             --latest=false \
-            --title "Build: $BRANCH" \
+            --title "Build: $BRANCH nr $BUILD_NUMBER" \
             --notes "$notes"
 
           echo "### Public download" >> "$GITHUB_STEP_SUMMARY"

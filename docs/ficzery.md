@@ -45,3 +45,13 @@ Dużo powierzchni nie spowalnia edytora. Budują się tylko te w promieniu 1,5 k
 - **Punkt odniesienia scenerii.** Edytor czyta linię `//$g` także z pliku dołączonego przez `include`. Uwaga na narzędzie „Prawdziwy teren z map (NMT)” w dziale Teren: przycisk „Sceneria jest tutaj” przestawia ten punkt, a razem z nim ortofotomapę.
 - **Dokumentacja.** Jak powstaje sceneria IRT jest w `docs/irt-konwersja.md`, normy PLK w `docs/plk-normy.md`, literatura w `docs/literatura-kolejowa.md`.
 - **Narzędzia.** Konwerter jest w `tools/irt/`, audyt PLK w `tools/plk/`.
+
+## Numer wersji
+
+Każdy build ma kolejny numer, np. `ficzery nr 18`. Numer jest widoczny:
+- w tytule okna gry i edytora,
+- w logu,
+- w pliku `WERSJA.txt` w paczce,
+- w tytule wydania na GitHubie.
+
+Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiskiem `-dom`.
