@@ -227,6 +227,15 @@ Progi z ST-T1-A6: **P0** to wartość zalecana, **P1** normalna dopuszczalna, **
 - **Kozły i drogi ochronne (§ 27):** zasypka żwirowa 100 mm nad główką na długości 30 m (15 m przy semaforach wyjazdowych).
 - **Przepis przejściowy (§ 113):** stare przepisy dalej obowiązują budowy, które przed 20.09.2026 miały złożony wniosek o pozwolenie, pozwolenie, zgłoszenie albo decyzję legalizacyjną. Pozostałe parametry geometrii (przechyłka, krzywe przejściowe) rozporządzenie zostawia TSI Infrastruktura i ustaleniom z zarządcą, czyli w praktyce ST-T1-A6.
 
+## Co już jest wdrożone
+
+- **Magic przy rozjazdach** (`application/editormodeswitchmagic.cpp`, granice w `editor/editorNorms.hpp`):
+  - Rmin wg tab. 9.2 dla rodzaju toru;
+  - I wg tab. 9.7;
+  - ΔI wg tab. 9.15, z wstawką prostą wg tab. 9.16;
+  - progi P0, P1 lub P2.
+- **`tools/plk/plk_audit.py`**: kontrola i poprawa (przechyłka, prędkość) całej scenerii, opis w `tools/plk/README.md`.
+
 ## Co z tego wynika dla edytora (pomysły na poprawki)
 
 - **Magic przy rozjazdach:**

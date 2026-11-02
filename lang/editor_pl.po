@@ -14710,8 +14710,8 @@ msgstr[2] "%zu nazw torów powtarza się w scenerii"
 msgid "Magic"
 msgstr "Magic"
 
-msgid "Dragged towards a track it can't lead into as the track lies (too tight, its end curved or short), the switch gets that track laid anew behind its diverging end: taken back from its free end as far as it takes and joined with a straight, the curve of the switch or a reverse curve of R 180 m or more with the straight between the curves of ST-T1-A6. The template armed first, then the other ones for the rail from 1:9 on"
-msgstr "Gdy tor, do którego ciągniesz rozjazd, nie daje się połączyć tak, jak leży (za ciasno, zakrzywiony lub krótki koniec), rozjazd układa go od nowa za swoim końcem zwrotnym: skraca tor od wolnego końca tak daleko, jak trzeba, i łączy prostą, łukiem rozjazdu albo łukiem odwrotnym R 180 m lub więcej z prostą wstawką między łukami wg ST-T1-A6. Najpierw uzbrojony wzorzec, potem pozostałe dla danej szyny od 1:9 wzwyż"
+msgid "Dragged towards a track it can't lead into as the track lies (too tight, its end curved or short), the switch gets that track laid anew behind its diverging end: taken back from its free end as far as it takes and joined with a straight, the curve of the switch or a reverse curve, keeping to ST-T1-A6: the least radius of the kind of track, the cant deficiency of the curves and its sudden changes, with a straight between the reverse curves where they need it. The template armed first, then the other ones for the rail from 1:9 on"
+msgstr "Gdy tor, do którego ciągniesz rozjazd, nie daje się połączyć tak, jak leży (za ciasno, zakrzywiony lub krótki koniec), rozjazd układa go od nowa za swoim końcem zwrotnym: skraca tor od wolnego końca tak daleko, jak trzeba, i łączy prostą, łukiem rozjazdu albo łukiem odwrotnym zgodnie z ST-T1-A6: najmniejszy promień dla rodzaju toru, niedomiar przechyłki łuków i jego nagłe zmiany, z prostą wstawką między łukami odwrotnymi tam, gdzie jest potrzebna. Najpierw uzbrojony wzorzec, potem pozostałe dla danej szyny od 1:9 wzwyż"
 
 msgid "Magic: no switch fits with the track taken back up to %.0f m"
 msgstr "Magic: żaden rozjazd nie pasuje nawet po skróceniu toru o %.0f m"
@@ -14820,3 +14820,30 @@ msgstr "%.0f m na piksel"
 
 msgid "  near %s (%.1f km)"
 msgstr "  koło: %s (%.1f km)"
+
+msgid "; ST-T1-A6 %s at %.0f km/h: I %.0f mm, sudden change of I %.0f mm"
+msgstr "; ST-T1-A6 %s przy %.0f km/h: I %.0f mm, nagła zmiana I %.0f mm"
+
+msgid " - only with the boundary thresholds P2, which take the consent of the line office"
+msgstr " – tylko z wartościami granicznymi P2, które wymagają zgody ZLK"
+
+msgid "Thresholds##magic"
+msgstr "Progi##magic"
+
+msgid "The thresholds of ST-T1-A6 the link keeps to: P0 recommended, P1 normal, P2 boundary (with the consent of the line office). Where nothing fits the ones chosen, P2 is tried and the status says so"
+msgstr "Progi ST-T1-A6, których trzyma się połączenie: P0 zalecane, P1 normalne, P2 graniczne (za zgodą ZLK). Gdy nic nie mieści się w wybranych, próbowane jest P2 i pasek stanu to mówi"
+
+msgid "by its speed"
+msgstr "wg prędkości"
+
+msgid "main track"
+msgstr "tor główny"
+
+msgid "side track"
+msgstr "tor boczny"
+
+msgid "Track led into##magic"
+msgstr "Tor docelowy##magic"
+
+msgid "The kind of the track the switch leads into, for the least radius (tab. 9.2) and cant deficiency (tab. 9.7): a main track (szlakowy, glowny zasadniczy) or a side one; by its speed: main from 80 km/h"
+msgstr "Rodzaj toru, do którego prowadzi rozjazd, dla najmniejszego promienia (tab. 9.2) i niedomiaru przechyłki (tab. 9.7): tor główny (szlakowy, główny zasadniczy) albo boczny; wg prędkości: główny od 80 km/h"

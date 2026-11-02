@@ -1541,6 +1541,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool rail_only{true}; // the templates listed only for the rail of the selected track, where its rail profile tells it
 		// magic: a switch which can't lead into the track it's dragged to gets it laid anew behind its diverging end (editormodeswitchmagic.cpp)
 		bool magic{false};
+		int magic_level{1}; // the thresholds of ST-T1-A6 magic keeps to: 0 P0, 1 P1, 2 P2; past them P2 is tried
+		int magic_kind{0}; // the track led into: 0 by its speed, 1 a main track, 2 a side track
 		int connection_second{-1};
 		double connection_radius{0.0};
 		double connection_gap{6.0};
@@ -1929,12 +1931,17 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		int shape{-1};
 		double cut{0.0};
 		editor_track::branch_end landing;
+		int norm{-1}; // the thresholds the link keeps to, 0 P0 .. 2 P2
+		double speed{0.0}; // km/h, the one checked
+		double deficiency{0.0}; // mm, cant deficiency of the curve of the link
+		double sudden{0.0}; // mm, the greatest sudden change of cant deficiency along it
 	};
 	bool plan_switch_link(switch_link &Plan) const;
 	// editormodeswitchmagic.cpp
 	std::vector<curve_sample> magic_frame(editor_track::snap_target const &Target, editor_track::chain &Chain) const;
 	bool plan_magic_link(switch_link &Plan) const;
 	bool plan_magic_search(switch_link &Plan) const;
+	bool plan_magic_search(switch_link &Plan, int Level) const;
 	TTrack *magic_cut(switch_link const &Plan, std::vector<std::pair<TTrack *, editor_track::state>> &States, std::vector<TTrack *> &Created, std::vector<TTrack *> &Removed);
 	void insert_magic_switch(switch_link const &Plan);
 	// the last plan of magic, asked for each frame of the drag: the search takes a while

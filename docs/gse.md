@@ -57,6 +57,13 @@ Jest w narzędziu rozjazdów, przy rozjeździe pojedynczym. Działa wtedy, gdy r
 
 Najpierw próbowany jest wybrany wzorzec rozjazdu, potem pozostałe dla tej samej szyny, od 1:9 w górę. Ctrl+Z cofa całość jednym krokiem. Na pasku stanu widać, który rozjazd wybrano i o ile skrócono tor.
 
+**Normy w Magic (od 2.11):**
+- Połączenie trzyma się ST-T1-A6 na wybranych progach. Domyślnie to P1; jeśli nic się nie mieści, Magic próbuje P2 i mówi o tym na pasku stanu.
+- Najmniejszy promień zależy od rodzaju toru docelowego (tab. 9.2): główny albo boczny, wybierany wg prędkości lub ręcznie.
+- Pilnowany jest niedomiar przechyłki łuków (tab. 9.7).
+- Pilnowane są nagłe zmiany niedomiaru (tab. 9.15): przy rozjeździe, między łukami odwrotnymi i w miejscu, gdzie połączenie dochodzi do toru. Gdy łuki odwrotne zmieniałyby niedomiar zbyt gwałtownie, wstawiana jest między nie prosta o długości z tab. 9.16.
+- Pasek stanu podaje prędkość, I i największą nagłą zmianę I.
+
 ### Teren: wycinanie osobnej powierzchni
 Jest w panelu Teren, w sekcji Wypełnienie, jako przycisk **„Wytnij jako osobną powierzchnię”**. Służy do kawałków terenu, które mają mieć inną teksturę niż reszta wygenerowanego terenu, np. plac, peron, rampa albo pole. Jak to działa:
 1. Obrys rysuje się tak samo jak przy wypełnianiu.
@@ -81,6 +88,10 @@ Jest w menu **Mapa → Minimapa**.
 - Wyszukiwarka zna 3337 miast i wsi z prostokąta opisującego sieć IRT Dolnego Śląska. To dolnośląskie oraz kawałki opolskiego, wielkopolskiego i lubuskiego. Polskie znaki nie mają znaczenia, więc „zabkowice” znajdzie Ząbkowice Śląskie. Klik pokazuje miejscowość na mapie, a dwuklik lub Enter przenosi tam kamerę.
 - Miejscowości są rozmieszczane według początku scenerii w układzie PUWG 1992. Ten początek bierze się z ustawień ortofotomapy albo z linii `//$g` w scenerii. Jeśli go brak, okno proponuje początek sieci IRT (E 305000, N 353000).
 - Dane miejscowości pochodzą z Państwowego Rejestru Nazw Geograficznych, przez pakiet `polskie-miejscowosci` (licencja CC0), według stanu z 2021 r.
+
+## Kontrola całej scenerii
+
+`tools/plk/plk_audit.py` to samodzielny skrypt, który sprawdza i poprawia tory całej scenerii według norm PLK. Szczegóły są w `tools/plk/README.md`.
 
 ## Normy
 
