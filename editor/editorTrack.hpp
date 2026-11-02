@@ -258,7 +258,9 @@ class editor_track
 	static double reverse_insert(double const Speed);
 	static double diverging_speed(double const Radius);
 	static std::optional<double> branch_shift(branch_end const &From, glm::dvec2 const &Slide, double const Radius, branch_end const &To, double const Kink);
-	static branch_link link_branch(branch_end const &From, double const Radius, branch_end const &To, double const Kink, double const Insert, bool const Stretch);
+	// Insert is the straight between the curves of a reverse link, used where the curves can't meet without it (wzor 9.3) or, with
+	// ForceInsert, always
+	static branch_link link_branch(branch_end const &From, double const Radius, branch_end const &To, double const Kink, double const Insert, bool const Stretch, bool const ForceInsert = false);
 
 	struct snap_target
 	{

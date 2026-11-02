@@ -209,10 +209,23 @@ void editor_mode::render_switch_ui()
 	if (kind == switch_kind::single)
 	{
 		ImGui::Checkbox(STR_C("Magic"), &tool.magic);
-		item_tooltip("Dragged towards a track it can't lead into as the track lies (too tight, its end curved or short), the switch "
-		             "gets that track laid anew behind its diverging end: taken back from its free end as far as it takes and joined "
-		             "with a straight, the curve of the switch or a reverse curve of R 180 m or more with the straight between the "
-		             "curves of ST-T1-A6. The template armed first, then the other ones for the rail from 1:9 on");
+		item_tooltip("Dragged towards a track it can't lead into as the track lies (too tight, its end curved or short), the switch gets that track laid anew behind its diverging end: taken back from its free end as far as it takes and joined with a straight, the curve of the switch or a reverse curve, keeping to ST-T1-A6: the least radius of the kind of track, the cant deficiency of the curves and its sudden changes, with a straight between the reverse curves where they need it. The template armed first, then the other ones for the rail from 1:9 on");
+		if (tool.magic)
+		{
+			ImGui::Indent();
+			char const *levels[]{"P0", "P1", "P2"};
+			ImGui::SetNextItemWidth(70.0f);
+			ImGui::Combo(STR_C("Thresholds##magic"), &tool.magic_level, levels, IM_ARRAYSIZE(levels));
+			item_tooltip("The thresholds of ST-T1-A6 the link keeps to: P0 recommended, P1 normal, P2 boundary (with the consent of the line "
+			             "office). Where nothing fits the ones chosen, P2 is tried and the status says so");
+			ImGui::SameLine();
+			char const *kinds[]{STR_C("by its speed"), STR_C("main track"), STR_C("side track")};
+			ImGui::SetNextItemWidth(130.0f);
+			ImGui::Combo(STR_C("Track led into##magic"), &tool.magic_kind, kinds, IM_ARRAYSIZE(kinds));
+			item_tooltip("The kind of the track the switch leads into, for the least radius (tab. 9.2) and cant deficiency (tab. 9.7): "
+			             "a main track (szlakowy, glowny zasadniczy) or a side one; by its speed: main from 80 km/h");
+			ImGui::Unindent();
+		}
 	}
 
 	// how to place it with the mouse
