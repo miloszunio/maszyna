@@ -2268,9 +2268,9 @@ void editor_mode::draw_terrain_overlay()
         return;
     screen_projection const projection;
     auto *drawlist = ImGui::GetBackgroundDrawList();
-    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    bool const hovering = glm::length(offset) > 1e-3 && false == ImGui::GetIO().WantCaptureMouse;
-    glm::dvec3 const cursor = Camera.Pos + offset;
+    // the cursor where a click would put the point: the ground along the ray through the cursor in this frame
+    glm::dvec3 cursor{Camera.Pos};
+    bool const hovering = false == ImGui::GetIO().WantCaptureMouse && cursor_on_ground(cursor);
     auto const ground = [&](double const X, double const Z, double const Fallback) {
         double height;
         return m_streamer.height_at(X, Z, height) ? height : Fallback;
@@ -2287,10 +2287,10 @@ void editor_mode::draw_terrain_overlay()
 
     // the holes and the grass are aimed at the ground itself, also over an opening and behind the blades
     glm::dvec3 brushcentre = cursor;
-    bool const onground = (m_terrain_tool == terrain_tool::holes || m_terrain_tool == terrain_tool::grass) && false == ImGui::GetIO().WantCaptureMouse && terrain_cursor(brushcentre);
-    if (terrain_brush() && (hovering || onground))
+    bool const onground = false == ImGui::GetIO().WantCaptureMouse && terrain_cursor(brushcentre);
+    if (terrain_brush() && onground)
     {
-        auto const cursor = onground ? brushcentre : Camera.Pos + offset;
+        auto const cursor = brushcentre;
         std::vector<glm::dvec3> circle;
         for (int i = 0; i < 64; ++i)
         {
@@ -2900,10 +2900,9 @@ void editor_mode::add_chunks_around(int const Count)
 
 void editor_mode::handle_terrain_click(bool const Shift)
 {
-    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    if (glm::length(offset) < 1e-3)
-        return; // nothing under the cursor (yet)
-    glm::dvec3 const world = Camera.Pos + offset;
+    glm::dvec3 world;
+    if (false == cursor_on_ground(world))
+        return; // nothing under the cursor
     switch (m_terrain_tool)
     {
     case terrain_tool::chunks:
@@ -3628,16 +3627,10 @@ void editor_mode::export_scenery()
 
 void editor_mode::handle_terrain_brush(double Deltatime)
 {
-    // world point under the cursor (Mouse_Position is camera-relative, like the brush placement uses)
-    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    glm::dvec3 world = Camera.Pos + offset;
-    if (m_terrain_tool == terrain_tool::holes || m_terrain_tool == terrain_tool::grass)
-    {
-        // the ground itself: the cursor may be over a hole (and what's seen through it), or over the blades of the grass
-        if (false == terrain_cursor(world))
-            return;
-    }
-    else if (glm::length(offset) < 1e-3)
+    // the ground itself along the ray through the cursor in this frame: the cursor may be over a hole (and what's seen through
+    // it), over the blades of the grass or a surface cut out
+    glm::dvec3 world;
+    if (false == terrain_cursor(world))
         return;
     // only when the cursor is over the terrain (avoids editing on a stale depth read)
     if (terrain_at(world.x, world.z) == nullptr)
@@ -3698,12 +3691,29 @@ void editor_mode::handle_terrain_brush(double Deltatime)
     }
 }
 
+bool editor_mode::cursor_on_ground(glm::dvec3 &World)
+{
+    if (m_streamer.active() && terrain_cursor(World))
+        return true;
+    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
+    auto const depth{glm::length(offset) > 1e-3};
+    // no terrain under the ray: the ground models or the terrain model, along the ray from the level of the depth read back
+    auto const start{depth ? Camera.Pos.y + offset.y : Camera.Pos.y - 2.0};
+    auto const point{cursor_terrain(start)};
+    if (std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z) && glm::distance(point, glm::dvec3{Camera.Pos}) < 20000.0)
+    {
+        World = point;
+        return true;
+    }
+    if (false == depth)
+        return false;
+    World = Camera.Pos + offset;
+    return true;
+}
+
 bool editor_mode::terrain_cursor(glm::dvec3 &World) const
 {
-    // along the ray to what the depth under the cursor shows, or, with nothing there, the ray through the cursor
-    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    if (glm::length(offset) > 1e-3)
-        return m_streamer.raycast(Camera.Pos, glm::normalize(offset), 5000.0, World);
+    // along the ray through the cursor as it is in this frame: the depth read back lags a frame behind
     ImGuiIO const &io = ImGui::GetIO();
     if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f)
         return false;
@@ -4134,10 +4144,10 @@ void editor_mode::convert_selected_chunks()
 
 bool editor_mode::pick_terrain_target()
 {
-    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    if (glm::length(offset) < 1e-3)
+    glm::dvec3 world;
+    if (false == cursor_on_ground(world))
         return false; // nothing under the cursor
-    m_terrain_target = static_cast<float>(Camera.Pos.y + offset.y);
+    m_terrain_target = static_cast<float>(world.y);
     m_terrain_status = format(STR_C("Target height: %.2f m"), m_terrain_target);
     return true;
 }
@@ -4963,14 +4973,13 @@ void editor_mode::render_object_menu()
 
 void editor_mode::add_area_fill_point()
 {
-    // like the other placement tools, the point comes from the depth buffer under the cursor
-    // (ground geometry only), relative to the camera
-    glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    if (glm::length(offset) < 1e-3)
-        return; // no ground under the cursor (yet)
+    // the ground along the ray through the cursor in this frame
+    glm::dvec3 world;
+    if (false == cursor_on_ground(world))
+        return; // no ground under the cursor
 
     // the outline gives the fill the height to look for the ground at, and the height of what it finds no ground for
-    m_fill_points.push_back(placement_on_ground(Camera.Pos + offset));
+    m_fill_points.push_back(placement_on_ground(world));
 }
 
 fill_store::area editor_mode::fill_settings() const
