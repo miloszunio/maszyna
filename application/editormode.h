@@ -639,6 +639,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the point of the ground of the terrain under the cursor, found along the ray through the cursor, so it's found also over
 	// a hole and behind the grass. returns: false if the ray meets no terrain
 	bool terrain_cursor(glm::dvec3 &World) const;
+	// the point of the ground under the cursor in this frame, for the points put on the ground (outlines, areas, brushes): along the ray
+	// through the cursor to the terrain, or to the ground models and the terrain model; the depth read back (a frame late, and
+	// stopped by the grass, the models and the surfaces over the ground) only where neither is there. false: nothing under the cursor
+	bool cursor_on_ground(glm::dvec3 &World);
 	// the grass of the terrain: the palette, the kind grown, presets
 	void render_grass_ui();
 	// converts the point spacing of the selected chunks to m_terrain_convert_spacing
