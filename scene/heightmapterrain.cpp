@@ -18,6 +18,9 @@ http://mozilla.org/MPL/2.0/.
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <sstream>
+#include <cstdio>
+#include <cstdlib>
 
 #include <yaml-cpp/yaml.h>
 #include "zstd.h"
@@ -778,9 +781,21 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 					for (auto const &height : heights)
 						patch.heights.push_back(height.as<float>());
 				}
-				if (patch.outline.size() >= 3 && patch.columns >= 2 && patch.rows >= 2 && patch.heights.size() == static_cast<std::size_t>(patch.columns) * patch.rows)
+				if (auto const follow{entry["follow"]})
+					patch.follow = follow.as<bool>();
+				if (patch.follow && !entry["grid"] && !entry["spacing"])
+					patch.spacing = 2.0;
+				if (auto const spacing{entry["spacing"]})
+					patch.spacing = std::max(0.1, spacing.as<double>());
+				if (patch.outline.size() >= 3 && (patch.follow || (patch.columns >= 2 && patch.rows >= 2 && patch.heights.size() == static_cast<std::size_t>(patch.columns) * patch.rows)))
 					result.patches.push_back(std::move(patch));
 			}
+		if (auto const node{document["patches_file"]})
+		{
+			result.patches_file = node.as<std::string>();
+			auto const folder{std::filesystem::path(Path).parent_path()};
+			load_patches((folder / result.patches_file).string(), result.patches);
+		}
 		if (auto const node{document["modifiers"]}; node && node.IsSequence())
 			for (auto const &entry : node)
 			{
@@ -887,11 +902,27 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 		}
 		out << YAML::EndSeq;
 	}
-	if (false == Manifest.patches.empty())
+	auto const sidecar{Manifest.patches_file.empty() && Manifest.patches.size() > patches_inline ? std::string{"patches.txt"} : Manifest.patches_file};
+	if (false == sidecar.empty())
+	{
+		out << YAML::Key << "patches_file" << YAML::Value << sidecar;
+		auto const folder{std::filesystem::path(Path).parent_path()};
+		if (false == save_patches((folder / sidecar).string(), Manifest.patches))
+		{
+			if (Error != nullptr)
+				*Error = "can't write " + sidecar;
+			return false;
+		}
+	}
+	// with the file, only the patches with heights of their own stay here
+	auto const inline_patch = [&](surface_patch const &Patch) { return sidecar.empty() || false == Patch.follow; };
+	if (std::any_of(Manifest.patches.begin(), Manifest.patches.end(), inline_patch))
 	{
 		out << YAML::Key << "patches" << YAML::Value << YAML::BeginSeq;
 		for (auto const &patch : Manifest.patches)
 		{
+			if (false == inline_patch(patch))
+				continue;
 			out << YAML::BeginMap;
 			out << YAML::Key << "name" << YAML::Value << patch.name;
 			if (false == patch.material.empty())
@@ -906,11 +937,19 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 			for (auto const &point : patch.outline)
 				out << YAML::Flow << YAML::BeginSeq << point.x << point.y << YAML::EndSeq;
 			out << YAML::EndSeq;
-			out << YAML::Key << "grid" << YAML::Value << YAML::Flow << YAML::BeginSeq << patch.origin.x << patch.origin.y << patch.spacing << patch.columns << patch.rows << YAML::EndSeq;
-			out << YAML::Key << "heights" << YAML::Value << YAML::Flow << YAML::BeginSeq;
-			for (auto const height : patch.heights)
-				out << std::round(height * 1000.f) / 1000.f;
-			out << YAML::EndSeq;
+			if (patch.follow)
+			{
+				out << YAML::Key << "follow" << YAML::Value << true;
+				out << YAML::Key << "spacing" << YAML::Value << patch.spacing;
+			}
+			else
+			{
+				out << YAML::Key << "grid" << YAML::Value << YAML::Flow << YAML::BeginSeq << patch.origin.x << patch.origin.y << patch.spacing << patch.columns << patch.rows << YAML::EndSeq;
+				out << YAML::Key << "heights" << YAML::Value << YAML::Flow << YAML::BeginSeq;
+				for (auto const height : patch.heights)
+					out << std::round(height * 1000.f) / 1000.f;
+				out << YAML::EndSeq;
+			}
 			out << YAML::EndMap;
 		}
 		out << YAML::EndSeq;
@@ -1355,6 +1394,84 @@ bool write_pack(std::string const &Path, pack_key const &Key, std::vector<chunk_
 		}
 	}
 	return true;
+}
+
+void surface_patch::bounds(glm::dvec2 &Low, glm::dvec2 &High) const
+{
+	Low = glm::dvec2{std::numeric_limits<double>::max()};
+	High = glm::dvec2{-std::numeric_limits<double>::max()};
+	for (auto const &point : outline)
+	{
+		Low = glm::min(Low, point);
+		High = glm::max(High, point);
+	}
+}
+
+// the patches file: a line a patch, its fields apart by tabs: name, material, repeat, rotation, lift, spacing, then the outline as
+// x z pairs apart by spaces. Lines starting with # are left out. The patches of it follow the terrain
+bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches)
+{
+	std::ifstream file{Path};
+	if (false == file.is_open())
+		return false;
+	std::string line;
+	while (std::getline(file, line))
+	{
+		if (line.empty() || line[0] == '#')
+			continue;
+		if (line.back() == '\r')
+			line.pop_back();
+		std::vector<std::string> fields;
+		std::size_t start{0};
+		for (;;)
+		{
+			auto const tab{line.find('\t', start)};
+			fields.push_back(line.substr(start, tab == std::string::npos ? std::string::npos : tab - start));
+			if (tab == std::string::npos)
+				break;
+			start = tab + 1;
+		}
+		if (fields.size() < 7)
+			continue;
+		surface_patch patch;
+		patch.follow = true;
+		patch.name = fields[0];
+		patch.material = fields[1];
+		patch.size = std::max(0.f, static_cast<float>(std::atof(fields[2].c_str())));
+		patch.rotation = static_cast<float>(std::atof(fields[3].c_str()));
+		patch.lift = static_cast<float>(std::atof(fields[4].c_str()));
+		patch.spacing = std::max(0.1, std::atof(fields[5].c_str()));
+		std::istringstream points{fields[6]};
+		double x{0.0};
+		double z{0.0};
+		while (points >> x >> z)
+			patch.outline.emplace_back(x, z);
+		if (patch.outline.size() >= 3)
+			Patches.push_back(std::move(patch));
+	}
+	return true;
+}
+
+bool save_patches(std::string const &Path, std::vector<surface_patch> const &Patches)
+{
+	std::ofstream file{Path, std::ios::trunc};
+	if (false == file.is_open())
+		return false;
+	file << "# surfaces cut out of the terrain: name, material, repeat, rotation, lift, spacing, outline x z ... (tabs between the fields)\n";
+	char number[64];
+	for (auto const &patch : Patches)
+	{
+		if (false == patch.follow)
+			continue; // the ones with heights of their own stay in the manifest
+		file << patch.name << '\t' << patch.material << '\t' << patch.size << '\t' << patch.rotation << '\t' << patch.lift << '\t' << patch.spacing << '\t';
+		for (std::size_t i = 0; i < patch.outline.size(); ++i)
+		{
+			std::snprintf(number, sizeof(number), "%s%.2f %.2f", i > 0 ? " " : "", patch.outline[i].x, patch.outline[i].y);
+			file << number;
+		}
+		file << '\n';
+	}
+	return static_cast<bool>(file);
 }
 
 bool surface_patch::height(double const X, double const Z, double &Height) const

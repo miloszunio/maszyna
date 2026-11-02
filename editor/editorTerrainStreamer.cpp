@@ -615,8 +615,19 @@ void terrain_streamer::update(glm::dvec3 const &Camera)
 		ahead *= look_ahead_limit / glm::length(ahead);
 	auto const target{Camera + ahead};
 
+	// the pieces cut out near the camera: made anew as it moves on, and for the ones waiting for their ground, now and then
+	if (false == m_manifest.patches.empty() && false == m_waterchanged)
+	{
+		auto const moved{glm::distance(glm::dvec2{Camera.x, Camera.z}, m_patchcentre)};
+		if (moved > patch_move || (m_patchpending && m_patchloaded && now - m_patchtried > 1.0))
+			m_waterchanged = true;
+	}
 	if (m_waterchanged)
+	{
+		m_patchtried = now;
+		m_patchloaded = false;
 		build_water();
+	}
 
 	// finished work, within a few milliseconds
 	while (steady_seconds() - now < upload_budget)
@@ -630,6 +641,7 @@ void terrain_streamer::update(glm::dvec3 const &Camera)
 			m_results.pop_front();
 		}
 		process(done);
+		m_patchloaded = true;
 		m_settled = false;
 	}
 
@@ -2259,18 +2271,53 @@ bool terrain_streamer::save(std::string *Error)
 namespace
 {
 
+// the grid a piece cut out of the terrain is laid on: its own, or for a piece following the terrain, one of its spacing laid from 0
+// (as the grids of the chunks are) over the box of the outline
+struct patch_grid
+{
+	glm::dvec2 origin{0.0};
+	double step{1.0};
+	int columns{0};
+	int rows{0};
+};
+
+patch_grid grid_of(heightmap::surface_patch const &Patch)
+{
+	patch_grid grid;
+	if (false == Patch.follow)
+	{
+		grid.origin = Patch.origin;
+		grid.step = Patch.spacing;
+		grid.columns = Patch.columns;
+		grid.rows = Patch.rows;
+		return grid;
+	}
+	glm::dvec2 low;
+	glm::dvec2 high;
+	Patch.bounds(low, high);
+	grid.step = std::max(0.25, Patch.spacing);
+	grid.origin = glm::floor(low / grid.step) * grid.step;
+	grid.columns = static_cast<int>(std::ceil((high.x - grid.origin.x) / grid.step)) + 1;
+	grid.rows = static_cast<int>(std::ceil((high.y - grid.origin.y) / grid.step)) + 1;
+	return grid;
+}
+
 // the triangles of a piece cut out of the terrain, in world space, facing up: the cells of its grid wholly inside the outline in two
-// triangles each, the ones the outline runs through clipped to it, so the edge of the piece follows the outline as the hole in the
-// terrain does
-std::vector<glm::dvec3> patch_triangles(heightmap::surface_patch const &Patch)
+// triangles each, cut along the diagonal the chunks are (from x0, z1 to x1, z0), the ones the outline runs through clipped to it
+// triangle by triangle, so a piece following the terrain lies in the planes of its triangles. Height gives the heights; false where
+// one isn't known yet (a chunk not loaded), then the piece is left for later and Missing set
+template <typename Height_>
+std::vector<glm::dvec3> patch_triangles(heightmap::surface_patch const &Patch, Height_ const &Height, bool &Missing)
 {
 	std::vector<glm::dvec3> result;
+	Missing = false;
 	auto const &outline{Patch.outline};
-	if (outline.size() < 3 || Patch.columns < 2 || Patch.rows < 2)
+	auto const grid{grid_of(Patch)};
+	if (outline.size() < 3 || grid.columns < 2 || grid.rows < 2)
 		return result;
-	auto const step{Patch.spacing};
-	auto const cellsx{Patch.columns - 1};
-	auto const cellsz{Patch.rows - 1};
+	auto const step{grid.step};
+	auto const cellsx{grid.columns - 1};
+	auto const cellsz{grid.rows - 1};
 	auto const inside = [&](double const X, double const Z) {
 		bool in{false};
 		for (std::size_t i = 0, j = outline.size() - 1; i < outline.size(); j = i++)
@@ -2281,8 +2328,8 @@ std::vector<glm::dvec3> patch_triangles(heightmap::surface_patch const &Patch)
 	// the cells the outline runs through
 	std::vector<char> edge(static_cast<std::size_t>(cellsx) * cellsz, 0);
 	auto const mark = [&](glm::dvec2 const &Point) {
-		auto const cx{static_cast<int>(std::floor((Point.x - Patch.origin.x) / step))};
-		auto const cz{static_cast<int>(std::floor((Point.y - Patch.origin.y) / step))};
+		auto const cx{static_cast<int>(std::floor((Point.x - grid.origin.x) / step))};
+		auto const cz{static_cast<int>(std::floor((Point.y - grid.origin.y) / step))};
 		for (int dz = -1; dz <= 1; ++dz)
 			for (int dx = -1; dx <= 1; ++dx)
 				if (cx + dx >= 0 && cx + dx < cellsx && cz + dz >= 0 && cz + dz < cellsz)
@@ -2298,12 +2345,8 @@ std::vector<glm::dvec3> patch_triangles(heightmap::surface_patch const &Patch)
 	}
 	auto const vertex = [&](double const X, double const Z) {
 		double height{0.0};
-		if (false == Patch.height(X, Z, height))
-		{
-			auto const x{std::clamp(X, Patch.origin.x, Patch.origin.x + cellsx * step)};
-			auto const z{std::clamp(Z, Patch.origin.y, Patch.origin.y + cellsz * step)};
-			Patch.height(x, z, height);
-		}
+		if (false == Height(X, Z, height))
+			Missing = true;
 		return glm::dvec3{X, height, Z};
 	};
 	// a polygon in the plan, as triangles facing up
@@ -2311,43 +2354,39 @@ std::vector<glm::dvec3> patch_triangles(heightmap::surface_patch const &Patch)
 		if (Polygon.size() < 3)
 			return;
 		auto const indices{heightmap::triangulate(Polygon)};
-		// the outline is turned counterclockwise in the plan, the triangles go the other way round to face up
+		// the polygon is turned counterclockwise in the plan, the triangles go the other way round to face up
 		for (std::size_t i = 0; i + 2 < indices.size(); i += 3)
 			for (auto const index : {indices[i + 2], indices[i + 1], indices[i]})
 				result.push_back(vertex(Polygon[index].x, Polygon[index].y));
 	};
-	// Sutherland-Hodgman: the outline clipped to the square of the cell
-	auto const clip = [&](double const X0, double const Z0, double const X1, double const Z1) {
+	// Sutherland-Hodgman: the outline clipped to a triangle of a cell (A, B, C counterclockwise)
+	auto const clip = [&](glm::dvec2 const &A, glm::dvec2 const &B, glm::dvec2 const &C) {
 		std::vector<glm::dvec2> polygon{outline};
-		auto const against = [&](auto const &Keep, auto const &Cross) {
+		glm::dvec2 const corners[]{A, B, C};
+		for (int side = 0; side < 3 && polygon.size() >= 3; ++side)
+		{
+			auto const &p{corners[side]};
+			auto const &q{corners[(side + 1) % 3]};
+			auto const keep = [&](glm::dvec2 const &P) { return (q.x - p.x) * (P.y - p.y) - (q.y - p.y) * (P.x - p.x) >= 0.0; };
 			std::vector<glm::dvec2> out;
 			for (std::size_t i = 0; i < polygon.size(); ++i)
 			{
 				auto const &a{polygon[i]};
 				auto const &b{polygon[(i + 1) % polygon.size()]};
-				auto const ina{Keep(a)};
-				auto const inb{Keep(b)};
+				auto const ina{keep(a)};
+				auto const inb{keep(b)};
 				if (ina)
 					out.push_back(a);
 				if (ina != inb)
-					out.push_back(Cross(a, b));
+				{
+					auto const da{(q.x - p.x) * (a.y - p.y) - (q.y - p.y) * (a.x - p.x)};
+					auto const db{(q.x - p.x) * (b.y - p.y) - (q.y - p.y) * (b.x - p.x)};
+					out.push_back(a + (b - a) * (da / (da - db)));
+				}
 			}
 			polygon = std::move(out);
-		};
-		auto const at_x = [](double const X) {
-			return [X](glm::dvec2 const &A, glm::dvec2 const &B) { auto const t{(X - A.x) / (B.x - A.x)}; return glm::dvec2{X, A.y + (B.y - A.y) * t}; };
-		};
-		auto const at_z = [](double const Z) {
-			return [Z](glm::dvec2 const &A, glm::dvec2 const &B) { auto const t{(Z - A.y) / (B.y - A.y)}; return glm::dvec2{A.x + (B.x - A.x) * t, Z}; };
-		};
-		against([&](glm::dvec2 const &P) { return P.x >= X0; }, at_x(X0));
-		if (polygon.size() >= 3)
-			against([&](glm::dvec2 const &P) { return P.x <= X1; }, at_x(X1));
-		if (polygon.size() >= 3)
-			against([&](glm::dvec2 const &P) { return P.y >= Z0; }, at_z(Z0));
-		if (polygon.size() >= 3)
-			against([&](glm::dvec2 const &P) { return P.y <= Z1; }, at_z(Z1));
-		// points closer than a millimetre merged, the clipping leaves them along the sides of the cell
+		}
+		// points closer than a millimetre merged, the clipping leaves them along the sides of the triangle
 		std::vector<glm::dvec2> clean;
 		for (auto const &point : polygon)
 			if (clean.empty() || glm::distance(clean.back(), point) > 1e-3)
@@ -2359,18 +2398,21 @@ std::vector<glm::dvec3> patch_triangles(heightmap::surface_patch const &Patch)
 	for (int cz = 0; cz < cellsz; ++cz)
 		for (int cx = 0; cx < cellsx; ++cx)
 		{
-			auto const x0{Patch.origin.x + cx * step};
-			auto const z0{Patch.origin.y + cz * step};
+			auto const x0{grid.origin.x + cx * step};
+			auto const z0{grid.origin.y + cz * step};
 			auto const x1{x0 + step};
 			auto const z1{z0 + step};
+			glm::dvec2 const a{x0, z0}, b{x1, z0}, c{x1, z1}, d{x0, z1};
 			if (edge[static_cast<std::size_t>(cz) * cellsx + cx])
 			{
-				clip(x0, z0, x1, z1);
+				// the two triangles of the cell, counterclockwise, either side of the diagonal from (x0, z1) to (x1, z0)
+				clip(a, b, d);
+				clip(b, c, d);
 				continue;
 			}
 			if (false == inside(x0 + 0.5 * step, z0 + 0.5 * step))
 				continue;
-			for (auto const &corner : {glm::dvec2{x0, z0}, glm::dvec2{x1, z1}, glm::dvec2{x1, z0}, glm::dvec2{x0, z0}, glm::dvec2{x0, z1}, glm::dvec2{x1, z1}})
+			for (auto const &corner : {a, d, b, b, d, c})
 				result.push_back(vertex(corner.x, corner.y));
 		}
 	return result;
@@ -2481,10 +2523,40 @@ void terrain_streamer::build_water()
 		entry.section = &section;
 		m_watershapes.push_back(entry);
 	}
-	// the pieces of the ground cut out, with the geometry of the water: made anew together, in the same bank
+	// the pieces of the ground cut out, with the geometry of the water: made anew together, in the same bank. Only the ones near
+	// the camera (pieces cut along the tracks of a whole network go in tens of thousands), again as it moves on; a piece over
+	// ground not loaded yet waits for it
+	m_patchcentre = glm::dvec2{m_camera.x, m_camera.z};
+	m_patchpending = false;
 	for (auto const &patch : m_manifest.patches)
 	{
-		auto const triangles{patch_triangles(patch)};
+		glm::dvec2 boxlow;
+		glm::dvec2 boxhigh;
+		patch.bounds(boxlow, boxhigh);
+		auto const nearest{glm::clamp(m_patchcentre, boxlow, boxhigh)};
+		if (m_hascamera && glm::distance(nearest, m_patchcentre) > patch_reach)
+			continue;
+		auto const surface = [&](double const X, double const Z, double &Height) {
+			if (false == patch.follow)
+			{
+				if (patch.height(X, Z, Height))
+					return true;
+				// past the grid: the nearest of its edge
+				return patch.height(std::clamp(X, patch.origin.x, patch.origin.x + (patch.columns - 1) * patch.spacing),
+				                    std::clamp(Z, patch.origin.y, patch.origin.y + (patch.rows - 1) * patch.spacing), Height);
+			}
+			if (false == height_at(X, Z, Height))
+				return false;
+			Height += patch.lift;
+			return true;
+		};
+		bool missing{false};
+		auto const triangles{patch_triangles(patch, surface, missing)};
+		if (missing)
+		{
+			m_patchpending = true;
+			continue;
+		}
 		if (triangles.empty())
 			continue;
 		glm::dvec2 low{std::numeric_limits<double>::max()};
@@ -2512,11 +2584,11 @@ void terrain_streamer::build_water()
 		auto const angle{glm::radians(static_cast<double>(patch.rotation))};
 		glm::dvec2 const along{std::cos(angle), std::sin(angle)};
 		glm::dvec2 const across{-along.y, along.x};
-		// the slope of the kept heights at the point, for the normal
+		// the slope of the heights at the point, for the normal
 		auto const normal_at = [&](double const X, double const Z) {
 			auto const d{std::max(0.25, patch.spacing * 0.5)};
 			double hx0{0.0}, hx1{0.0}, hz0{0.0}, hz1{0.0};
-			if (false == (patch.height(X - d, Z, hx0) && patch.height(X + d, Z, hx1) && patch.height(X, Z - d, hz0) && patch.height(X, Z + d, hz1)))
+			if (false == (surface(X - d, Z, hx0) && surface(X + d, Z, hx1) && surface(X, Z - d, hz0) && surface(X, Z + d, hz1)))
 				return glm::vec3{0.f, 1.f, 0.f};
 			return glm::vec3(glm::normalize(glm::dvec3{-(hx1 - hx0) / (2.0 * d), 1.0, -(hz1 - hz0) / (2.0 * d)}));
 		};
