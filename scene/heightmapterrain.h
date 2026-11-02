@@ -174,6 +174,12 @@ struct surface_patch
 	// the surface follows the terrain under it (its heights, holes or not) instead of heights of its own, on a grid of the spacing
 	// laid from 0; the grid and heights above are unused
 	bool follow{false};
+	// painted into the terrain instead (follow is true too): no hole and no mesh of its own, the material laid into the paint of
+	// the chunks, blending over Feather metres across the outline, the edge shifted by up to Noise metres in waves of Noise_scale
+	bool paint{false};
+	float feather{1.f};
+	float noise{0.f};
+	float noise_scale{4.f};
 
 	// height kept at specified point, interpolated between the points of the grid; false out of the grid
 	bool height(double X, double Z, double &Height) const;

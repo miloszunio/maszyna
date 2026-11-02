@@ -281,6 +281,11 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 			                   m_feature_tool = feature_tool::track_bed;
 			                   m_terrain_tool = terrain_tool::none;
 		                   }});
+		Buttons.push_back({icon::orthophoto, STR_C("Go to"), nullptr, STR_C("The map with the camera on it, a search of the towns and villages, the places of the camera kept"),
+		                   m_feature_tool == feature_tool::go_to, [this]() {
+			                   m_feature_tool = feature_tool::go_to;
+			                   m_terrain_tool = terrain_tool::none;
+		                   }});
 		auto const orthophoto{m_orthophoto.enabled()};
 		Buttons.push_back({icon::orthophoto, STR_C("Orthophoto"), nullptr, STR_C("Aerial imagery of geoportal.gov.pl under the scenery, laid out by the origin of the scenery"), orthophoto,
 		                   [this, orthophoto]() { choose_orthophoto(false == orthophoto); }, true});

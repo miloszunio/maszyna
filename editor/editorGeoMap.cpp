@@ -190,9 +190,25 @@ void editor_map::show(glm::dvec2 const &Point, double const Scale)
 	m_dirty = true;
 }
 
+void editor_map::follow(glm::dvec2 const &Point)
+{
+	if (false == m_fitted || m_size.x <= 0.f)
+	{
+		show(Point, 8.0);
+		return;
+	}
+	auto const off{(Point - m_centre) / m_scale};
+	if (std::abs(off.x) < m_size.x * 0.3 && std::abs(off.y) < m_size.y * 0.3)
+		return;
+	m_centre = Point;
+	m_dirty = true;
+	m_changed = seconds();
+}
+
 bool editor_map::render(glm::vec2 const &Size)
 {
 	upload();
+	m_size = Size;
 	auto const origin{ImGui::GetCursorScreenPos()};
 	if (false == m_fitted)
 	{
@@ -253,6 +269,20 @@ bool editor_map::render(glm::vec2 const &Size)
 		drawlist->AddCircle(at, 10.f, colour, 24, 2.5f);
 		drawlist->AddLine(ImVec2(at.x - 16.f, at.y), ImVec2(at.x + 16.f, at.y), colour, 2.f);
 		drawlist->AddLine(ImVec2(at.x, at.y - 16.f), ImVec2(at.x, at.y + 16.f), colour, 2.f);
+	}
+	if (m_marked)
+	{
+		// the camera: an arrow the way it looks. east is -x of the scenery, north +z: the yaw turns -z (north) towards -x (west)
+		m_marked = false;
+		auto const at{to_screen(m_mark)};
+		ImVec2 const ahead{static_cast<float>(std::sin(m_heading)), static_cast<float>(std::cos(m_heading))};
+		ImVec2 const side{-ahead.y, ahead.x};
+		auto const tip{ImVec2(at.x + ahead.x * 14.f, at.y + ahead.y * 14.f)};
+		auto const left{ImVec2(at.x - ahead.x * 8.f + side.x * 8.f, at.y - ahead.y * 8.f + side.y * 8.f)};
+		auto const right{ImVec2(at.x - ahead.x * 8.f - side.x * 8.f, at.y - ahead.y * 8.f - side.y * 8.f)};
+		drawlist->AddTriangleFilled(tip, left, right, IM_COL32(30, 110, 230, 255));
+		drawlist->AddTriangle(tip, left, right, IM_COL32(255, 255, 255, 255), 2.f);
+		drawlist->AddCircleFilled(at, 3.f, IM_COL32(255, 255, 255, 255));
 	}
 	std::string info;
 	if (hovered)

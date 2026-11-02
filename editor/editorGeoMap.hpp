@@ -46,6 +46,16 @@ class editor_map
 	// the map goes there, at most Scale m a pixel
 	void show(glm::dvec2 const &Point, double const Scale = 4.0);
 	bool picked() const { return m_picked; }
+	// a mark drawn on the map in the next render, as an arrow turned by Heading (the yaw of the camera of the scenery)
+	void mark(glm::dvec2 const &Point, double const Heading)
+	{
+		m_marked = true;
+		m_mark = Point;
+		m_heading = Heading;
+	}
+	// the map moves after the point when it gets near the edge of the view
+	void follow(glm::dvec2 const &Point);
+	double scale() const { return m_scale; }
 	glm::dvec2 const &point() const { return m_point; }
 
   private:
@@ -76,5 +86,9 @@ class editor_map
 	glm::dvec2 m_image_high{0.0};
 	std::string m_error;
 	bool m_picked{false};
+	bool m_marked{false};
+	glm::dvec2 m_mark{0.0};
+	double m_heading{0.0};
+	glm::vec2 m_size{0.f};
 	glm::dvec2 m_point{0.0};
 };

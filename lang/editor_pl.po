@@ -15455,3 +15455,135 @@ msgstr "Ficzery"
 
 msgid "Ours: surfaces cut out of the terrain to texture them, the track bed and the slopes cut into pieces"
 msgstr "Nasze: powierzchnie wycinane z terenu do teksturowania, torowisko i skarpy pocięte na kawałki"
+
+msgid "LMB adds a point of the outline, Shift+LMB takes the last one back. The surface is painted into the terrain with the material chosen above: the heights stay those of the terrain, there's no hole and no seam"
+msgstr "LPM dodaje punkt obrysu, Shift+LPM cofa ostatni. Powierzchnia jest malowana w teren materiałem wybranym wyżej: wysokości zostają terenu, nie ma dziury ani szwu"
+
+msgid "Transition (m)##cut"
+msgstr "Szerokość przejścia (m)##cut"
+
+msgid "Metres across the edge the material passes into the one around over, half of them inside the surface.\nThe paint of the terrain is kept every metre (every 0.5 m in the chunks converted to 0.5 m), narrower comes out in steps"
+msgstr "Na ilu metrach w poprzek krawędzi materiał przechodzi w ten dookoła, połowa z nich wewnątrz powierzchni.\nMalowanie terenu jest zapisane co metr (co 0,5 m w chunkach zagęszczonych do 0,5 m), węższe wychodzi schodkami"
+
+msgid "Noise of the edge (m)##cut"
+msgstr "Szum krawędzi (m)##cut"
+
+msgid "How far the edge wanders in and out of the outline, so it isn't drawn with a ruler"
+msgstr "Na ile krawędź wchodzi w obrys i z niego wychodzi, żeby nie była od linijki"
+
+msgid "Waves of the noise (m)##cut"
+msgstr "Fale szumu (m)##cut"
+
+msgid "About how long the waves of the edge are: small - frayed, large - gently wavy"
+msgstr "Mniej więcej długość fal krawędzi: małe - poszarpana, duże - łagodnie falista"
+
+msgid "The area within the outline gets the material chosen in the palette, turned by the angle above, with the transition\nand the noise above; it's kept in the list below, where its material can be changed later"
+msgstr "Obszar w obrysie dostaje materiał wybrany w palecie, obrócony o kąt powyżej, z przejściem\ni szumem powyżej; trafia na listę poniżej, gdzie później można zmienić mu materiał"
+
+msgid "Track bed into the slope (m)"
+msgstr "Przejście torowisko-skarpa (m)"
+
+msgid "The transition from the material of the track bed into the one of the slope"
+msgstr "Szerokość przejścia z materiału torowiska w materiał skarpy"
+
+msgid "Slope into the ground (m)"
+msgstr "Przejście skarpa-teren (m)"
+
+msgid "The transition from the material of the slope into the ground around"
+msgstr "Szerokość przejścia z materiału skarpy w teren dookoła"
+
+msgid "Noise of the edge (m)##bed"
+msgstr "Szum krawędzi (m)##bed"
+
+msgid "Waves of the noise (m)##bed"
+msgstr "Fale szumu (m)##bed"
+
+msgid "%zu of them are cut out with a hole and a mesh of their own (the seam shows): paint them into the terrain"
+msgstr "%zu z nich jest wyciętych z dziurą i własną siatką (widać szew): przemaluj je w teren"
+
+msgid "Paint them into the terrain##convert"
+msgstr "Przemaluj je w teren##convert"
+
+msgid "Around the camera as far as set in Track bed and slopes, or in the whole scenery when that's ticked there.\nThe holes are closed and the surfaces painted with their materials, the transitions as set there. Ctrl+Z takes it back"
+msgstr "Wokół kamery tak daleko, jak ustawiono w Torowisko i skarpy, albo w całej scenerii, gdy to tam zaznaczone.\nDziury są zamykane, a powierzchnie malowane swoimi materiałami, z przejściami jak tam ustawiono. Ctrl+Z cofa"
+
+msgid "No surface with a hole of its own there"
+msgstr "Brak tam powierzchni z własną dziurą"
+
+msgid "%zu surfaces painted into the terrain, their holes closed. Ctrl+Z takes it back"
+msgstr "%zu powierzchni przemalowanych w teren, ich dziury zamknięte. Ctrl+Z cofa"
+
+msgid "Map##goto"
+msgstr "Mapa##goto"
+
+msgid "The origin of the scenery in PUWG 1992 isn't known: the map can't show the camera. It's set in Terrain, Terrain model, Location"
+msgstr "Nie znam punktu odniesienia scenerii w PUWG 1992: mapa nie pokaże kamery. Ustawia się go w Teren, Prawdziwy teren z map, Położenie"
+
+msgid "The map follows the camera"
+msgstr "Mapa podąża za kamerą"
+
+msgid "Go to the point clicked"
+msgstr "Idź do klikniętego punktu"
+
+msgid "Camera: %.5f N, %.5f E (X %.0f, Y %.0f in PUWG 1992)"
+msgstr "Kamera: %.5f N, %.5f E (X %.0f, Y %.0f w PUWG 1992)"
+
+msgid "Towns and villages##goto"
+msgstr "Miejscowości##goto"
+
+msgid "Go to the place found"
+msgstr "Idź do wyszukanego"
+
+msgid "The towns and villages of the area of the IRT network (Lower Silesia), PRNG 2021"
+msgstr "Miasta i wsie z obszaru sieci IRT (Dolny Śląsk), PRNG 2021"
+
+msgid "Places of the camera##goto"
+msgstr "Zapisane kamery##goto"
+
+msgid "Add the camera"
+msgstr "Dodaj kamerę"
+
+msgid "Name of the place..."
+msgstr "Nazwa miejsca..."
+
+msgid "place %zu"
+msgstr "miejsce %zu"
+
+msgid "Keeps where the camera stands and where it looks; kept next to the scenery, in <scenery>.kamery"
+msgstr "Zapamiętuje, gdzie stoi kamera i gdzie patrzy; zapis obok scenerii, w <sceneria>.kamery"
+
+msgid "None kept yet"
+msgstr "Jeszcze żadnej"
+
+msgid "Jump##place"
+msgstr "Skocz##place"
+
+msgid "Forget this place"
+msgstr "Usuń to miejsce"
+
+msgid "Go to"
+msgstr "Idź do"
+
+msgid "The map with the camera on it, a search of the towns and villages, the places of the camera kept"
+msgstr "Mapa z kamerą, wyszukiwarka miejscowości i zapisane pozycje kamery"
+
+msgid "Transition (m)##patch"
+msgstr "Szerokość przejścia (m)##patch"
+
+msgid "Noise of the edge (m)##patch"
+msgstr "Szum krawędzi (m)##patch"
+
+msgid "Waves of the noise (m)##patch"
+msgstr "Fale szumu (m)##patch"
+
+msgid "Surface removed, the ground under it has the first material of the palette again"
+msgstr "Powierzchnia usunięta, teren pod nią ma z powrotem pierwszy materiał palety"
+
+msgid "Assign from the camera"
+msgstr "Przypisz z kamery"
+
+msgid "The place clicked on the map is where the camera stands now: the middle of the scenery is set from it, so the orthophoto, the terrain model and the map lie under the scenery again. Fly the camera to a place you know on the map (a station, a crossing), click that place and assign"
+msgstr "Punkt kliknięty na mapie to miejsce, gdzie teraz stoi kamera: z tego ustawiany jest środek scenerii, tak że ortofotomapa, NMT i mapa znów leżą pod scenerią. Przeleć kamerą nad znane miejsce (stację, przejazd), kliknij je na mapie i przypisz"
+
+msgid "The middle the scenery file gives"
+msgstr "Środek zapisany w pliku scenerii"

@@ -783,6 +783,17 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 				}
 				if (auto const follow{entry["follow"]})
 					patch.follow = follow.as<bool>();
+				if (auto const paint{entry["paint"]})
+				{
+					patch.paint = paint.as<bool>();
+					patch.follow = patch.follow || patch.paint;
+				}
+				if (auto const node{entry["feather"]})
+					patch.feather = std::max(0.f, node.as<float>());
+				if (auto const node{entry["noise"]})
+					patch.noise = std::max(0.f, node.as<float>());
+				if (auto const node{entry["noise_scale"]})
+					patch.noise_scale = std::max(0.5f, node.as<float>());
 				if (patch.follow && !entry["grid"] && !entry["spacing"])
 					patch.spacing = 2.0;
 				if (auto const spacing{entry["spacing"]})
@@ -937,7 +948,14 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 			for (auto const &point : patch.outline)
 				out << YAML::Flow << YAML::BeginSeq << point.x << point.y << YAML::EndSeq;
 			out << YAML::EndSeq;
-			if (patch.follow)
+			if (patch.paint)
+			{
+				out << YAML::Key << "paint" << YAML::Value << true;
+				out << YAML::Key << "feather" << YAML::Value << patch.feather;
+				out << YAML::Key << "noise" << YAML::Value << patch.noise;
+				out << YAML::Key << "noise_scale" << YAML::Value << patch.noise_scale;
+			}
+			else if (patch.follow)
 			{
 				out << YAML::Key << "follow" << YAML::Value << true;
 				out << YAML::Key << "spacing" << YAML::Value << patch.spacing;
@@ -1407,8 +1425,9 @@ void surface_patch::bounds(glm::dvec2 &Low, glm::dvec2 &High) const
 	}
 }
 
-// the patches file: a line a patch, its fields apart by tabs: name, material, repeat, rotation, lift, spacing, then the outline as
-// x z pairs apart by spaces. Lines starting with # are left out. The patches of it follow the terrain
+// the patches file: a line a patch, its fields apart by tabs: name, material, repeat, rotation, lift, spacing, kind (paint or
+// surface), transition, noise, the waves of the noise, then the outline as x z pairs apart by spaces. Lines starting with # are
+// left out. The patches of it follow the terrain. The files written before the kind came have the outline right after the spacing
 bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches)
 {
 	std::ifstream file{Path};
@@ -1433,6 +1452,7 @@ bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches)
 		}
 		if (fields.size() < 7)
 			continue;
+		auto const kinded{fields.size() >= 11 && (fields[6] == "paint" || fields[6] == "surface")};
 		surface_patch patch;
 		patch.follow = true;
 		patch.name = fields[0];
@@ -1441,7 +1461,14 @@ bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches)
 		patch.rotation = static_cast<float>(std::atof(fields[3].c_str()));
 		patch.lift = static_cast<float>(std::atof(fields[4].c_str()));
 		patch.spacing = std::max(0.1, std::atof(fields[5].c_str()));
-		std::istringstream points{fields[6]};
+		if (kinded)
+		{
+			patch.paint = fields[6] == "paint";
+			patch.feather = std::max(0.f, static_cast<float>(std::atof(fields[7].c_str())));
+			patch.noise = std::max(0.f, static_cast<float>(std::atof(fields[8].c_str())));
+			patch.noise_scale = std::max(0.5f, static_cast<float>(std::atof(fields[9].c_str())));
+		}
+		std::istringstream points{fields[kinded ? 10 : 6]};
 		double x{0.0};
 		double z{0.0};
 		while (points >> x >> z)
@@ -1457,13 +1484,14 @@ bool save_patches(std::string const &Path, std::vector<surface_patch> const &Pat
 	std::ofstream file{Path, std::ios::trunc};
 	if (false == file.is_open())
 		return false;
-	file << "# surfaces cut out of the terrain: name, material, repeat, rotation, lift, spacing, outline x z ... (tabs between the fields)\n";
+	file << "# surfaces cut out of the terrain: name, material, repeat, rotation, lift, spacing, kind (paint/surface), transition, noise, waves of the noise, outline x z ... (tabs between the fields)\n";
 	char number[64];
 	for (auto const &patch : Patches)
 	{
 		if (false == patch.follow)
 			continue; // the ones with heights of their own stay in the manifest
-		file << patch.name << '\t' << patch.material << '\t' << patch.size << '\t' << patch.rotation << '\t' << patch.lift << '\t' << patch.spacing << '\t';
+		file << patch.name << '\t' << patch.material << '\t' << patch.size << '\t' << patch.rotation << '\t' << patch.lift << '\t' << patch.spacing << '\t' << (patch.paint ? "paint" : "surface") << '\t'
+		     << patch.feather << '\t' << patch.noise << '\t' << patch.noise_scale << '\t';
 		for (std::size_t i = 0; i < patch.outline.size(); ++i)
 		{
 			std::snprintf(number, sizeof(number), "%s%.2f %.2f", i > 0 ? " " : "", patch.outline[i].x, patch.outline[i].y);

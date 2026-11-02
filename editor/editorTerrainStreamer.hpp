@@ -132,6 +132,8 @@ class terrain_streamer
 	// Feather: metres across the outline the material blends in over, half of them inside; 0: a sharp edge, as sharp as
 	// the paint samples of the chunks go. the chunks are loaded where needed
 	bool fill(std::vector<glm::dvec2> const &Outline, double Feather, std::uint16_t Layer, double Strength = 1.0);
+	// the same with the edge shifted by up to Noise metres, in waves of about NoiseScale metres, so it isn't drawn with a ruler
+	bool fill(std::vector<glm::dvec2> const &Outline, double Feather, std::uint16_t Layer, double Strength, double Noise, double NoiseScale);
 	// holes, for the portals of tunnels and the like: cut in the ground (Cut true) within Radius of (X,Z), or closed again
 	bool cut(double X, double Z, double Radius, bool Cut);
 	// the same within Outline (x, z); the chunks are loaded where needed
