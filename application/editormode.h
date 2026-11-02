@@ -624,9 +624,14 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// track bed and the slopes along the tracks cut into pieces of their own
 	enum class feature_tool
 	{
-		cut_out, // an outline drawn as with Fill, cut out as a surface of its own
-		track_bed // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
+		cut_out, // an outline drawn as with Fill, painted into the terrain as a surface of its own
+		track_bed, // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
+		go_to // the map with the camera on it, a search of towns and the places of the camera kept
 	};
+	// the transition the surfaces cut out blend over, and the noise their edge is shifted by
+	float m_cut_feather{1.0f};
+	float m_cut_noise{0.3f};
+	float m_cut_noise_scale{4.0f};
 	feature_tool m_feature_tool{feature_tool::cut_out};
 	bool m_features_open{false};
 	struct track_bed_settings
@@ -638,7 +643,34 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float least_slope{0.5f}; // a narrower slope isn't made a piece of its own
 		float radius{1000.0f}; // around the camera
 		bool everywhere{false}; // all the modifiers of the terrain
+		float bed_feather{0.5f}; // the transition of the track bed into the slopes
+		float slope_feather{1.5f}; // the transition of the slopes into the ground
 	};
+	// the surfaces painted into the terrain: the material of one, with its transition and noise; true if anything was painted
+	bool paint_patch(heightmap::surface_patch const &Patch);
+	// the list given to the terrain, the changed ones painted anew and then the ones over them that they touch (the track bed over
+	// the slopes, the surfaces drawn by hand over both), so the transitions are made again; the Cleared outlines painted first
+	// with the first material of the palette, as the ground was
+	void repaint_patches(std::vector<heightmap::surface_patch> All, std::vector<std::size_t> const &Changed, std::vector<heightmap::surface_patch> const &Cleared = {});
+	// the surfaces with a mesh and a hole of their own (made before the painting came) painted into the terrain instead
+	void convert_patches_to_paint();
+	// the Go to tool: the map with the camera, the search of the towns and the places of the camera kept with the scenery
+	editor_map m_goto_map;
+	bool m_goto_follow{true};
+	char m_goto_query[96]{};
+	int m_goto_found{-1};
+	struct camera_place
+	{
+		std::string name;
+		glm::dvec3 position{0.0};
+		glm::dvec3 angle{0.0};
+	};
+	std::vector<camera_place> m_camera_places;
+	std::string m_camera_places_of; // the scenery they were read for
+	char m_camera_place_name[64]{};
+	void render_go_to_ui();
+	void read_camera_places();
+	void write_camera_places() const;
 	track_bed_settings m_track_bed;
 	void render_features_ui();
 	void render_material_palette();

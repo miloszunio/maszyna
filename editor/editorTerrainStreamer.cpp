@@ -1440,11 +1440,47 @@ bool terrain_streamer::paint(double X, double Z, double Radius, double Strength,
 	});
 }
 
+namespace
+{
+// smooth noise of -1..1 in waves of about Scale metres, the same at the same place every time
+double edge_noise(double const X, double const Z, double const Scale)
+{
+	auto const hash = [](std::int64_t const Ix, std::int64_t const Iz) {
+		auto h{static_cast<std::uint64_t>(Ix) * 0x9E3779B97F4A7C15ull ^ static_cast<std::uint64_t>(Iz) * 0xC2B2AE3D27D4EB4Full};
+		h ^= h >> 31;
+		h *= 0xBF58476D1CE4E5B9ull;
+		h ^= h >> 29;
+		return static_cast<double>(h & 0xffffff) / static_cast<double>(0xffffff) * 2.0 - 1.0;
+	};
+	auto const octave = [&](double const U, double const V) {
+		auto const iu{std::floor(U)};
+		auto const iv{std::floor(V)};
+		auto const fu{U - iu};
+		auto const fv{V - iv};
+		auto const su{fu * fu * (3.0 - 2.0 * fu)};
+		auto const sv{fv * fv * (3.0 - 2.0 * fv)};
+		auto const x{static_cast<std::int64_t>(iu)};
+		auto const z{static_cast<std::int64_t>(iv)};
+		auto const a{hash(x, z) + (hash(x + 1, z) - hash(x, z)) * su};
+		auto const b{hash(x, z + 1) + (hash(x + 1, z + 1) - hash(x, z + 1)) * su};
+		return a + (b - a) * sv;
+	};
+	auto const scale{std::max(0.5, Scale)};
+	return std::clamp(0.7 * octave(X / scale, Z / scale) + 0.3 * octave(X / scale * 2.7 + 17.3, Z / scale * 2.7 - 9.1), -1.0, 1.0);
+}
+} // namespace
+
 bool terrain_streamer::fill(std::vector<glm::dvec2> const &Outline, double Feather, std::uint16_t Layer, double Strength)
+{
+	return fill(Outline, Feather, Layer, Strength, 0.0, 4.0);
+}
+
+bool terrain_streamer::fill(std::vector<glm::dvec2> const &Outline, double Feather, std::uint16_t Layer, double Strength, double Noise, double NoiseScale)
 {
 	if (Outline.size() < 3 || Strength <= 0.0)
 		return false;
 	Feather = std::max(0.0, Feather);
+	Noise = std::max(0.0, Noise);
 	glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
 	for (auto const &point : Outline)
 	{
@@ -1453,7 +1489,8 @@ bool terrain_streamer::fill(std::vector<glm::dvec2> const &Outline, double Feath
 	}
 	// the blend runs across the outline, half of it inside
 	auto const margin{Feather * 0.5};
-	return paint_area(low - glm::dvec2{margin}, high + glm::dvec2{margin}, Layer, true, [&](double const Px, double const Pz) {
+	auto const reach{margin + Noise};
+	return paint_area(low - glm::dvec2{reach}, high + glm::dvec2{reach}, Layer, true, [&](double const Px, double const Pz) {
 		glm::dvec2 const point{Px, Pz};
 		bool inside{false};
 		auto nearest{std::numeric_limits<double>::max()};
@@ -1463,7 +1500,7 @@ bool terrain_streamer::fill(std::vector<glm::dvec2> const &Outline, double Feath
 			auto const &b{Outline[j]};
 			if ((a.y > Pz) != (b.y > Pz) && Px < (b.x - a.x) * (Pz - a.y) / (b.y - a.y) + a.x)
 				inside = !inside;
-			if (Feather > 0.0)
+			if (Feather > 0.0 || Noise > 0.0)
 			{
 				auto const run{b - a};
 				auto const length{glm::dot(run, run)};
@@ -1471,10 +1508,15 @@ bool terrain_streamer::fill(std::vector<glm::dvec2> const &Outline, double Feath
 				nearest = std::min(nearest, glm::length(point - (a + run * t)));
 			}
 		}
-		if (Feather <= 0.0)
+		if (Feather <= 0.0 && Noise <= 0.0)
 			return inside ? Strength : 0.0;
-		// signed distance from the outline, inside positive, led smoothly through the blend
-		auto const t{std::clamp(((inside ? nearest : -nearest) + margin) / Feather, 0.0, 1.0)};
+		// signed distance from the outline, inside positive, the edge shifted by the noise, led smoothly through the blend
+		auto distance{inside ? nearest : -nearest};
+		if (Noise > 0.0)
+			distance += Noise * edge_noise(Px, Pz, NoiseScale);
+		if (Feather <= 0.0)
+			return distance > 0.0 ? Strength : 0.0;
+		auto const t{std::clamp((distance + margin) / Feather, 0.0, 1.0)};
 		return Strength * t * t * (3.0 - 2.0 * t);
 	});
 }
@@ -2545,6 +2587,8 @@ void terrain_streamer::build_water()
 	m_patchpending = false;
 	for (auto const &patch : m_manifest.patches)
 	{
+		if (patch.paint)
+			continue; // laid into the paint of the chunks, no mesh of its own
 		glm::dvec2 boxlow;
 		glm::dvec2 boxhigh;
 		patch.bounds(boxlow, boxhigh);
