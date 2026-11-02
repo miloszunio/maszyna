@@ -603,11 +603,42 @@ if (GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
 	  OUTPUT_VARIABLE SRC_SHORT_DATE
 	  OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
+
+	# a number people can tell builds apart by: on GitHub the number of the run of the workflow, one more with every build;
+	# built at home the commits up to this one
+	if (DEFINED ENV{GITHUB_RUN_NUMBER})
+		set(BUILD_NUMBER "$ENV{GITHUB_RUN_NUMBER}")
+	else()
+		execute_process(
+		  COMMAND ${GIT_EXECUTABLE} rev-list --count HEAD
+		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+		  OUTPUT_VARIABLE BUILD_NUMBER
+		  OUTPUT_STRIP_TRAILING_WHITESPACE
+		)
+		set(BUILD_NUMBER "${BUILD_NUMBER}-dom")
+	endif()
+	if (DEFINED ENV{GITHUB_REF_NAME})
+		set(BUILD_BRANCH "$ENV{GITHUB_REF_NAME}")
+	else()
+		execute_process(
+		  COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+		  OUTPUT_VARIABLE BUILD_BRANCH
+		  OUTPUT_STRIP_TRAILING_WHITESPACE
+		)
+	endif()
 else()
 	string(TIMESTAMP SRC_SHORT_DATE %Y-%m-%d UTC)
 	string(TIMESTAMP SRC_DATE UTC)
 	set(GIT_HASH "(unknown)")
 endif()
+if (NOT BUILD_NUMBER)
+	set(BUILD_NUMBER "0")
+endif()
+if (NOT BUILD_BRANCH OR BUILD_BRANCH STREQUAL "HEAD")
+	set(BUILD_BRANCH "local")
+endif()
+message(STATUS "MaSzyna build: ${BUILD_BRANCH} nr ${BUILD_NUMBER} (${SRC_SHORT_DATE})")
 
 configure_file("${CMAKE_SOURCE_DIR}/version_info.h.in" "${CMAKE_BINARY_DIR}/geninc/version_info.h")
 

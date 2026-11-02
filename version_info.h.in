@@ -1,3 +1,7 @@
-#define VERSION_INFO "EU07 (cmake), @GIT_HASH@ (committed at @SRC_DATE@)"
+#define VERSION_INFO "EU07 @BUILD_BRANCH@ nr @BUILD_NUMBER@ (@SRC_SHORT_DATE@), @GIT_HASH@ (committed at @SRC_DATE@)"
 #define GIT_HASH "@GIT_HASH@"
 #define SRC_DATE "@SRC_DATE@"
+// the number of the build: the commits of the branch up to this one, growing with every push
+#define BUILD_NUMBER "@BUILD_NUMBER@"
+#define BUILD_BRANCH "@BUILD_BRANCH@"
+#define BUILD_LABEL "@BUILD_BRANCH@ nr @BUILD_NUMBER@ (@SRC_SHORT_DATE@)"
