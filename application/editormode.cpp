@@ -2059,6 +2059,15 @@ void editor_mode::render_terrain_ui()
                 forget_ground_shapes();
             }
         }
+        ImGui::BeginDisabled(layers.empty());
+        if (ImGui::Button(STR_C("Cut out as a separate surface")))
+            cut_out_surface();
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            ImGui::SetTooltip("%s", STR_C("Takes the area within the outline out of the terrain and puts it back as a separate surface\n"
+                                    "with the same heights and the material chosen in the palette, turned by the angle above.\n"
+                                    "The surfaces are listed below, where their material can be changed or they can be given back to the terrain"));
+        render_patches_ui();
         auto const &grasskinds = m_streamer.grass_kinds();
         ImGui::BeginDisabled(grasskinds.empty());
         if (ImGui::Button(STR_C("Grow grass")))
@@ -3834,6 +3843,199 @@ void editor_mode::fill_terrain_area()
     m_terrain_status = filled ? format(STR_C("Area filled with %s"), chosen.material.c_str()) : std::string(STR_C("Nothing filled: no chunk under the outline, or no room for another material"));
     if (filled)
         m_paint_outline.clear();
+}
+
+void editor_mode::cut_out_surface()
+{
+    auto const &layers = m_streamer.manifest().layers;
+    if (m_paint_outline.size() < 3 || layers.empty())
+        return;
+    auto const &chosen = layers[std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1)];
+    heightmap::surface_patch patch;
+    patch.material = chosen.material;
+    patch.size = chosen.size;
+    patch.rotation = static_cast<float>(std::remainder(static_cast<double>(chosen.rotation + m_paint_rotation), 360.0));
+    glm::dvec2 low{std::numeric_limits<double>::max()};
+    glm::dvec2 high{-std::numeric_limits<double>::max()};
+    for (auto const &point : m_paint_outline)
+    {
+        patch.outline.emplace_back(point.x, point.z);
+        low = glm::min(low, patch.outline.back());
+        high = glm::max(high, patch.outline.back());
+    }
+    // the heights every metre, or coarser so the grid stays within a quarter of a million points
+    auto spacing{1.0};
+    while (((high.x - low.x) / spacing + 3.0) * ((high.y - low.y) / spacing + 3.0) > 250000.0)
+        spacing *= 2.0;
+    patch.spacing = spacing;
+    patch.origin = glm::floor(low / spacing) * spacing - glm::dvec2{spacing};
+    patch.columns = static_cast<int>(std::ceil((high.x - patch.origin.x) / spacing)) + 2;
+    patch.rows = static_cast<int>(std::ceil((high.y - patch.origin.y) / spacing)) + 2;
+    auto const count = static_cast<std::size_t>(patch.columns) * patch.rows;
+    patch.heights.assign(count, 0.f);
+    std::vector<char> found(count, 0);
+    double sum{0.0};
+    std::size_t any{0};
+    // taken before the hole is cut, the terrain gives no height over it after
+    for (int iz = 0; iz < patch.rows; ++iz)
+        for (int ix = 0; ix < patch.columns; ++ix)
+        {
+            double height{0.0};
+            if (m_streamer.height_at(patch.origin.x + ix * spacing, patch.origin.y + iz * spacing, height))
+            {
+                auto const index = static_cast<std::size_t>(iz) * patch.columns + ix;
+                patch.heights[index] = static_cast<float>(height);
+                found[index] = 1;
+                sum += height;
+                ++any;
+            }
+        }
+    if (any == 0)
+    {
+        m_terrain_status = STR_C("Nothing cut out: no chunk under the outline");
+        return;
+    }
+    // the points with no ground under them (an older hole, past the edge of the terrain) take the nearest found in the row or the column, else the mean
+    auto const mean = static_cast<float>(sum / any);
+    for (int iz = 0; iz < patch.rows; ++iz)
+        for (int ix = 0; ix < patch.columns; ++ix)
+        {
+            auto const index = static_cast<std::size_t>(iz) * patch.columns + ix;
+            if (found[index])
+                continue;
+            auto value{mean};
+            for (int d = 1; d < std::max(patch.columns, patch.rows); ++d)
+            {
+                auto const probe = [&](int const X, int const Z) {
+                    return X >= 0 && X < patch.columns && Z >= 0 && Z < patch.rows && found[static_cast<std::size_t>(Z) * patch.columns + X];
+                };
+                if (probe(ix - d, iz)) { value = patch.heights[index - d]; break; }
+                if (probe(ix + d, iz)) { value = patch.heights[index + d]; break; }
+                if (probe(ix, iz - d)) { value = patch.heights[index - static_cast<std::size_t>(d) * patch.columns]; break; }
+                if (probe(ix, iz + d)) { value = patch.heights[index + static_cast<std::size_t>(d) * patch.columns]; break; }
+            }
+            patch.heights[index] = value;
+        }
+    auto patches = m_streamer.patches();
+    // a name not taken yet
+    for (int number = static_cast<int>(patches.size()) + 1;; ++number)
+    {
+        patch.name = format(STR_C("surface %d"), number);
+        if (std::none_of(patches.begin(), patches.end(), [&](heightmap::surface_patch const &Other) { return Other.name == patch.name; }))
+            break;
+    }
+    // the hole and the surface in the same frame: one step of the history
+    m_streamer.cut(patch.outline, true);
+    auto const name = patch.name;
+    patches.push_back(std::move(patch));
+    m_streamer.patches(std::move(patches));
+    m_patch_selected = static_cast<int>(m_streamer.patches().size()) - 1;
+    ground_tiles.clear();
+    forget_ground_shapes();
+    m_paint_outline.clear();
+    m_terrain_status = format(STR_C("Cut out as %s with %s, Ctrl+Z puts it back"), name.c_str(), chosen.material.c_str());
+}
+
+void editor_mode::render_patches_ui()
+{
+    auto const &patches = m_streamer.patches();
+    if (patches.empty())
+        return;
+    ImGui::Separator();
+    ImGui::TextUnformatted(STR_C("Surfaces cut out of the terrain"));
+    std::optional<std::pair<std::size_t, std::string>> dropped;
+    if (ImGui::BeginListBox("##patches", ImVec2(-FLT_MIN, std::min(6.0f, static_cast<float>(patches.size()) + 0.5f) * ImGui::GetTextLineHeightWithSpacing())))
+    {
+        for (std::size_t i = 0; i < patches.size(); ++i)
+        {
+            ImGui::PushID(static_cast<int>(i));
+            auto const material = patches[i].material.empty() ? std::string(STR_C("default material")) : patches[i].material;
+            if (ImGui::Selectable(format(STR_C("%s, %zu points, %s"), patches[i].name.c_str(), patches[i].outline.size(), material.c_str()).c_str(), static_cast<int>(i) == m_patch_selected))
+                m_patch_selected = static_cast<int>(i);
+            // a texture dropped on an entry becomes the material of that surface
+            std::string name;
+            if (material_drop(name))
+                dropped = std::make_pair(i, name);
+            ImGui::PopID();
+        }
+        ImGui::EndListBox();
+    }
+    if (dropped)
+    {
+        auto changed{patches};
+        changed[dropped->first].material = dropped->second;
+        m_streamer.patches(std::move(changed));
+        m_patch_selected = static_cast<int>(dropped->first);
+        return;
+    }
+    if (m_patch_selected < 0 || m_patch_selected >= static_cast<int>(patches.size()))
+        return;
+    auto patch{patches[m_patch_selected]};
+    bool changed{false};
+    char buffer[256];
+    std::snprintf(buffer, sizeof(buffer), "%s", patch.material.c_str());
+    ImGui::SetNextItemWidth(220.0f);
+    if (ImGui::InputText(STR_C("Material##patch"), buffer, sizeof(buffer), ImGuiInputTextFlags_EnterReturnsTrue))
+        patch.material = buffer, changed = true;
+    std::string name;
+    if (material_drop(name))
+        patch.material = name, changed = true;
+    ImGui::SameLine();
+    auto const &layers = m_streamer.manifest().layers;
+    ImGui::BeginDisabled(layers.empty());
+    if (ImGui::Button(STR_C("From the palette##patch")))
+    {
+        auto const &chosen = layers[std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1)];
+        patch.material = chosen.material;
+        patch.size = chosen.size;
+        patch.rotation = chosen.rotation;
+        changed = true;
+    }
+    ImGui::EndDisabled();
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::DragFloat(STR_C("Repeat (m)##patch"), &patch.size, 0.1f, 0.0f, 500.0f, patch.size > 0.0f ? "%.1f" : STR_C("of the material"));
+    changed |= ImGui::IsItemDeactivatedAfterEdit();
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::SliderFloat(STR_C("Turned by (deg)##patch"), &patch.rotation, -180.0f, 180.0f, "%.0f");
+    changed |= ImGui::IsItemDeactivatedAfterEdit();
+    ImGui::SetNextItemWidth(120.0f);
+    ImGui::DragFloat(STR_C("Lift (m)##patch"), &patch.lift, 0.01f, -5.0f, 5.0f, "%.2f");
+    changed |= ImGui::IsItemDeactivatedAfterEdit();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("Metres the surface lies over the heights taken from the terrain"));
+    if (changed)
+    {
+        patch.size = std::max(0.0f, patch.size);
+        auto all{patches};
+        all[m_patch_selected] = std::move(patch);
+        m_streamer.patches(std::move(all));
+        return;
+    }
+    if (ImGui::Button(STR_C("Outline it again##patch")))
+    {
+        m_paint_outline.clear();
+        for (auto const &point : patch.outline)
+        {
+            double height{0.0};
+            patch.height(point.x, point.y, height);
+            m_paint_outline.emplace_back(point.x, height, point.y);
+        }
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("Puts the outline of the surface back as the outline of the Fill tool"));
+    ImGui::SameLine();
+    if (ImGui::Button(STR_C("Give back to the terrain##patch")))
+    {
+        auto const outline = patch.outline;
+        auto all{patches};
+        all.erase(all.begin() + m_patch_selected);
+        m_streamer.cut(outline, false);
+        m_streamer.patches(std::move(all));
+        m_patch_selected = -1;
+        ground_tiles.clear();
+        forget_ground_shapes();
+        m_terrain_status = STR_C("Surface removed, the hole under it closed");
+    }
 }
 
 void editor_mode::remove_selected_chunks()

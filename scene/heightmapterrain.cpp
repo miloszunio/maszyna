@@ -747,6 +747,40 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 				if (water.outline.size() >= 3)
 					result.water.push_back(std::move(water));
 			}
+		if (auto const node{document["patches"]}; node && node.IsSequence())
+			for (auto const &entry : node)
+			{
+				surface_patch patch;
+				if (auto const name{entry["name"]})
+					patch.name = name.as<std::string>();
+				if (auto const material{entry["material"]})
+					patch.material = material.as<std::string>();
+				if (auto const size{entry["size"]})
+					patch.size = std::max(0.f, size.as<float>());
+				if (auto const rotation{entry["rotation"]})
+					patch.rotation = rotation.as<float>();
+				if (auto const lift{entry["lift"]})
+					patch.lift = lift.as<float>();
+				if (auto const outline{entry["outline"]}; outline && outline.IsSequence())
+					for (auto const &point : outline)
+						if (point.IsSequence() && point.size() >= 2)
+							patch.outline.emplace_back(point[0].as<double>(), point[1].as<double>());
+				if (auto const grid{entry["grid"]}; grid && grid.IsSequence() && grid.size() >= 5)
+				{
+					patch.origin = {grid[0].as<double>(), grid[1].as<double>()};
+					patch.spacing = std::max(0.1, grid[2].as<double>());
+					patch.columns = std::max(0, grid[3].as<int>());
+					patch.rows = std::max(0, grid[4].as<int>());
+				}
+				if (auto const heights{entry["heights"]}; heights && heights.IsSequence())
+				{
+					patch.heights.reserve(heights.size());
+					for (auto const &height : heights)
+						patch.heights.push_back(height.as<float>());
+				}
+				if (patch.outline.size() >= 3 && patch.columns >= 2 && patch.rows >= 2 && patch.heights.size() == static_cast<std::size_t>(patch.columns) * patch.rows)
+					result.patches.push_back(std::move(patch));
+			}
 		if (auto const node{document["modifiers"]}; node && node.IsSequence())
 			for (auto const &entry : node)
 			{
@@ -848,6 +882,34 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 			out << YAML::Key << "outline" << YAML::Value << YAML::BeginSeq;
 			for (auto const &point : water.outline)
 				out << YAML::Flow << YAML::BeginSeq << point.x << point.y << YAML::EndSeq;
+			out << YAML::EndSeq;
+			out << YAML::EndMap;
+		}
+		out << YAML::EndSeq;
+	}
+	if (false == Manifest.patches.empty())
+	{
+		out << YAML::Key << "patches" << YAML::Value << YAML::BeginSeq;
+		for (auto const &patch : Manifest.patches)
+		{
+			out << YAML::BeginMap;
+			out << YAML::Key << "name" << YAML::Value << patch.name;
+			if (false == patch.material.empty())
+				out << YAML::Key << "material" << YAML::Value << patch.material;
+			if (patch.size > 0.f)
+				out << YAML::Key << "size" << YAML::Value << patch.size;
+			if (patch.rotation != 0.f)
+				out << YAML::Key << "rotation" << YAML::Value << patch.rotation;
+			if (patch.lift != 0.f)
+				out << YAML::Key << "lift" << YAML::Value << patch.lift;
+			out << YAML::Key << "outline" << YAML::Value << YAML::BeginSeq;
+			for (auto const &point : patch.outline)
+				out << YAML::Flow << YAML::BeginSeq << point.x << point.y << YAML::EndSeq;
+			out << YAML::EndSeq;
+			out << YAML::Key << "grid" << YAML::Value << YAML::Flow << YAML::BeginSeq << patch.origin.x << patch.origin.y << patch.spacing << patch.columns << patch.rows << YAML::EndSeq;
+			out << YAML::Key << "heights" << YAML::Value << YAML::Flow << YAML::BeginSeq;
+			for (auto const height : patch.heights)
+				out << std::round(height * 1000.f) / 1000.f;
 			out << YAML::EndSeq;
 			out << YAML::EndMap;
 		}
@@ -1292,6 +1354,23 @@ bool write_pack(std::string const &Path, pack_key const &Key, std::vector<chunk_
 			return false;
 		}
 	}
+	return true;
+}
+
+bool surface_patch::height(double const X, double const Z, double &Height) const
+{
+	if (columns < 2 || rows < 2 || heights.size() != static_cast<std::size_t>(columns) * rows)
+		return false;
+	auto const u{(X - origin.x) / spacing};
+	auto const v{(Z - origin.y) / spacing};
+	if (u < -1e-6 || v < -1e-6 || u > columns - 1 + 1e-6 || v > rows - 1 + 1e-6)
+		return false;
+	auto const ix{std::clamp(static_cast<int>(std::floor(u)), 0, columns - 2)};
+	auto const iz{std::clamp(static_cast<int>(std::floor(v)), 0, rows - 2)};
+	auto const fx{std::clamp(u - ix, 0.0, 1.0)};
+	auto const fz{std::clamp(v - iz, 0.0, 1.0)};
+	auto const at = [&](int const Column, int const Row) { return static_cast<double>(heights[static_cast<std::size_t>(Row) * columns + Column]); };
+	Height = (at(ix, iz) * (1.0 - fx) + at(ix + 1, iz) * fx) * (1.0 - fz) + (at(ix, iz + 1) * (1.0 - fx) + at(ix + 1, iz + 1) * fx) * fz + lift;
 	return true;
 }
 
