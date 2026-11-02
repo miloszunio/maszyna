@@ -861,16 +861,13 @@ std::array<char const *, 12> const editormarks{"//$p", "//$h", "//$r", "//$b", "
 // of the trainsets after //$o. The editor's lines of them are told by their first word
 bool editor_line(char const *Mark, std::string const &Text)
 {
-	static std::array<std::pair<std::string_view, std::array<std::string_view, 11>>, 5> const words{{
+	static std::array<std::pair<std::string_view, std::array<std::string_view, 11>>, 6> const words{{
 	    {"//$h", {"#", "alignment", "source", "ends", "norms", "pieces", "kept", "vertex", "click", "element", "end"}},
 	    {"//$r", {"#", "switch", "slip", "crossing", "double", "connection"}},
 	    {"//$o", {"on"}},
 	    {"//$s", {"#", "station"}},
 	    {"//$k", {"#", "mark", "via"}},
-<<<<<<< HEAD
-=======
 	    {"//$w", {"#", "area", "outline", "template", "end"}},
->>>>>>> 7463f5e13 (fix(editor): the filled areas kept as //$w lines, //$f being the fitted tracks of the profile tool)
 	}};
 	auto const lookup{std::find_if(words.begin(), words.end(), [&](auto const &Entry) { return Entry.first == Mark; })};
 	if (lookup == words.end())

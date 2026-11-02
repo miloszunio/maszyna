@@ -69,6 +69,8 @@ class terrain_streamer
 	editor_terrain *terrain_at(double X, double Z) const;
 	// height of the terrain at (X,Z); false where there's no chunk in memory
 	bool height_at(double X, double Z, double &Height) const;
+	// the same, the chunk read from its file first if it isn't in memory
+	bool height_at(double X, double Z, double &Height, bool Load);
 	// triangles of the full grid of the chunks in memory overlapping the rectangle (x, z)
 	void gather_triangles(glm::dvec2 const &Min, glm::dvec2 const &Max, std::vector<std::array<glm::dvec3, 3>> &Out) const;
 	// the first point where a ray from Origin along Direction (normalized) meets the ground of the chunks in memory, within

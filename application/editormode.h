@@ -616,6 +616,31 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the outlined area cut out of the terrain with its heights kept, as a separate surface with the chosen material
 	void cut_out_surface();
 	void render_patches_ui();
+	// the field of work of our own features (editormodefeatures.cpp): surfaces cut out of the terrain to texture them, and the
+	// track bed and the slopes along the tracks cut into pieces of their own
+	enum class feature_tool
+	{
+		cut_out, // an outline drawn as with Fill, cut out as a surface of its own
+		track_bed // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
+	};
+	feature_tool m_feature_tool{feature_tool::cut_out};
+	bool m_features_open{false};
+	struct track_bed_settings
+	{
+		float length{100.0f}; // the longest piece along the axis
+		float step{5.0f}; // between the points of the outlines along the axis
+		float reach{60.0f}; // the farthest a slope goes from the edge of the track bed
+		float tolerance{0.15f}; // how far off the slope of the modifier the ground may be, still the slope
+		float least_slope{0.5f}; // a narrower slope isn't made a piece of its own
+		float radius{1000.0f}; // around the camera
+		bool everywhere{false}; // all the modifiers of the terrain
+	};
+	track_bed_settings m_track_bed;
+	void render_features_ui();
+	void render_material_palette();
+	void cut_track_bed();
+	// the camera over a point of the plan, looking down at it
+	void go_to_plan(glm::dvec2 const &Plan);
 	// the brush, the hovered chunk and the outlines of water drawn over the viewport
 	void draw_terrain_overlay();
 	// forgets what's known about the ground, after the terrain changed
@@ -1004,7 +1029,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		tracks,
 		roads,
 		terrain,
-		catenary // the catenary tool of the tracks, as a field of work of its own
+		catenary, // the catenary tool of the tracks, as a field of work of its own
+		features // ours: surfaces cut out of the terrain, the track bed and the slopes cut into pieces
 	};
 	work_area current_work_area() const;
 	void choose_work_area(work_area const Area);

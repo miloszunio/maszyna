@@ -1772,7 +1772,7 @@ void editor_mode::render_nmt_buried()
 	if (state.buried.empty())
 		return;
 	// gone on to other work the message would only be in the way: the same is done by Terrain in the inspector
-	if (current_work_area() == work_area::terrain || (ui()->mode() == nodebank_panel::TRACK && m_track_tab != track_tab::lay && m_track_tab != track_tab::path))
+	if (m_terrain_open || (ui()->mode() == nodebank_panel::TRACK && m_track_tab != track_tab::lay && m_track_tab != track_tab::path))
 	{
 		state.buried.clear();
 		return;
