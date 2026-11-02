@@ -186,6 +186,12 @@ TGauge &TCab::Gauge(int n)
 	}
 };
 
+void TCab::ClearControls()
+{
+	ggList.clear();
+	btList.clear();
+}
+
 TButton &TCab::Button(int n)
 { // pobranie adresu obiektu animowanego wyborem 1 z 2
 	/*
@@ -918,6 +924,11 @@ std::shared_ptr<dictionary_source> TTrain::GetTrainState(dictionary_source const
 	dict->insert("seconds", static_cast<int>(simulation::Time.second()));
 	dict->insert("air_temperature", Global.AirTemperature);
 	dict->insert("light_level", Global.fLuminance - std::max(0.f, Global.Overcast - 1.f));
+
+	if (mvOccupied->Graph)
+	{
+		export_graph_values(*dict);
+	}
 
 	return dict;
 }
@@ -8467,6 +8478,11 @@ bool TTrain::Update(double const Deltatime)
 	while (simulation::Commands.pop(commanddata, static_cast<std::size_t>(command_target::vehicle) | id()))
 	{
 
+		if (mvOccupied->Graph && graph_command(commanddata))
+		{
+			// the command operated a control of the vehicle graph
+			continue;
+		}
 		auto lookup = m_commandhandlers.find(commanddata.command);
 		if (lookup != m_commandhandlers.end())
 		{
@@ -8841,7 +8857,8 @@ bool TTrain::Update(double const Deltatime)
 		ggClockHInd.Update();
 	}
 
-	Cabine[iCabn].Update(lowvoltagepower); // nowy sposób ustawienia animacji
+	// lamps of a graph vehicle are powered as its graph says
+	Cabine[iCabn].Update(mvOccupied->Graph ? true : lowvoltagepower); // nowy sposób ustawienia animacji
 	/*
 	    if (ggZbS.SubModel)
 	    {
@@ -10364,8 +10381,9 @@ bool TTrain::LoadMMediaFile(std::string const &asFileName)
 			parser >> token;
 
 			auto lookup{internalsounds.find(token)};
-			if (lookup == internalsounds.end())
+			if (lookup == internalsounds.end() || mvOccupied->Graph)
 			{
+				// sounds of a graph vehicle are defined by its graph
 				continue;
 			}
 
@@ -10802,6 +10820,13 @@ bool TTrain::InitializeCab(int NewCabNo, std::string const &asFileName)
 		{
 			soundsource.get()->offset(caboffset);
 		}
+	}
+
+	if (mvOccupied->Graph)
+	{
+		// controls and indicators of a graph vehicle come from its graph; before the model of the cab is initialised,
+		// so the animated submodels are known
+		initialize_graph_controls(cabindex);
 	}
 
 	if (DynamicObject->mdKabina)
