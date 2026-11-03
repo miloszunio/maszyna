@@ -1809,6 +1809,17 @@ std::uint16_t terrain_streamer::layer(std::string const &Material, float const S
 	return static_cast<std::uint16_t>(m_manifest.layers.size() - 1);
 }
 
+void terrain_streamer::georeference(double const North, double const East)
+{
+	if (m_manifest.georeferenced && m_manifest.origin_north == North && m_manifest.origin_east == East)
+		return;
+	remember_manifest();
+	m_manifest.georeferenced = North > 0.0 && East > 0.0;
+	m_manifest.origin_north = North;
+	m_manifest.origin_east = East;
+	m_manifestchanged = true;
+}
+
 void terrain_streamer::layer_size(std::uint16_t const Layer, float const Size)
 {
 	if (Layer >= m_manifest.layers.size() || m_manifest.layers[Layer].size == Size)

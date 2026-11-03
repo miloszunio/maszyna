@@ -33,6 +33,10 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/dictionary.h"
 #include "version_info.h"
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <thread>
+#include <chrono>
 #include <format>
 #include "utilities/translation.h"
 
@@ -716,6 +720,18 @@ void eu07_application::release_python_lock()
 void eu07_application::exit()
 {
 	Global.applicationQuitOrder = true;
+	// the windows go at once: what's left to finish (the downloads of the orthophoto and the terrain model waiting for the server,
+	// up to its timeouts) shouldn't keep a frozen window on the screen to be clicked again and again
+	for (auto *window : m_windows)
+		glfwHideWindow(window);
+	glfwPollEvents();
+	// and the process ends in a few seconds whatever still waits for the network
+	std::thread([]() {
+		std::this_thread::sleep_for(std::chrono::seconds(6));
+		std::fprintf(stderr, "MaSzyna: the shutdown took too long (downloads waiting for the server), the process ends now\n");
+		std::fflush(nullptr);
+		std::_Exit(0);
+	}).detach();
 	// each step of the closing in the log, to tell from it where a closing that hangs stops
 	auto const closing{std::chrono::steady_clock::now()};
 	auto const step = [&](char const *What) {

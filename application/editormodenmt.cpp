@@ -679,6 +679,9 @@ void editor_mode::nmt_make(std::vector<heightmap::chunk_key> const &Keys, bool c
 		return;
 	}
 	nmt_locate();
+	// the terrain made from the terrain model lies at real places: the origin goes with it
+	if (auto const &config{m_orthophoto.settings()}; config.north != 0.0 || config.east != 0.0)
+		m_streamer.georeference(config.north, config.east);
 	state.given_up.clear();
 	std::size_t queued{0};
 	for (auto const &key : Keys)
@@ -2135,7 +2138,20 @@ bool editor_mode::render_nmt_place(bool const Moving, bool const Button)
 	auto const cancel{STR_C("Cancel")};
 	auto const cancel_width{ImGui::CalcTextSize(cancel).x + ImGui::GetStyle().FramePadding.x * 2.0f};
 	bool placed{false};
-	ImGui::BeginDisabled(false == map.picked());
+	// a terrain which knows where it lies holds the place of the scenery: moving it would put the orthophoto and the terrain model
+	// beside the terrain and the tracks laid on it
+	auto const &terrain{m_streamer.manifest()};
+	auto const locked{m_streamer.active() && terrain.georeferenced && false == m_origin_unlocked};
+	if (m_streamer.active() && terrain.georeferenced)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.85f, 0.55f, 1.0f));
+		ImGui::TextWrapped(STR_C("The terrain of the scenery knows where it lies: X %.0f, Y %.0f in PUWG 1992. The orthophoto and the terrain model are laid out from it"),
+		                   terrain.origin_north, terrain.origin_east);
+		ImGui::PopStyleColor();
+		ImGui::Checkbox(STR_C("Move the scenery anyway##nmt"), &m_origin_unlocked);
+		item_tooltip("The terrain keeps the new place too. Only for a terrain made at the wrong place: the tracks and the terrain stay where they are in the scenery, the maps move under them");
+	}
+	ImGui::BeginDisabled(false == map.picked() || locked);
 	if (main_button(STR_C("The scenery is here"), ImVec2(Moving ? -(cancel_width + ImGui::GetStyle().ItemSpacing.x) : -FLT_MIN, tall_button_height())))
 	{
 		nmt_place_scenery(map.point());
@@ -2151,7 +2167,7 @@ bool editor_mode::render_nmt_place(bool const Moving, bool const Button)
 	// the other way round: the place clicked is where the camera stands now, the middle of the scenery follows from it. It puts
 	// the scenery back where it belongs after "The scenery is here" moved it: fly the camera to a place known on the map (a
 	// station, a crossing), click that place on the map, and assign
-	ImGui::BeginDisabled(false == map.picked());
+	ImGui::BeginDisabled(false == map.picked() || locked);
 	if (ImGui::Button(STR_C("Assign from the camera"), ImVec2(-FLT_MIN, 0.0f)))
 	{
 		auto const point{map.point()};
@@ -2163,7 +2179,15 @@ bool editor_mode::render_nmt_place(bool const Moving, bool const Button)
 	item_tooltip("The place clicked on the map is where the camera stands now: the middle of the scenery is set from it, so the orthophoto, the terrain model "
 	             "and the map lie under the scenery again. Fly the camera to a place you know on the map (a station, a crossing), click that place and assign");
 	read_georeference();
-	if (m_georeference)
+	if (m_streamer.active() && terrain.georeferenced && (m_orthophoto.settings().north != terrain.origin_north || m_orthophoto.settings().east != terrain.origin_east))
+	{
+		if (ImGui::Button(STR_C("The middle the terrain gives"), ImVec2(-FLT_MIN, 0.0f)))
+		{
+			nmt_place_scenery({terrain.origin_east, terrain.origin_north});
+			placed = true;
+		}
+	}
+	if (m_georeference && false == locked)
 	{
 		if (ImGui::Button(STR_C("The middle the scenery file gives"), ImVec2(-FLT_MIN, 0.0f)))
 		{
@@ -2324,6 +2348,9 @@ void editor_mode::nmt_place_scenery(glm::dvec2 const &Point)
 	config.north = Point.y;
 	config.east = Point.x;
 	m_orthophoto.settings(config);
+	// the terrain there is kept with the place it was made for
+	if (m_streamer.active())
+		m_streamer.georeference(config.north, config.east);
 	m_orthophoto_origin_edit = {config.north, config.east};
 	save_orthophoto_settings();
 	nmt_locate();

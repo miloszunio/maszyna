@@ -95,6 +95,8 @@ class terrain_streamer
 
 	// editing; the chunks changed are written to the files by save()
 	heightmap::manifest const &manifest() const { return m_manifest; }
+	// where the terrain lies in PUWG 1992, kept in its manifest
+	void georeference(double North, double East);
 	// a flat chunk at (Cx, Cz) of specified spacing and height, covered with the material of palette entry Layer;
 	// returns false if there's a chunk already
 	bool add_chunk(int Cx, int Cz, float Spacing, float Height, std::uint16_t Layer = 0);

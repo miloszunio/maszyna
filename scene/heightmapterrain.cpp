@@ -188,6 +188,36 @@ int floor_div(int const Value, int const Divisor)
 }
 
 // the larger of two values, the corner between them rounded off over K
+// smooth noise of -1..1 in waves of about Scale metres, the same at the same place every time; Channel gives another one.
+// tools/irt/teren.py has the same, to the bit, so the terrain the converter makes is the one the editor makes again
+double natural_noise(double const X, double const Z, double const Scale, int const Channel)
+{
+	auto const hash = [](std::int64_t const Ix, std::int64_t const Iz) {
+		auto h{static_cast<std::uint64_t>(Ix) * 0x9E3779B97F4A7C15ull ^ static_cast<std::uint64_t>(Iz) * 0xC2B2AE3D27D4EB4Full};
+		h ^= h >> 31;
+		h *= 0xBF58476D1CE4E5B9ull;
+		h ^= h >> 29;
+		return static_cast<double>(h & 0xffffff) / static_cast<double>(0xffffff) * 2.0 - 1.0;
+	};
+	auto const octave = [&](double const U, double const V) {
+		auto const iu{std::floor(U)};
+		auto const iv{std::floor(V)};
+		auto const fu{U - iu};
+		auto const fv{V - iv};
+		auto const su{fu * fu * (3.0 - 2.0 * fu)};
+		auto const sv{fv * fv * (3.0 - 2.0 * fv)};
+		auto const x{static_cast<std::int64_t>(iu)};
+		auto const z{static_cast<std::int64_t>(iv)};
+		auto const a{hash(x, z) + (hash(x + 1, z) - hash(x, z)) * su};
+		auto const b{hash(x, z + 1) + (hash(x + 1, z + 1) - hash(x, z + 1)) * su};
+		return a + (b - a) * sv;
+	};
+	auto const scale{std::max(0.5, Scale)};
+	auto const u{X / scale + Channel * 101.7};
+	auto const v{Z / scale - Channel * 57.3};
+	return std::clamp(0.7 * octave(u, v) + 0.3 * octave(u * 2.7 + 17.3, v * 2.7 - 9.1), -1.0, 1.0);
+}
+
 double soft_max(double const A, double const B, double const K)
 {
 	if (K <= 1e-6)
@@ -669,14 +699,30 @@ std::optional<modifier_shape::effect> modifier_shape::evaluate(double const X, d
 	if (false == found)
 		return std::nullopt;
 	// the formation under the axis, slopes from its edges down or up to the ground, the bends rounded off
-	auto const slope{std::max(0.1, m_modifier.slope)};
+	auto slope{std::max(0.1, m_modifier.slope)};
 	auto const rounding{std::max(0.0, m_modifier.rounding)};
 	auto const ground{Ground};
-	auto const beyond{soft_max(0.0, distance - halfwidth, rounding)};
+	auto beyond{soft_max(0.0, distance - halfwidth, rounding)};
 	// the bends of the slopes round off only away from the formation: under it the ground is the formation itself, a cut or a
 	// fill as shallow as the bend isn't let to sink or rise it
-	auto const bend{rounding / slope * std::clamp(beyond / std::max(rounding, 1e-6), 0.0, 1.0)};
-	auto const target{ground > formation ? -soft_max(-ground, -(formation + beyond / slope), bend) : soft_max(ground, formation - beyond / slope, bend)};
+	auto bend{rounding / slope * std::clamp(beyond / std::max(rounding, 1e-6), 0.0, 1.0)};
+	auto const &natural{m_modifier.natural};
+	// away from the edge of the formation only: the track bed keeps its width and its edges
+	auto const fade{natural.any() ? std::clamp(beyond / 3.0, 0.0, 1.0) : 0.0};
+	if (fade > 0.0)
+	{
+		auto const smooth{fade * fade * (3.0 - 2.0 * fade)};
+		beyond = std::max(0.0, beyond - natural.wander * natural_noise(X, Z, natural.scale, 1) * smooth);
+		slope *= 1.0 + std::max(0.0, natural.gentler) * (0.5 + 0.5 * natural_noise(X, Z, natural.scale * 0.7, 2)) * smooth;
+		bend += std::max(0.0, natural.soften) * std::min(std::abs(ground - formation), 6.0) * smooth;
+	}
+	auto target{ground > formation ? -soft_max(-ground, -(formation + beyond / slope), bend) : soft_max(ground, formation - beyond / slope, bend)};
+	if (fade > 0.0 && natural.roughness > 0.0)
+	{
+		// bumps on the face of the slope, none where it meets the ground
+		auto const face{std::clamp(std::abs(target - ground) / 0.5, 0.0, 1.0)};
+		target += natural.roughness * natural_noise(X, Z, 3.0, 3) * face * fade;
+	}
 	return effect{target, distance - halfwidth, distance};
 }
 
@@ -708,6 +754,13 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 			result.compress = node.as<bool>();
 		if (auto const node{document["spacing"]})
 			result.spacing = valid_spacing(node.as<float>());
+		// origin: {system: PUWG1992, east: , north: }
+		if (auto const node{document["origin"]}; node && node.IsMap() && node["east"] && node["north"])
+		{
+			result.origin_east = node["east"].as<double>();
+			result.origin_north = node["north"].as<double>();
+			result.georeferenced = result.origin_east > 0.0 && result.origin_north > 0.0;
+		}
 		if (auto const node{document["water_material"]})
 			result.water_material = node.as<std::string>();
 		if (auto const node{document["layers"]}; node && node.IsSequence())
@@ -819,6 +872,20 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 					item.reach = reach.as<double>();
 				if (auto const rounding{entry["rounding"]})
 					item.rounding = rounding.as<double>();
+				// natural: {wander: , scale: , gentler: , soften: , roughness: }
+				if (auto const natural{entry["natural"]}; natural && natural.IsMap())
+				{
+					auto const take = [&](char const *Key, double &Value) {
+						if (auto const node{natural[Key]})
+							Value = std::max(0.0, node.as<double>());
+					};
+					take("wander", item.natural.wander);
+					take("scale", item.natural.scale);
+					take("gentler", item.natural.gentler);
+					take("soften", item.natural.soften);
+					take("roughness", item.natural.roughness);
+					item.natural.scale = std::max(0.5, item.natural.scale);
+				}
 				if (auto const open{entry["open_start"]})
 					item.open_start = open.as<bool>();
 				if (auto const open{entry["open_end"]})
@@ -878,6 +945,14 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 	out << YAML::Key << "version" << YAML::Value << Manifest.version;
 	out << YAML::Key << "compress" << YAML::Value << Manifest.compress;
 	out << YAML::Key << "spacing" << YAML::Value << Manifest.spacing;
+	if (Manifest.georeferenced)
+	{
+		out << YAML::Key << "origin" << YAML::Value << YAML::BeginMap;
+		out << YAML::Key << "system" << YAML::Value << "PUWG1992";
+		out << YAML::Key << "east" << YAML::Value << Manifest.origin_east;
+		out << YAML::Key << "north" << YAML::Value << Manifest.origin_north;
+		out << YAML::EndMap;
+	}
 	out << YAML::Key << "water_material" << YAML::Value << Manifest.water_material;
 	out << YAML::Key << "layers" << YAML::Value << YAML::BeginSeq;
 	for (auto const &layer : Manifest.layers)
@@ -982,6 +1057,16 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 			out << YAML::Key << "slope" << YAML::Value << item.slope;
 			out << YAML::Key << "reach" << YAML::Value << item.reach;
 			out << YAML::Key << "rounding" << YAML::Value << item.rounding;
+			if (item.natural.any())
+			{
+				out << YAML::Key << "natural" << YAML::Value << YAML::Flow << YAML::BeginMap;
+				out << YAML::Key << "wander" << YAML::Value << item.natural.wander;
+				out << YAML::Key << "scale" << YAML::Value << item.natural.scale;
+				out << YAML::Key << "gentler" << YAML::Value << item.natural.gentler;
+				out << YAML::Key << "soften" << YAML::Value << item.natural.soften;
+				out << YAML::Key << "roughness" << YAML::Value << item.natural.roughness;
+				out << YAML::EndMap;
+			}
 			if (item.open_start)
 				out << YAML::Key << "open_start" << YAML::Value << true;
 			if (item.open_end)

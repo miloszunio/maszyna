@@ -15,7 +15,7 @@ Gałąź `ficzery` buduje się od nowa na świeżym kodzie chłopaków. Dokłada
 
 ## Dział Ficzery (F7)
 
-Jest na górnej belce obok Otoczenia, Torów, Dróg i Terenu. Ma trzy narzędzia.
+Jest na górnej belce obok Otoczenia, Torów, Dróg i Terenu. Ma cztery narzędzia.
 
 **Wytnij powierzchnię.**
 - Obrys rysuje się jak w Wypełnieniu: LPM dodaje punkt, Shift+LPM cofa ostatni.
@@ -36,6 +36,26 @@ Jest na górnej belce obok Otoczenia, Torów, Dróg i Terenu. Ma trzy narzędzia
 - Zakres to tory wokół kamery (promień do ustawienia) albo cała sceneria.
 - Ponowne uruchomienie zastępuje kawałki wycięte wcześniej w tym samym miejscu.
 - Nasypy dalej usypują modyfikatory, a kawałki służą tylko do teksturowania.
+
+**Naturalne skarpy** (w narzędziu Torowisko i skarpy).
+- Nasypy i przekopy przestają być idealnym trapezem.
+- Torowisko i jego krawędzie zostają dokładnie według ST-T1-A6. Zmienia się tylko to, co dalej:
+  - **falowanie podnóża:** linia, gdzie skarpa spotyka teren, wchodzi i wychodzi o zadane metry, w falach o zadanej długości;
+  - **łagodniejsze o najwyżej:** skarpa 1:1,5 miejscami łagodnieje, np. do 1:1,8, ale nigdy nie jest bardziej stroma niż w projekcie;
+  - **miękkie podnóże:** zaokrąglenie podnóża rośnie z wysokością nasypu, więc wysokie nasypy łagodnie wchodzą w teren;
+  - **nierówności skarpy:** powierzchnia skarpy jest lekko pofałdowana, jak ziemia ułożona przez lata.
+- „Zrób naturalne skarpy” działa wokół kamery albo w całej scenerii. Ctrl+Z cofa, a „Z powrotem skarpy według projektu” przywraca trapez.
+- Ustawienia zapisują się przy modyfikatorach w `terrain.yaml` (`natural: {...}`).
+- Do łagodzenia skarp edytor potrzebuje terenu sprzed nasypów, czyli wycinka `HBAS`. Konwerter robi go opcją `--terrain-base`, a skarpy naturalne od razu opcją `--natural-slopes`. Ten sam szum jest w silniku i w konwerterze co do bitu, więc teren z konwertera i z edytora wychodzi taki sam.
+
+**Kapelusz.**
+- Kliknij dwa rogi prostokąta nad torem, po przekątnej. Najwygodniej robić to w rzucie z góry.
+- Prostokąt sam układa się wzdłuż toru. Algorytm sprawdza tor pod nim i wybiera najmniejszy rozjazd z katalogu (dla szyny tego toru), który mieści się w prostokącie. Tor zwrotny idzie w tę stronę, w którą prostokąt sięga dalej.
+- „Wstaw rozjazd” wstawia go na środku prostej w prostokącie. Tor jest przycinany i dowiązywany, a Ctrl+Z cofa całość.
+- Gdy miejsca jest za mało, Kapelusz mówi, ile brakuje wzdłuż albo w poprzek toru i dlaczego:
+  - prosta kończy się łukiem R … albo krzywą przejściową,
+  - prosta kończy się na innym rozjeździe,
+  - pod prostokątem jest łuk albo przechyłka.
 
 **Idź do.**
 - Mapa jak w narzędziu NMT maj00ra, z kamerą zaznaczoną strzałką w kierunku patrzenia. Może podążać za kamerą. Klik na mapie i „Idź do klikniętego punktu” przenosi tam kamerę.
@@ -58,6 +78,21 @@ Jest na górnej belce obok Otoczenia, Torów, Dróg i Terenu. Ma trzy narzędzia
 - Powierzchnie wycięte wcześniej z dziurą i własną siatką, np. z paczki IRT v5, zamienia w malowane przycisk „Przemaluj je w teren”. Działa wokół kamery albo w całej scenerii.
 
 Ograniczenie: jeden chunk 250×250 m mieści najwyżej 8 materiałów, razem z tymi w przejściach.
+
+## Punkt odniesienia trzyma teren
+
+- Teren zapisuje w `terrain.yaml`, gdzie leży: `origin: {system: PUWG1992, east, north}`.
+- Gdy edytor wczytuje teren z zapisanym położeniem, bierze z niego punkt odniesienia dla ortofotomapy, NMT, mapy i Idź do. Nie ma znaczenia, co było wcześniej wpisane albo kliknięte. Na pasku stanu pokazuje, że to zrobił.
+- Teren bez zapisanego położenia w scenerii z linią `//$g` dostaje je przy pierwszym wczytaniu.
+- Teren robiony narzędziem NMT dostaje położenie od razu. Robi to też konwerter IRT.
+- W narzędziu „Prawdziwy teren z map (NMT)”, gdy teren zna swoje położenie, przyciski „Sceneria jest tutaj” i „Przypisz z kamery” są zablokowane. Odblokowuje je dopiero „Przestaw mimo to”, i wtedy teren zapamiętuje nowe miejsce. Przycisk „Środek zapisany w terenie” wraca do niego.
+
+## Zamykanie edytora
+
+- Okno znika od razu po wyjściu. Pobierania ortofotomapy i NMT, które jeszcze czekają na serwer, nie trzymają już zamrożonego okna.
+- Najpóźniej po 6 s proces kończy się sam.
+- W menu Plik jest „Zamknij edytor”, który zamyka bez dodatkowego okna.
+- Okno „Wyjść?” z menu Ogólne pokazuje się na środku, nad panelami.
 
 ## Pozostałe
 

@@ -1395,6 +1395,7 @@ bool editor_mode::update()
     Global.editor_tracks = (current_work_area() == work_area::tracks);
     selftest_step();
     steps.step("selftest");
+    sync_terrain_origin();
     // the drives of the switches go to the tips of their blades once, as the templates of the scenery are known
     if (false == m_drives_checked)
     {
@@ -2408,6 +2409,9 @@ void editor_mode::draw_terrain_overlay()
                 drawlist->AddCircleFilled(dot, 4.0f, IM_COL32(250, 200, 90, 255));
         }
     }
+    // Kapelusz: the rectangle laid along the track
+    if (m_features_open && m_feature_tool == feature_tool::hat && m_hat_box.size() == 4)
+        polyline(m_hat_box, IM_COL32(120, 230, 255, 255), true, 2.5f);
     if (m_terrain_tool == terrain_tool::water && false == m_water_points.empty())
     {
         std::vector<glm::dvec3> outline;
@@ -5896,7 +5900,7 @@ void editor_mode::choose_work_area(work_area const Area)
 		terrain_workspace(true);
 		m_features_open = true;
 		// the outline of the surface is drawn as with Fill
-		m_terrain_tool = m_feature_tool == feature_tool::cut_out ? terrain_tool::fill : terrain_tool::none;
+		m_terrain_tool = m_feature_tool == feature_tool::cut_out || m_feature_tool == feature_tool::hat ? terrain_tool::fill : terrain_tool::none;
 		break;
 	}
 }

@@ -206,6 +206,18 @@ struct modifier
 	// portal of a tunnel; otherwise they go round it
 	bool open_start{false};
 	bool open_end{false};
+	// the slopes not drawn with a ruler: the formation and the edges of the track bed stay as designed, the slopes and their foot
+	// wander and roll as the earth does. All 0: the slopes as designed
+	struct natural_shape
+	{
+		double wander{0.0}; // metres the foot of the slopes wanders in and out by
+		double scale{15.0}; // about how long the waves of it are along the line, metres
+		double gentler{0.0}; // up to how much gentler the slopes get than designed, 0.2: up to 1:1.8 of 1:1.5 (never steeper)
+		double soften{0.0}; // the foot rounded off more, metres of the bend a metre of the height of the slope
+		double roughness{0.0}; // metres the face of the slope is bumpy by
+		bool any() const { return wander > 0.0 || gentler > 0.0 || soften > 0.0 || roughness > 0.0; }
+	};
+	natural_shape natural;
 	std::vector<corridor_point> points;
 
 	// rectangle (x, z) the modifier can change the ground in
@@ -280,6 +292,11 @@ struct manifest
 	std::string patches_file;
 	std::vector<modifier> modifiers;
 	std::vector<grass_def> grass; // the grass palette
+	// where the point 0,0,0 of the scenery lies in PUWG 1992 (EPSG:2180), when the terrain knows it: the terrain lies at real places,
+	// so the editor takes the origin from it (the orthophoto, the terrain model, the maps) rather than from what was typed or clicked
+	bool georeferenced{false};
+	double origin_east{0.0};
+	double origin_north{0.0};
 };
 
 // past this many the patches are saved to their own file (manifest::patches_file)

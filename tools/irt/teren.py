@@ -80,6 +80,41 @@ class Grid:
         return M, r0, c0
 
 
+_M64 = (1 << 64) - 1
+
+
+def _hash(ix, iz):
+    """jak hash w heightmap::natural_noise (scene/heightmapterrain.cpp), na uint64 z zawijaniem"""
+    with np.errstate(over="ignore"):
+        h = ix.astype(np.int64).view(np.uint64) * np.uint64(0x9E3779B97F4A7C15) ^ iz.astype(np.int64).view(np.uint64) * np.uint64(0xC2B2AE3D27D4EB4F)
+        h ^= h >> np.uint64(31)
+        h *= np.uint64(0xBF58476D1CE4E5B9)
+        h ^= h >> np.uint64(29)
+    return (h & np.uint64(0xFFFFFF)).astype(np.float64) / float(0xFFFFFF) * 2.0 - 1.0
+
+
+def _octave(u, v):
+    iu, iv = np.floor(u), np.floor(v)
+    fu, fv = u - iu, v - iv
+    su, sv = fu * fu * (3.0 - 2.0 * fu), fv * fv * (3.0 - 2.0 * fv)
+    x, z = iu.astype(np.int64), iv.astype(np.int64)
+    a = _hash(x, z) + (_hash(x + 1, z) - _hash(x, z)) * su
+    b = _hash(x, z + 1) + (_hash(x + 1, z + 1) - _hash(x, z + 1)) * su
+    return a + (b - a) * sv
+
+
+def natural_noise(X, Z, scale, channel):
+    """szum -1..1 w falach ~scale m, ten sam co heightmap::natural_noise w silniku (co do bitu)"""
+    scale = max(0.5, scale)
+    u = np.asarray(X, float) / scale + channel * 101.7
+    v = np.asarray(Z, float) / scale - channel * 57.3
+    return np.clip(0.7 * _octave(u, v) + 0.3 * _octave(u * 2.7 + 17.3, v * 2.7 - 9.1), -1.0, 1.0)
+
+
+# skarpy nie od linijki (modifier::natural_shape): stopa faluje, skarpa miejscami lagodniejsza, miekka stopa, nierowna powierzchnia
+NATURAL = dict(wander=0.8, scale=15.0, gentler=0.15, soften=0.3, roughness=0.08)
+
+
 def soft_max(a, b, k):
     k = np.asarray(k, float)
     h = np.maximum(k - np.abs(a - b), 0.0) / np.maximum(k, 1e-9)
@@ -96,8 +131,9 @@ class Formation:
     HALF = 0.5 * 1.435 + 0.5 + 1.1 + 1.2
     DEPTH = 0.2
 
-    def __init__(self, runs, origin, slope=1.5, reach=60.0, rounding=1.5, step=10.0):
+    def __init__(self, runs, origin, slope=1.5, reach=60.0, rounding=1.5, step=10.0, natural=None):
         self.slope, self.reach, self.rounding = slope, reach, rounding
+        self.natural = natural
         segs = []          # ax, az, bx, bz, fa, fb, open_start, open_end
         mods = []          # do terrain.yaml
         for run in runs:
@@ -176,8 +212,19 @@ class Formation:
         hw = self.HALF
         beyond = soft_max(0.0, best - hw, self.rounding)
         bend = self.rounding / self.slope * np.clip(beyond / max(self.rounding, 1e-6), 0, 1)
-        target = np.where(g > form, -soft_max(-g, -(form + beyond / self.slope), bend),
-                          soft_max(g, form - beyond / self.slope, bend))
+        slope = np.full(g.shape, self.slope)
+        nat = self.natural
+        fade = np.clip(beyond / 3.0, 0, 1) if nat else np.zeros(g.shape)
+        if nat:
+            smooth = fade * fade * (3.0 - 2.0 * fade)
+            beyond = np.maximum(0.0, beyond - nat["wander"] * natural_noise(x, z, nat["scale"], 1) * smooth)
+            slope = slope * (1.0 + nat["gentler"] * (0.5 + 0.5 * natural_noise(x, z, nat["scale"] * 0.7, 2)) * smooth)
+            bend = bend + nat["soften"] * np.minimum(np.abs(g - form), 6.0) * smooth
+        target = np.where(g > form, -soft_max(-g, -(form + beyond / slope), bend),
+                          soft_max(g, form - beyond / slope, bend))
+        if nat and nat["roughness"] > 0:
+            face = np.clip(np.abs(target - g) / 0.5, 0, 1)
+            target = target + nat["roughness"] * natural_noise(x, z, 3.0, 3) * face * fade
         h = np.where(found, target, g)
         return h.reshape(G.shape), np.where(found, best, np.inf).reshape(G.shape)
 
@@ -256,11 +303,14 @@ def write_pack(path, key, chunks, zstd_level=19):
         fh.write(f)
 
 
-def write_manifest(path, spacing, modifiers, grass_kinds):
+def write_manifest(path, spacing, modifiers, grass_kinds, origin=None, natural=None):
     out = ["# MaSzyna heightmap terrain; the chunks are in the .tch files next to this one",
            "# teren z NMT GUGiK (pas wokol torow IRT), nasypy i przekopy wg torowiska - irt2maszyna/teren.py",
            "version: 1", "compress: true", f"spacing: {spacing:g}", "water_material: water",
            "layers:", "  - grass"]
+    if origin is not None:
+        # gdzie lezy punkt 0,0,0 scenerii (EPSG:2180): edytor bierze z terenu srodek dla ortofotomapy, NMT i map
+        out += ["origin:", "  system: PUWG1992", f"  east: {origin[0]:.3f}", f"  north: {origin[1]:.3f}"]
     if grass_kinds:
         out.append("grass:")
         for g in grass_kinds:
@@ -276,6 +326,8 @@ def write_manifest(path, spacing, modifiers, grass_kinds):
             out.append("    slope: 1.5")
             out.append("    reach: 60")
             out.append("    rounding: 1.5")
+            if natural:
+                out.append("    natural: {" + ", ".join(f"{k}: {natural[k]:g}" for k in ("wander", "scale", "gentler", "soften", "roughness")) + "}")
             if m.get("open_start"):
                 out.append("    open_start: true")
             if m.get("open_end"):
@@ -297,10 +349,10 @@ GRASS = [
 
 
 def build(grid, runs, origin, out_dir, name="irt", corridor=230.0, fine_dist=40.0, log=print, with_base=True,
-          with_grass=True):
+          with_grass=True, natural=None):
     """runs: listy kawalkow torow (z y0/y1/env) - tory 1, 2, laczniki; rozjazdy jako proste kawalki."""
     os.makedirs(out_dir, exist_ok=True)
-    form = Formation(runs, origin)
+    form = Formation(runs, origin, natural=natural)
     # osie do odleglosci (trawa, wybor rozdzielczosci)
     axis = []
     for run in runs:
@@ -368,7 +420,7 @@ def build(grid, runs, origin, out_dir, name="irt", corridor=230.0, fine_dist=40.
             log(f"teren: {stats['chunks']} chunkow")
     for pk, chunks in chunks_by_pack.items():
         write_pack(os.path.join(out_dir, f"{pk[0]}_{pk[1]}.tch"), pk, chunks)
-    write_manifest(os.path.join(out_dir, "terrain.yaml"), 5.0, form.mods, GRASS if with_grass else None)
+    write_manifest(os.path.join(out_dir, "terrain.yaml"), 5.0, form.mods, GRASS if with_grass else None, origin=origin, natural=natural)
     stats["packs"] = len(chunks_by_pack)
     stats["modifiers"] = len(form.mods)
     return stats
