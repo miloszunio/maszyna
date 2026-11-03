@@ -849,6 +849,8 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 					patch.noise_scale = std::max(0.5f, node.as<float>());
 				if (auto const node{entry["shape"]})
 					patch.shape = node.as<std::string>();
+				if (auto const node{entry["grass"]})
+					patch.grass = std::max(-2, node.as<int>());
 				if (patch.follow && !entry["grid"] && !entry["spacing"])
 					patch.spacing = 2.0;
 				if (auto const spacing{entry["spacing"]})
@@ -1027,6 +1029,8 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 			out << YAML::EndSeq;
 			if (false == patch.shape.empty())
 				out << YAML::Key << "shape" << YAML::Value << patch.shape;
+			if (patch.grass != -2)
+				out << YAML::Key << "grass" << YAML::Value << patch.grass;
 			if (patch.paint)
 			{
 				out << YAML::Key << "paint" << YAML::Value << true;
@@ -1560,6 +1564,8 @@ bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches)
 		std::istringstream points{fields[kinded ? 10 : 6]};
 		if (kinded && fields.size() >= 12)
 			patch.shape = fields[11];
+		if (kinded && fields.size() >= 13)
+			patch.grass = std::max(-2, std::atoi(fields[12].c_str()));
 		double x{0.0};
 		double z{0.0};
 		while (points >> x >> z)
@@ -1588,8 +1594,10 @@ bool save_patches(std::string const &Path, std::vector<surface_patch> const &Pat
 			std::snprintf(number, sizeof(number), "%s%.2f %.2f", i > 0 ? " " : "", patch.outline[i].x, patch.outline[i].y);
 			file << number;
 		}
-		if (false == patch.shape.empty())
+		if (false == patch.shape.empty() || patch.grass != -2)
 			file << '\t' << patch.shape;
+		if (patch.grass != -2)
+			file << '\t' << patch.grass;
 		file << '\n';
 	}
 	return static_cast<bool>(file);

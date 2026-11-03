@@ -296,6 +296,7 @@ void editor_mode::render_features_ui()
 				ImGui::SetTooltip("%s", STR_C("About how long the waves of the edge are: small - frayed, large - gently wavy"));
 			ImGui::SetNextItemWidth(120.0f);
 			ImGui::SliderFloat(STR_C("Texture turned by (deg)"), &m_paint_rotation, -180.0f, 180.0f, "%.0f");
+			grass_choice(STR_C("3D grass under it##cut"), m_cut_grass);
 			ImGui::Spacing();
 			ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
 			if (main_button(STR_C("Cut out as a separate surface"), ImVec2(-FLT_MIN, tall_button_height())))
@@ -339,6 +340,8 @@ void editor_mode::render_features_ui()
 			ImGui::DragFloat(STR_C("Slope into the ground (m)"), &settings.slope_feather, 0.05f, 0.0f, 20.0f, "%.2f");
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("%s", STR_C("The transition from the material of the slope into the ground around"));
+			grass_choice(STR_C("3D grass on the track bed##bed"), settings.bed_grass);
+			grass_choice(STR_C("3D grass on the slopes##bed"), settings.slope_grass);
 			ImGui::SetNextItemWidth(120.0f);
 			ImGui::DragFloat(STR_C("Noise of the edge (m)##bed"), &m_cut_noise, 0.05f, 0.0f, 10.0f, m_cut_noise > 0.0f ? "%.2f" : STR_C("none"));
 			ImGui::SetNextItemWidth(120.0f);
@@ -748,6 +751,7 @@ void editor_mode::cut_track_bed()
 		patch.paint = true;
 		patch.spacing = 2.0;
 		patch.feather = made.lift > 0.025f ? settings.bed_feather : settings.slope_feather;
+		patch.grass = made.lift > 0.025f ? settings.bed_grass : settings.slope_grass;
 		patch.noise = m_cut_noise;
 		patch.noise_scale = m_cut_noise_scale;
 		patch.outline = std::move(made.outline);
@@ -801,6 +805,7 @@ void editor_mode::cut_out_surface()
 	patch.feather = m_cut_feather;
 	patch.noise = m_cut_noise;
 	patch.noise_scale = m_cut_noise_scale;
+	patch.grass = m_cut_grass;
 	patch.outline = shaped_outline();
 	patch.shape = outline_controls();
 	if (patch.outline.size() < 3)
@@ -831,7 +836,42 @@ bool editor_mode::paint_patch(heightmap::surface_patch const &Patch)
 	std::uint16_t layer{0};
 	if (false == Patch.material.empty())
 		layer = m_streamer.layer(Patch.material, Patch.size, Patch.rotation);
-	return m_streamer.fill(Patch.outline, Patch.feather, layer, 1.0, Patch.noise, Patch.noise_scale);
+	auto const painted{m_streamer.fill(Patch.outline, Patch.feather, layer, 1.0, Patch.noise, Patch.noise_scale)};
+	// the 3D grass: the texture alone wouldn't do, the blades would go on growing over the gravel
+	if (Patch.grass >= -1)
+	{
+		m_streamer.grass(Patch.outline, 0, true);
+		if (Patch.grass >= 0 && Patch.grass < static_cast<int>(m_streamer.grass_kinds().size()))
+			m_streamer.grass(Patch.outline, static_cast<std::uint16_t>(Patch.grass), false);
+	}
+	return painted;
+}
+
+bool editor_mode::grass_choice(char const *Label, int &Choice)
+{
+	auto const &kinds{m_streamer.grass_kinds()};
+	auto const name = [&](int const Value) -> std::string {
+		if (Value == -2)
+			return STR("left as it grows");
+		if (Value == -1)
+			return STR("taken away");
+		return Value < static_cast<int>(kinds.size()) ? format(STR_C("grown: %s"), kinds[Value].name.c_str()) : std::string{"?"};
+	};
+	bool changed{false};
+	ImGui::SetNextItemWidth(160.0f);
+	if (ImGui::BeginCombo(Label, name(Choice).c_str()))
+	{
+		for (int value = -2; value < static_cast<int>(kinds.size()); ++value)
+			if (ImGui::Selectable(name(value).c_str(), value == Choice))
+			{
+				Choice = value;
+				changed = true;
+			}
+		ImGui::EndCombo();
+	}
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("The 3D grass under the surface: left as it grows, taken away (gravel, a yard), or another kind of the grass palette grown there instead"));
+	return changed;
 }
 
 void editor_mode::repaint_patches(std::vector<heightmap::surface_patch> All, std::vector<std::size_t> const &Changed, std::vector<heightmap::surface_patch> const &Cleared)
@@ -904,6 +944,8 @@ void editor_mode::repaint_patches(std::vector<heightmap::surface_patch> All, std
 		base.material.clear(); // the first material of the palette, as the ground was
 		base.size = 0.f;
 		base.rotation = 0.f;
+		// the grass back as the terrain grows it most: the first kind of the palette, where it was taken away
+		base.grass = gone.grass == -2 ? -2 : (m_streamer.grass_kinds().empty() ? -1 : 0);
 		paint_patch(base);
 	}
 	std::size_t failed{0};
@@ -942,6 +984,7 @@ void editor_mode::convert_patches_to_paint()
 		patch.rows = 0;
 		auto const priority{paint_priority(patch)};
 		patch.feather = priority == 1 ? settings.bed_feather : priority == 0 ? settings.slope_feather : m_cut_feather;
+		patch.grass = priority == 1 ? settings.bed_grass : priority == 0 ? settings.slope_grass : m_cut_grass;
 		patch.noise = m_cut_noise;
 		patch.noise_scale = m_cut_noise_scale;
 		converted.push_back(i);

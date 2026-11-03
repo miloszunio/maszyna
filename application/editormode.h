@@ -729,6 +729,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	float m_cut_feather{1.0f};
 	float m_cut_noise{0.3f};
 	float m_cut_noise_scale{4.0f};
+	// the 3D grass under the surfaces painted: -2 left, -1 taken away, 0 or more: that kind grown (heightmap::surface_patch::grass)
+	int m_cut_grass{-1};
+	// a combo of what's done with the grass; true if changed
+	bool grass_choice(char const *Label, int &Choice);
 	feature_tool m_feature_tool{feature_tool::cut_out};
 	bool m_features_open{false};
 	struct track_bed_settings
@@ -742,6 +746,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool everywhere{false}; // all the modifiers of the terrain
 		float bed_feather{0.5f}; // the transition of the track bed into the slopes
 		float slope_feather{1.5f}; // the transition of the slopes into the ground
+		int bed_grass{-1}; // the grass on the track bed taken away
+		int slope_grass{-2}; // and on the slopes left
 	};
 	// the surfaces painted into the terrain: the material of one, with its transition and noise; true if anything was painted
 	bool paint_patch(heightmap::surface_patch const &Patch);

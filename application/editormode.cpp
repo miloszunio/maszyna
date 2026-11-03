@@ -3849,14 +3849,25 @@ void editor_mode::render_patches_ui()
             words.push_back(word);
         }
     }
-    std::vector<int> shown;
-    shown.reserve(patches.size());
-    for (int i = 0; i < static_cast<int>(patches.size()); ++i)
+    // filtered again only when the filter or the list changes: tens of thousands of names a frame cost a frame
+    static std::vector<int> shown;
+    static std::string shown_filter;
+    static void const *shown_revision{nullptr};
+    static std::size_t shown_count{0};
+    if (shown_filter != filter || shown_revision != static_cast<void const *>(patches.data()) || shown_count != patches.size())
     {
-        auto name{patches[i].name};
-        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
-        if (std::all_of(words.begin(), words.end(), [&](std::string const &Word) { return name.find(Word) != std::string::npos; }))
-            shown.push_back(i);
+        shown_filter = filter;
+        shown_revision = static_cast<void const *>(patches.data());
+        shown_count = patches.size();
+        shown.clear();
+        shown.reserve(patches.size());
+        for (int i = 0; i < static_cast<int>(patches.size()); ++i)
+        {
+            auto name{patches[i].name};
+            std::transform(name.begin(), name.end(), name.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
+            if (std::all_of(words.begin(), words.end(), [&](std::string const &Word) { return name.find(Word) != std::string::npos; }))
+                shown.push_back(i);
+        }
     }
     if (false == words.empty())
     {
@@ -3955,6 +3966,7 @@ void editor_mode::render_patches_ui()
         ImGui::SetNextItemWidth(120.0f);
         ImGui::DragFloat(STR_C("Waves of the noise (m)##patch"), &patch.noise_scale, 0.1f, 0.5f, 50.0f, "%.1f");
         changed |= ImGui::IsItemDeactivatedAfterEdit();
+        changed |= grass_choice(STR_C("3D grass under it##patch"), patch.grass);
     }
     else
     {

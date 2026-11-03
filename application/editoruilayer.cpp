@@ -740,7 +740,7 @@ void editor_ui::render_tool_options()
 		m_toolmode = shown;
 		ImGui::SetNextWindowFocus();
 	}
-	if (ImGui::Begin((std::string(STR_C("Tool options")) + "###tooloptions").c_str(), &m_tooloptionsopen, ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoCollapse))
+	if (ImGui::Begin((std::string(STR_C("Tool options")) + "###tooloptions").c_str(), &m_tooloptionsopen, ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysVerticalScrollbar))
 	{
 		char const *name{STR_C("Select")};
 		switch (current)

@@ -15794,3 +15794,27 @@ msgstr "Kształt obrysu"
 
 msgid "Edge"
 msgstr "Krawędź"
+
+msgid "left as it grows"
+msgstr "zostaje, jak rośnie"
+
+msgid "taken away"
+msgstr "usunięta"
+
+msgid "grown: %s"
+msgstr "posadzona: %s"
+
+msgid "The 3D grass under the surface: left as it grows, taken away (gravel, a yard), or another kind of the grass palette grown there instead"
+msgstr "Trawa 3D pod powierzchnią: zostaje, jak rośnie, jest usuwana (żwir, plac) albo w jej miejsce sadzony jest inny rodzaj z palety trawy"
+
+msgid "3D grass under it##cut"
+msgstr "Trawa 3D pod spodem##cut"
+
+msgid "3D grass on the track bed##bed"
+msgstr "Trawa 3D na torowisku##bed"
+
+msgid "3D grass on the slopes##bed"
+msgstr "Trawa 3D na skarpach##bed"
+
+msgid "3D grass under it##patch"
+msgstr "Trawa 3D pod spodem##patch"
