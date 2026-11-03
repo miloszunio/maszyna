@@ -180,6 +180,9 @@ struct surface_patch
 	float feather{1.f};
 	float noise{0.f};
 	float noise_scale{4.f};
+	// the points it was drawn with and the options of its outline (curves, handles, along a track), for it to be outlined again as
+	// it was drawn; empty: the outline itself
+	std::string shape;
 
 	// height kept at specified point, interpolated between the points of the grid; false out of the grid
 	bool height(double X, double Z, double &Height) const;

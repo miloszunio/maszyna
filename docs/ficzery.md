@@ -26,6 +26,15 @@ Jest na górnej belce obok Otoczenia, Torów, Dróg i Terenu. Ma cztery narzędz
   - **fale szumu**: małe dają krawędź poszarpaną, duże łagodnie falistą.
 - Przejście jest co najmniej 1 m. Po zagęszczeniu chunku do 0,5 m może być węższe, bo malowanie terenu jest zapisane w punktach siatki.
 
+**Kształt obrysu.** Działa przy wycinaniu powierzchni i przy Wypełnieniu w Terenie. Każda opcja ma własny przełącznik i można je łączyć:
+- **Zaokrąglone narożniki:** każdy narożnik dostaje łuk o zadanym promieniu. Przy gładkiej krzywej zaokrąglane są tylko ostre punkty.
+- **Gładka krzywa przez punkty:** boki są krzywymi przez kliknięte punkty. Ctrl+klik stawia ostry narożnik, a suwak „napięcie” przechodzi od okrągłych krzywych do prawie prostych boków.
+- **Uchwyty Béziera:** wciskasz przycisk tam, gdzie ma być punkt, i przeciągasz. Wychodzą uchwyty krzywej, widoczne na niebiesko.
+- **Rysowanie z ręki:** trzymasz LPM i rysujesz po terenie albo ortofotomapie. Po puszczeniu linia jest upraszczana, z ustawianą dokładnością, i wygładzana.
+- **Boki wzdłuż toru:** punkty siadają w odległości od osi najbliższego toru, kliknięcie albo zadanej. Bok między takimi punktami idzie równolegle do toru, także po łukach.
+
+Powierzchnia pamięta kliknięte punkty i opcje, więc „Obrysuj ponownie” przywraca obrys dokładnie tak, jak był rysowany. Krzywe zamieniają się na obrys co 0,5 m.
+
 **Torowisko i skarpy.**
 - Wzdłuż modyfikatorów torowiska (tych, którymi tory kształtują teren) wycina kawałki nie dłuższe niż 100 m:
   - **torowisko:** pas do krawędzi formacji (3,52 m od osi). Przy kilku torach granica wypada w połowie odstępu między nimi.

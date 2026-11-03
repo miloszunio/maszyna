@@ -15734,3 +15734,63 @@ msgstr "Zamknij edytor"
 
 msgid "Closes the editor now; what isn't saved (Ctrl+S) is lost, the downloads of the orthophoto and the terrain model are dropped"
 msgstr "Zamyka edytor od razu; to, czego nie zapisano (Ctrl+S), przepada, a pobieranie ortofotomapy i NMT jest przerywane"
+
+msgid "Rounded corners##outline"
+msgstr "Zaokrąglone narożniki##outline"
+
+msgid "Each corner gets a curve: the sides trimmed by the radius and joined smoothly. With the smooth curve on, only the sharp points (Ctrl+click) are corners"
+msgstr "Każdy narożnik dostaje łuk: boki skrócone o promień i połączone płynnie. Przy włączonej gładkiej krzywej narożnikami są tylko ostre punkty (Ctrl+klik)"
+
+msgid "radius (m)##outline"
+msgstr "promień (m)##outline"
+
+msgid "Smooth curve through the points##outline"
+msgstr "Gładka krzywa przez punkty##outline"
+
+msgid "The sides are curves passing through the points clicked; Ctrl+click puts a sharp corner"
+msgstr "Boki są krzywymi przechodzącymi przez kliknięte punkty; Ctrl+klik stawia ostry narożnik"
+
+msgid "tension##outline"
+msgstr "napięcie##outline"
+
+msgid "0: loose, round curves; 1: close to the straight sides"
+msgstr "0: luźne, okrągłe krzywe; 1: blisko prostych boków"
+
+msgid "Bezier handles (drag as the point is put)##outline"
+msgstr "Uchwyty Béziera (przeciągnij przy stawianiu punktu)##outline"
+
+msgid "Press the button where the point goes and drag: the handles of the curve come out of it, the way it's dragged and the opposite one"
+msgstr "Wciśnij przycisk tam, gdzie ma być punkt, i przeciągnij: wychodzą z niego uchwyty krzywej, w stronę przeciągania i przeciwną"
+
+msgid "Drawing by hand (hold the button)##outline"
+msgstr "Rysowanie z ręki (trzymaj przycisk)##outline"
+
+msgid "Hold the left button and draw over the ground or the orthophoto; the line is simplified and smoothed when it's let go"
+msgstr "Trzymaj lewy przycisk i rysuj po terenie albo ortofotomapie; po puszczeniu linia jest upraszczana i wygładzana"
+
+msgid "simplified to (m)##outline"
+msgstr "uproszczenie (m)##outline"
+
+msgid "Sides along a track##outline"
+msgstr "Boki wzdłuż toru##outline"
+
+msgid "The points go onto a line at a distance of the axis of the nearest track, and the side between two such points follows the track, its curves too"
+msgstr "Punkty trafiają na linię w zadanej odległości od osi najbliższego toru, a bok między dwoma takimi punktami idzie wzdłuż toru, także po jego łukach"
+
+msgid "the distance as clicked##outline"
+msgstr "odległość jak kliknięto##outline"
+
+msgid "from the axis (m)##outline"
+msgstr "od osi (m)##outline"
+
+msgid "%zu points clicked, %zu of the outline made"
+msgstr "klikniętych punktów: %zu, punktów obrysu: %zu"
+
+msgid "Shape of the outline##fill"
+msgstr "Kształt obrysu##fill"
+
+msgid "Shape of the outline"
+msgstr "Kształt obrysu"
+
+msgid "Edge"
+msgstr "Krawędź"

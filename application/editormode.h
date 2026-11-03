@@ -69,6 +69,8 @@ class TTrack;
 
 struct catenary_editor; // application/editormodecatenary.h
 
+class screen_projection;
+
 class editor_mode : public application_mode, private editor_track::observer, private editor_services
 {
 
@@ -657,6 +659,48 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the outlined area cut out of the terrain with its heights kept, as a separate surface with the chosen material
 	void cut_out_surface();
 	void render_patches_ui();
+	// the outline not only of straight sides (editormodeoutline.cpp): each option on or off by itself
+	struct outline_shape
+	{
+		bool round{false}; // the corners rounded off
+		float radius{5.0f};
+		bool spline{false}; // a smooth curve through the points, Ctrl+click a sharp corner
+		float tension{0.5f};
+		bool bezier{false}; // handles dragged out as a point is put
+		bool freehand{false}; // drawn with the button held
+		float freehand_step{1.0f};
+		float freehand_tolerance{0.3f};
+		bool along{false}; // the sides between points by a track follow it at a distance of its axis
+		bool along_from_click{true};
+		float along_offset{10.0f};
+	};
+	struct outline_mark
+	{
+		glm::dvec3 position{0.0}; // of the point it's of, to keep the marks with their points
+		bool sharp{false};
+		bool follow{false}; // the side to the next point along the track
+		bool freehand{false};
+		bool on_track{false};
+		glm::dvec2 handle{0.0};
+		double offset{0.0}; // from the axis of the track, positive to its left
+	};
+	outline_shape m_outline_shape;
+	mutable std::vector<outline_mark> m_outline_marks;
+	bool m_outline_pressed{false};
+	std::size_t m_outline_press_index{0};
+	std::vector<glm::dvec2> m_outline_stroke;
+	mutable std::string m_outline_shaped_key;
+	mutable std::vector<glm::dvec2> m_outline_shaped;
+	std::vector<outline_mark> &outline_marks() const;
+	void add_outline_point(glm::dvec3 const &World);
+	void outline_drag(bool Held);
+	std::string outline_key() const;
+	// the outline as it's cut or filled: the curves made of the points clicked
+	std::vector<glm::dvec2> const &shaped_outline() const;
+	std::string outline_controls() const;
+	bool restore_outline(std::string const &Controls);
+	void render_outline_options();
+	void draw_outline_shape(screen_projection const &Projection, ImDrawList *Drawlist);
 	// the field of work of our own features (editormodefeatures.cpp): surfaces cut out of the terrain to texture them, and the
 	// track bed and the slopes along the tracks cut into pieces of their own
 	enum class feature_tool

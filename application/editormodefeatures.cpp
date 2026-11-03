@@ -275,6 +275,9 @@ void editor_mode::render_features_ui()
 			ImGui::TextWrapped("%s", STR_C("LMB adds a point of the outline, Shift+LMB takes the last one back. The surface is painted into the terrain with the material "
 			                               "chosen above: the heights stay those of the terrain, there's no hole and no seam"));
 			ImGui::Text(STR_C("Outline: %zu points"), m_paint_outline.size());
+			ImGui::SeparatorText(STR_C("Shape of the outline"));
+			render_outline_options();
+			ImGui::SeparatorText(STR_C("Edge"));
 			ImGui::SetNextItemWidth(120.0f);
 			ImGui::DragFloat(STR_C("Transition (m)##cut"), &m_cut_feather, 0.05f, 0.0f, 20.0f, m_cut_feather > 0.0f ? "%.2f" : STR_C("sharp"));
 			m_cut_feather = std::max(0.0f, m_cut_feather);
@@ -798,8 +801,10 @@ void editor_mode::cut_out_surface()
 	patch.feather = m_cut_feather;
 	patch.noise = m_cut_noise;
 	patch.noise_scale = m_cut_noise_scale;
-	for (auto const &point : m_paint_outline)
-		patch.outline.emplace_back(point.x, point.z);
+	patch.outline = shaped_outline();
+	patch.shape = outline_controls();
+	if (patch.outline.size() < 3)
+		return;
 	auto patches{m_streamer.patches()};
 	// a name not taken yet
 	for (int number = static_cast<int>(patches.size()) + 1;; ++number)

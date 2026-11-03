@@ -1553,6 +1553,9 @@ bool editor_mode::update()
         handle_terrain_brush(deltarealtime);
     else
         m_terrain_stroke = false;
+    // the handles of a point being put, the line drawn by hand
+    if (m_terrain_open && m_terrain_tool == terrain_tool::fill)
+        outline_drag(mouseHold);
     if (m_terrain_open)
         draw_terrain_overlay();
 
@@ -2018,6 +2021,11 @@ void editor_mode::render_terrain_ui()
             ImGui::Text(STR_C("Material: %s (chosen in the palette above)"), chosen.material.c_str());
         }
         ImGui::Text(STR_C("Outline: %zu points"), m_paint_outline.size());
+        if (ImGui::TreeNode(STR_C("Shape of the outline##fill")))
+        {
+            render_outline_options();
+            ImGui::TreePop();
+        }
         ImGui::SetNextItemWidth(120.0f);
         ImGui::DragFloat(STR_C("Edge blur (m)"), &m_paint_feather, 0.1f, 0.0f, 100.0f, m_paint_feather > 0.0f ? "%.1f" : STR_C("sharp"));
         m_paint_feather = std::max(0.0f, m_paint_feather);
@@ -2036,10 +2044,8 @@ void editor_mode::render_terrain_ui()
         ImGui::SameLine();
         if (ImGui::Button(STR_C("Clear the outline##fill")))
             m_paint_outline.clear();
-        // the same outline for the holes and the grass
-        std::vector<glm::dvec2> outline;
-        for (auto const &point : m_paint_outline)
-            outline.emplace_back(point.x, point.z);
+        // the same outline for the holes and the grass, its curves made
+        auto const outline{shaped_outline()};
         ImGui::BeginDisabled(outline.size() < 3);
         if (ImGui::Button(STR_C("Cut a hole")))
         {
@@ -2383,32 +2389,9 @@ void editor_mode::draw_terrain_overlay()
             outline.emplace_back(point.x, water[i].level, point.y);
         polyline(outline, static_cast<int>(i) == m_water_selected ? IM_COL32(120, 200, 255, 255) : IM_COL32(60, 120, 220, 160), true, static_cast<int>(i) == m_water_selected ? 2.5f : 1.5f);
     }
+    // the outline as it will be cut or filled, its curves made, with the points clicked and their handles
     if (m_terrain_tool == terrain_tool::fill && false == m_paint_outline.empty())
-    {
-        // laid over the ground, the edges followed every few metres
-        std::vector<glm::dvec3> outline;
-        auto const closed = m_paint_outline.size() >= 3;
-        for (std::size_t i = 0; i + (closed ? 0 : 1) < m_paint_outline.size(); ++i)
-        {
-            auto const &from = m_paint_outline[i];
-            auto const &to = m_paint_outline[(i + 1) % m_paint_outline.size()];
-            auto const steps = std::clamp(static_cast<int>(glm::distance(glm::dvec2{from.x, from.z}, glm::dvec2{to.x, to.z}) / 4.0), 1, 200);
-            for (int k = 0; k < steps; ++k)
-            {
-                auto const point = from + (to - from) * (static_cast<double>(k) / steps);
-                outline.emplace_back(point.x, ground(point.x, point.z, point.y) + 0.15, point.z);
-            }
-        }
-        if (false == closed)
-            outline.push_back(m_paint_outline.back() + glm::dvec3{0.0, 0.15, 0.0});
-        polyline(outline, IM_COL32(250, 200, 90, 255), false, 2.0f);
-        for (auto const &point : m_paint_outline)
-        {
-            ImVec2 dot;
-            if (projection.project(point + glm::dvec3{0.0, 0.15, 0.0}, dot))
-                drawlist->AddCircleFilled(dot, 4.0f, IM_COL32(250, 200, 90, 255));
-        }
-    }
+        draw_outline_shape(projection, drawlist);
     // Kapelusz: the rectangle laid along the track
     if (m_features_open && m_feature_tool == feature_tool::hat && m_hat_box.size() == 4)
         polyline(m_hat_box, IM_COL32(120, 230, 255, 255), true, 2.5f);
@@ -2963,7 +2946,7 @@ void editor_mode::handle_terrain_click(bool const Shift)
                 m_paint_outline.pop_back();
             return;
         }
-        m_paint_outline.push_back(placement_on_ground(world));
+        add_outline_point(world);
         break;
     }
     case terrain_tool::water:
@@ -3838,9 +3821,7 @@ void editor_mode::fill_terrain_area()
     auto const rotation = static_cast<float>(std::remainder(static_cast<double>(m_paint_rotation), 360.0));
     auto const layer = chosen.rotation == rotation ? static_cast<std::uint16_t>(std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1))
                                                    : m_streamer.layer(chosen.material, chosen.size, rotation);
-    std::vector<glm::dvec2> outline;
-    for (auto const &point : m_paint_outline)
-        outline.emplace_back(point.x, point.z);
+    auto const &outline{shaped_outline()};
     auto const filled = m_streamer.fill(outline, m_paint_feather, layer);
     m_terrain_status = filled ? format(STR_C("Area filled with %s"), chosen.material.c_str()) : std::string(STR_C("Nothing filled: no chunk under the outline, or no room for another material"));
     if (filled)
@@ -3996,6 +3977,8 @@ void editor_mode::render_patches_ui()
     }
     if (ImGui::Button(STR_C("Outline it again##patch")))
     {
+        if (false == patch.shape.empty() && restore_outline(patch.shape))
+            return;
         m_paint_outline.clear();
         for (auto const &point : patch.outline)
         {
