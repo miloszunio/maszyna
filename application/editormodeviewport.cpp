@@ -281,6 +281,12 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 			                   m_feature_tool = feature_tool::track_bed;
 			                   m_terrain_tool = terrain_tool::none;
 		                   }});
+		Buttons.push_back({icon::count, STR_C("Kapelusz"), nullptr, STR_C("A rectangle over the track: the smallest switch which fits within it is laid in, or it says how much more room it wants"),
+		                   m_feature_tool == feature_tool::hat, [this]() {
+			                   m_feature_tool = feature_tool::hat;
+			                   m_terrain_tool = terrain_tool::fill;
+			                   m_paint_outline.clear();
+		                   }});
 		Buttons.push_back({icon::orthophoto, STR_C("Go to"), nullptr, STR_C("The map with the camera on it, a search of the towns and villages, the places of the camera kept"),
 		                   m_feature_tool == feature_tool::go_to, [this]() {
 			                   m_feature_tool = feature_tool::go_to;

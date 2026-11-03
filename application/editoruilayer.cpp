@@ -9,6 +9,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "application/editoruilayer.h"
+#include "application/application.h"
 
 #include "utilities/Globals.h"
 #include "utilities/utilities.h"
@@ -984,6 +985,12 @@ void editor_ui::render_menu_contents()
 		{
 			ImGui::SetTooltip("%s", STR_C("Writes the whole scene to _export files next to the scenario, the scenery files are left as they are"));
 		}
+		ImGui::Separator();
+		// at once, with no window asking first (it could open behind the docked panels); the downloads under way are left
+		if (ImGui::MenuItem(STR_C("Close the editor"), "Alt+F4"))
+			Application.queue_quit(true);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", STR_C("Closes the editor now; what isn't saved (Ctrl+S) is lost, the downloads of the orthophoto and the terrain model are dropped"));
 		ImGui::EndMenu();
 	}
 	if (m_editmenu)

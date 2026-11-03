@@ -15075,3 +15075,150 @@ msgstr "Punkt kliknięty na mapie to miejsce, gdzie teraz stoi kamera: z tego us
 
 msgid "The middle the scenery file gives"
 msgstr "Środek zapisany w pliku scenerii"
+
+msgid "Click two corners of the rectangle across the track (more points: the rectangle around them)"
+msgstr "Kliknij dwa rogi prostokąta nad torem (więcej punktów: prostokąt wokół nich)"
+
+msgid "No plain track under the rectangle"
+msgstr "Pod prostokątem nie ma zwykłego toru"
+
+msgid "The track under the rectangle is a curve of R %.0f m with transition curves of %.0f and %.0f m%s: a switch goes on a straight, move the rectangle onto the straight before or after it"
+msgstr "Tor pod prostokątem to łuk R %.0f m z krzywymi przejściowymi %.0f i %.0f m%s: rozjazd stawia się na prostej, przesuń prostokąt na prostą przed albo za łukiem"
+
+msgid ", cant %.0f mm"
+msgstr ", przechyłka %.0f mm"
+
+msgid "The track under the rectangle is a curve of R %.0f m: a switch goes on a straight, move the rectangle onto the straight before or after it"
+msgstr "Tor pod prostokątem to łuk R %.0f m: rozjazd stawia się na prostej, przesuń prostokąt na prostą przed albo za łukiem"
+
+msgid "The track under the rectangle is neither a straight nor a curve recognized (a transition curve?): a switch goes on a straight"
+msgstr "Tor pod prostokątem nie jest ani prostą, ani rozpoznanym łukiem (krzywa przejściowa?): rozjazd stawia się na prostej"
+
+msgid "The rectangle has no length along the track: click its corners diagonally"
+msgstr "Prostokąt nie ma długości wzdłuż toru: klikaj rogi po przekątnej"
+
+msgid "No switch in the catalogue for the rail %s"
+msgstr "Brak rozjazdu w katalogu dla szyny %s"
+
+msgid "%s fits: %.1f m of the %.1f m of straight in the rectangle%s"
+msgstr "%s pasuje: %.1f m z %.1f m prostej w prostokącie%s"
+
+msgid "; the cant of %.1f deg is taken out under it"
+msgstr "; przechyłka %.1f st. znika pod rozjazdem"
+
+msgid "; the straight ends at a switch"
+msgstr "; prosta kończy się na rozjeździe"
+
+msgid "; the straight ends where a transition curve into R %.0f m begins"
+msgstr "; prosta kończy się, gdzie zaczyna się krzywa przejściowa do łuku R %.0f m"
+
+msgid "; the straight ends at a curve of R %.0f m"
+msgstr "; prosta kończy się na łuku R %.0f m"
+
+msgid "; the straight ends within the rectangle"
+msgstr "; prosta kończy się w prostokącie"
+
+msgid "Too little room: the smallest switch (%s) needs %.1f m of straight, the rectangle holds %.1f m: %.1f m more along the track%s"
+msgstr "Za mało miejsca: najmniejszy rozjazd (%s) potrzebuje %.1f m prostej, w prostokącie jest %.1f m: potrzeba jeszcze %.1f m wzdłuż toru%s"
+
+msgid "Too little room across: the smallest switch (%s) leaves the track by %.2f m at its end, the rectangle reaches %.2f m to that side: %.2f m more"
+msgstr "Za mało miejsca w poprzek: najmniejszy rozjazd (%s) odchodzi na końcu o %.2f m od toru, prostokąt sięga %.2f m w tę stronę: potrzeba jeszcze %.2f m"
+
+msgid "The switch can't be laid there"
+msgstr "Nie da się tam wstawić rozjazdu"
+
+msgid "Kapelusz: %s laid in, the track cut and joined to it. Ctrl+Z takes it back"
+msgstr "Kapelusz: wstawiono %s, tor przycięty i dowiązany. Ctrl+Z cofa"
+
+msgid "Kapelusz: a switch within a rectangle"
+msgstr "Kapelusz: rozjazd w prostokącie"
+
+msgid "Click two corners of a rectangle over the track, diagonally (the top view helps). The rectangle is laid along the track; the smallest switch of the catalogue which fits within it is laid in, its diverging track to the side the rectangle reaches further to. Shift+LMB takes the last point back"
+msgstr "Kliknij dwa rogi prostokąta nad torem, po przekątnej (pomaga rzut z góry). Prostokąt układa się wzdłuż toru; wstawiany jest najmniejszy rozjazd z katalogu, który się w nim mieści, z torem zwrotnym w stronę, w którą prostokąt sięga dalej. Shift+LPM cofa ostatni punkt"
+
+msgid "Lay the switch in"
+msgstr "Wstaw rozjazd"
+
+msgid "Clear the rectangle"
+msgstr "Wyczyść prostokąt"
+
+msgid "Natural slopes"
+msgstr "Naturalne skarpy"
+
+msgid "The embankments and the cuttings not drawn with a ruler: the formation and the edges of the track bed stay as designed (ST-T1-A6), the slopes and their foot wander, get gentler here and there and meet the ground softly"
+msgstr "Nasypy i przekopy nie od linijki: torowisko i jego krawędzie zostają według projektu (ST-T1-A6), a skarpy i ich podnóże falują, miejscami łagodnieją i miękko wchodzą w teren"
+
+msgid "Foot wanders by (m)"
+msgstr "Falowanie podnóża (m)"
+
+msgid "How far the foot of the slope goes in and out of the line of the slope 1:1.5"
+msgstr "O ile podnóże skarpy wychodzi przed linię skarpy 1:1,5 i się za nią cofa"
+
+msgid "Waves along the line (m)"
+msgstr "Fale wzdłuż linii (m)"
+
+msgid "About how long the waves of the foot are along the line"
+msgstr "Mniej więcej długość fal podnóża wzdłuż linii"
+
+msgid "Gentler by up to"
+msgstr "Łagodniejsze o najwyżej"
+
+msgid "0.2: the slope 1:1.5 gets as gentle as 1:1.8 here and there, never steeper than designed"
+msgstr "0,2: skarpa 1:1,5 miejscami łagodnieje do 1:1,8, nigdy nie jest bardziej stroma niż w projekcie"
+
+msgid "Soft foot (m/m)"
+msgstr "Miękkie podnóże (m/m)"
+
+msgid "Metres the foot is rounded off over, for a metre of the height of the slope: high embankments meet the ground softer"
+msgstr "Na ilu metrach podnóże się zaokrągla, na metr wysokości skarpy: wysokie nasypy łagodniej wchodzą w teren"
+
+msgid "Bumps on the face (m)"
+msgstr "Nierówności skarpy (m)"
+
+msgid "Metres the face of the slope is uneven by, as earth settled for years"
+msgstr "O ile metrów powierzchnia skarpy jest nierówna, jak ziemia ułożona przez lata"
+
+msgid "Make the slopes natural"
+msgstr "Zrób naturalne skarpy"
+
+msgid "Around the camera as far as set above, or in the whole scenery when that's ticked; the terrain is shaped anew. Ctrl+Z takes it back.\nThe ground under the slopes comes from the heights before the modifiers (HBAS) the terrain keeps; a terrain without them has its slopes\nonly pushed out and roughened, not made gentler. Paint the track bed and the slopes again after it"
+msgstr "Wokół kamery tak daleko, jak ustawiono wyżej, albo w całej scenerii, gdy to zaznaczone; teren jest kształtowany od nowa. Ctrl+Z cofa.\nTeren pod skarpami bierze się z wysokości sprzed modyfikatorów (HBAS), które teren przechowuje; teren bez nich ma skarpy\ntylko wypchnięte i pofałdowane, nie złagodzone. Potem przemaluj torowisko i skarpy"
+
+msgid "Back to the slopes as designed"
+msgstr "Z powrotem skarpy według projektu"
+
+msgid "The origin of the scenery taken from its terrain again: X %.0f, Y %.0f in PUWG 1992 (it was moved elsewhere)"
+msgstr "Punkt odniesienia scenerii znów wzięty z terenu: X %.0f, Y %.0f w PUWG 1992 (był przestawiony gdzie indziej)"
+
+msgid "The origin of the scenery taken from its terrain: X %.0f, Y %.0f in PUWG 1992"
+msgstr "Punkt odniesienia scenerii wzięty z terenu: X %.0f, Y %.0f w PUWG 1992"
+
+msgid "The slopes of %zu modifiers made natural, the terrain shaped anew. Ctrl+Z takes it back"
+msgstr "Naturalne skarpy dla %zu modyfikatorów, teren ukształtowany od nowa. Ctrl+Z cofa"
+
+msgid "The slopes of %zu modifiers as designed again. Ctrl+Z takes it back"
+msgstr "Skarpy %zu modyfikatorów znów według projektu. Ctrl+Z cofa"
+
+msgid "Kapelusz"
+msgstr "Kapelusz"
+
+msgid "A rectangle over the track: the smallest switch which fits within it is laid in, or it says how much more room it wants"
+msgstr "Prostokąt nad torem: wstawia najmniejszy rozjazd, który się w nim mieści, albo mówi, ile jeszcze miejsca potrzeba"
+
+msgid "The terrain of the scenery knows where it lies: X %.0f, Y %.0f in PUWG 1992. The orthophoto and the terrain model are laid out from it"
+msgstr "Teren scenerii zna swoje położenie: X %.0f, Y %.0f w PUWG 1992. Ortofotomapa i NMT układają się według niego"
+
+msgid "Move the scenery anyway##nmt"
+msgstr "Przestaw mimo to##nmt"
+
+msgid "The terrain keeps the new place too. Only for a terrain made at the wrong place: the tracks and the terrain stay where they are in the scenery, the maps move under them"
+msgstr "Teren też zapamięta nowe położenie. Tylko dla terenu zrobionego w złym miejscu: tory i teren zostają w scenerii tam, gdzie są, a mapy przesuwają się pod nimi"
+
+msgid "The middle the terrain gives"
+msgstr "Środek zapisany w terenie"
+
+msgid "Close the editor"
+msgstr "Zamknij edytor"
+
+msgid "Closes the editor now; what isn't saved (Ctrl+S) is lost, the downloads of the orthophoto and the terrain model are dropped"
+msgstr "Zamyka edytor od razu; to, czego nie zapisano (Ctrl+S), przepada, a pobieranie ortofotomapy i NMT jest przerywane"

@@ -563,9 +563,19 @@ void ui_layer::begin_ui_frame_internal()
 
 void ui_layer::render_quit_widget()
 {
+	static bool shown{false};
 	if (!m_quit_active)
+	{
+		shown = false;
 		return;
-
+	}
+	// over the docked panels of the editor when it comes up, in the middle of the screen
+	if (false == shown)
+	{
+		shown = true;
+		ImGui::SetNextWindowFocus();
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	}
 	ImGui::SetNextWindowSize(ImVec2(0, 0));
 	ImGui::Begin(STR_C("Quit"), &m_quit_active, ImGuiWindowFlags_NoResize);
 	ImGui::TextUnformatted(STR_C("Quit simulation?"));

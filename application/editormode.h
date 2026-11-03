@@ -626,8 +626,26 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	{
 		cut_out, // an outline drawn as with Fill, painted into the terrain as a surface of its own
 		track_bed, // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
-		go_to // the map with the camera on it, a search of towns and the places of the camera kept
+		go_to, // the map with the camera on it, a search of towns and the places of the camera kept
+		hat // Kapelusz: a rectangle over the track, the smallest switch which fits laid in it (editormodehat.cpp)
 	};
+	struct hat_plan
+	{
+		bool valid{false};
+		std::string report;
+		TTrack *main{nullptr};
+		editor_track::straight line;
+		editor_track::switch_template shape;
+		double along{0.0};
+		int forward{1};
+		int side{1};
+		std::vector<segment_data> paths;
+		std::vector<glm::dvec3> box; // the rectangle along the track, its corners
+	};
+	hat_plan plan_hat() const;
+	void lay_hat();
+	void render_hat_ui();
+	std::vector<glm::dvec3> m_hat_box;
 	// the transition the surfaces cut out blend over, and the noise their edge is shifted by
 	float m_cut_feather{1.0f};
 	float m_cut_noise{0.3f};
@@ -669,12 +687,22 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::string m_camera_places_of; // the scenery they were read for
 	char m_camera_place_name[64]{};
 	void render_go_to_ui();
+	// the origin of the scenery kept with the terrain (terrain.yaml): a terrain which knows where it lies gives the origin to the
+	// orthophoto, the terrain model and the maps, whatever was typed or clicked before; one which doesn't gets the origin of the
+	// //$g line of the scenery. Checked every frame, acted on once a terrain
+	void sync_terrain_origin();
+	bool m_terrain_origin_synced{false};
+	// the place of the scenery may be moved although the terrain knows where it lies (NMT, Location)
+	bool m_origin_unlocked{false};
 	void read_camera_places();
 	void write_camera_places() const;
 	track_bed_settings m_track_bed;
 	void render_features_ui();
 	void render_material_palette();
 	void cut_track_bed();
+	// the slopes of the formation modifiers around the camera (or of all) made natural, the terrain shaped anew
+	heightmap::modifier::natural_shape m_natural{0.8, 15.0, 0.15, 0.3, 0.08};
+	void naturalise_slopes(bool Natural);
 	// the camera over a point of the plan, looking down at it
 	void go_to_plan(glm::dvec2 const &Plan);
 	// the brush, the hovered chunk and the outlines of water drawn over the viewport

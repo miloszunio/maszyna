@@ -254,6 +254,11 @@ void editor_mode::render_features_ui()
 		render_go_to_ui();
 		return;
 	}
+	if (m_feature_tool == feature_tool::hat)
+	{
+		render_hat_ui();
+		return;
+	}
 	if (false == m_streamer.active())
 	{
 		ImGui::TextWrapped("%s", STR_C("The scenery has no terrain yet. It's made in the Terrain field of work"));
@@ -349,6 +354,36 @@ void editor_mode::render_features_ui()
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 				ImGui::SetTooltip("%s", STR_C("The pieces cut before along the same modifiers are made anew. Ctrl+Z takes it back"));
 		}
+	}
+	if (m_feature_tool == feature_tool::track_bed && ImGui::CollapsingHeader(STR_C("Natural slopes"), ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		auto &natural{m_natural};
+		ImGui::TextWrapped("%s", STR_C("The embankments and the cuttings not drawn with a ruler: the formation and the edges of the track bed stay as designed (ST-T1-A6), "
+		                               "the slopes and their foot wander, get gentler here and there and meet the ground softly"));
+		auto drag = [](char const *Label, double &Value, float Speed, float Low, float High, char const *Format, char const *Tip) {
+			float value{static_cast<float>(Value)};
+			ImGui::SetNextItemWidth(120.0f);
+			if (ImGui::DragFloat(Label, &value, Speed, Low, High, Format))
+				Value = std::clamp(static_cast<double>(value), static_cast<double>(Low), static_cast<double>(High));
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("%s", Tip);
+		};
+		drag(STR_C("Foot wanders by (m)"), natural.wander, 0.05f, 0.0f, 5.0f, "%.2f", STR_C("How far the foot of the slope goes in and out of the line of the slope 1:1.5"));
+		drag(STR_C("Waves along the line (m)"), natural.scale, 0.5f, 2.0f, 100.0f, "%.0f", STR_C("About how long the waves of the foot are along the line"));
+		drag(STR_C("Gentler by up to"), natural.gentler, 0.01f, 0.0f, 0.6f, "%.2f", STR_C("0.2: the slope 1:1.5 gets as gentle as 1:1.8 here and there, never steeper than designed"));
+		drag(STR_C("Soft foot (m/m)"), natural.soften, 0.01f, 0.0f, 2.0f, "%.2f", STR_C("Metres the foot is rounded off over, for a metre of the height of the slope: high embankments meet the ground softer"));
+		drag(STR_C("Bumps on the face (m)"), natural.roughness, 0.01f, 0.0f, 0.5f, "%.2f", STR_C("Metres the face of the slope is uneven by, as earth settled for years"));
+		ImGui::Spacing();
+		ImGui::BeginDisabled(m_streamer.modifiers().empty());
+		if (main_button(STR_C("Make the slopes natural"), ImVec2(-FLT_MIN, tall_button_height())))
+			naturalise_slopes(true);
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			ImGui::SetTooltip("%s", STR_C("Around the camera as far as set above, or in the whole scenery when that's ticked; the terrain is shaped anew. Ctrl+Z takes it back.\n"
+			                              "The ground under the slopes comes from the heights before the modifiers (HBAS) the terrain keeps; a terrain without them has its slopes\n"
+			                              "only pushed out and roughened, not made gentler. Paint the track bed and the slopes again after it"));
+		if (ImGui::Button(STR_C("Back to the slopes as designed"), ImVec2(-FLT_MIN, 0.0f)))
+			naturalise_slopes(false);
+		ImGui::EndDisabled();
 	}
 	if (ImGui::CollapsingHeader(STR_C("Surfaces cut out of the terrain"), ImGuiTreeNodeFlags_DefaultOpen))
 	{
@@ -1094,4 +1129,86 @@ void editor_mode::render_go_to_ui()
 			write_camera_places();
 		}
 	}
+}
+
+void editor_mode::sync_terrain_origin()
+{
+	if (false == m_streamer.active())
+	{
+		m_terrain_origin_synced = false;
+		return;
+	}
+	if (m_terrain_origin_synced)
+		return;
+	m_terrain_origin_synced = true;
+	load_orthophoto_settings();
+	read_georeference();
+	auto const &terrain{m_streamer.manifest()};
+	auto config{m_orthophoto.settings()};
+	if (terrain.georeferenced)
+	{
+		if (config.north == terrain.origin_north && config.east == terrain.origin_east)
+			return;
+		auto const before{config.north != 0.0 || config.east != 0.0};
+		config.north = terrain.origin_north;
+		config.east = terrain.origin_east;
+		m_orthophoto.settings(config);
+		m_orthophoto_origin_edit = {config.north, config.east};
+		save_orthophoto_settings();
+		nmt_locate();
+		auto const text{format(before ? STR_C("The origin of the scenery taken from its terrain again: X %.0f, Y %.0f in PUWG 1992 (it was moved elsewhere)")
+		                              : STR_C("The origin of the scenery taken from its terrain: X %.0f, Y %.0f in PUWG 1992"),
+		                       config.north, config.east)};
+		ui()->set_status(text, false);
+		WriteLog("Editor: " + text, logtype::generic);
+		return;
+	}
+	// a terrain which doesn't know where it lies, in a scenery which does (its //$g line): the terrain keeps it from now on
+	if (m_georeference)
+	{
+		m_streamer.georeference(m_georeference_origin.x, m_georeference_origin.y);
+		WriteLog(format("Editor: the terrain keeps the origin of the scenery (%s)", m_georeference_line.c_str()), logtype::generic);
+		if (config.north != m_georeference_origin.x || config.east != m_georeference_origin.y)
+		{
+			config.north = m_georeference_origin.x;
+			config.east = m_georeference_origin.y;
+			m_orthophoto.settings(config);
+			m_orthophoto_origin_edit = {config.north, config.east};
+			save_orthophoto_settings();
+			nmt_locate();
+		}
+	}
+}
+
+void editor_mode::naturalise_slopes(bool const Natural)
+{
+	auto const &settings{m_track_bed};
+	glm::dvec2 const camera{Camera.Pos.x, Camera.Pos.z};
+	std::vector<heightmap::modifier> changed;
+	for (auto const &modifier : m_streamer.modifiers())
+	{
+		if (modifier.points.size() < 2)
+			continue;
+		if (false == settings.everywhere)
+		{
+			auto const [low, high]{modifier.bounds()};
+			if (glm::distance(glm::clamp(camera, low, high), camera) > settings.radius)
+				continue;
+		}
+		auto copy{modifier};
+		copy.natural = Natural ? m_natural : heightmap::modifier::natural_shape{};
+		changed.push_back(std::move(copy));
+	}
+	if (changed.empty())
+	{
+		m_terrain_status = STR_C("No formation modifier there");
+		return;
+	}
+	auto const count{changed.size()};
+	m_streamer.modifiers(std::move(changed));
+	forget_ground();
+	m_terrain_status = format(Natural ? STR_C("The slopes of %zu modifiers made natural, the terrain shaped anew. Ctrl+Z takes it back")
+	                                  : STR_C("The slopes of %zu modifiers as designed again. Ctrl+Z takes it back"),
+	                          count);
+	WriteLog("Editor: " + m_terrain_status);
 }

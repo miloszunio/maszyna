@@ -950,6 +950,7 @@ def main():
     ap.add_argument("--bed-tex", default="1435mm/tpbps-new2", help="podsypka (domyslna z edytora MaSzyny)")
     ap.add_argument("--terrain-nmt", help="plik NMT pasa wokol torow (z przegladarki) -> terrain/irt/")
     ap.add_argument("--terrain-base", action="store_true", help="zapisz tez HBAS (sam NMT pod modyfikatorami; paczki ~2x wieksze)")
+    ap.add_argument("--natural-slopes", action="store_true", help="skarpy nie od linijki (teren.NATURAL): stopa faluje, skarpy miejscami lagodniejsze")
     ap.add_argument("--bed-height", type=float, default=0.2)
     ap.add_argument("--bed-width", type=float, default=0.5)
     ap.add_argument("--bed-slope", type=float, default=1.1)
@@ -1207,7 +1208,7 @@ def main():
                                   y0=sw["y0"], y1=sw[yk], env="flat")])
         grid = teren.Grid(args.terrain_nmt)
         st = teren.build(grid, runs, origin, os.path.join(args.outdir, "terrain", "irt"), log=print,
-                         with_base=args.terrain_base)
+                         with_base=args.terrain_base, natural=teren.NATURAL if args.natural_slopes else None)
         print("teren:", st)
     with open(os.path.join(args.outdir, "raport_ukladu.csv"), "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh, delimiter=";")
