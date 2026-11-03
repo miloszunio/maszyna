@@ -557,8 +557,9 @@ void editor_mode::render_outline_options()
 		m_outline_shaped_key.clear();
 }
 
-void editor_mode::draw_outline_shape(screen_projection const &Projection, ImDrawList *Drawlist)
+void editor_mode::draw_outline_shape(ImDrawList *Drawlist)
 {
+	screen_projection const Projection;
 	if (m_paint_outline.empty())
 		return;
 	auto const &marks{outline_marks()};

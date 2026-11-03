@@ -69,8 +69,6 @@ class TTrack;
 
 struct catenary_editor; // application/editormodecatenary.h
 
-class screen_projection;
-
 class editor_mode : public application_mode, private editor_track::observer, private editor_services
 {
 
@@ -700,7 +698,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::string outline_controls() const;
 	bool restore_outline(std::string const &Controls);
 	void render_outline_options();
-	void draw_outline_shape(screen_projection const &Projection, ImDrawList *Drawlist);
+	void draw_outline_shape(ImDrawList *Drawlist);
 	// the field of work of our own features (editormodefeatures.cpp): surfaces cut out of the terrain to texture them, and the
 	// track bed and the slopes along the tracks cut into pieces of their own
 	enum class feature_tool
