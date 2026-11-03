@@ -2397,7 +2397,7 @@ void editor_mode::draw_terrain_overlay()
     }
     // the outline as it will be cut or filled, its curves made, with the points clicked and their handles
     if (m_terrain_tool == terrain_tool::fill && false == m_paint_outline.empty())
-        draw_outline_shape(projection, drawlist);
+        draw_outline_shape(drawlist);
     // Kapelusz: the rectangle laid along the track
     if (m_features_open && m_feature_tool == feature_tool::hat && m_hat_box.size() == 4)
         polyline(m_hat_box, IM_COL32(120, 230, 255, 255), true, 2.5f);
