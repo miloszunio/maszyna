@@ -183,6 +183,8 @@ struct surface_patch
 	// the points it was drawn with and the options of its outline (curves, handles, along a track), for it to be outlined again as
 	// it was drawn; empty: the outline itself
 	std::string shape;
+	// the 3D grass under a painted surface: -2 left as it grows, -1 taken away, 0 or more: that kind of the grass palette grown there
+	int grass{-2};
 
 	// height kept at specified point, interpolated between the points of the grid; false out of the grid
 	bool height(double X, double Z, double &Height) const;

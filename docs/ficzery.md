@@ -20,6 +20,7 @@ Jest na górnej belce obok Otoczenia, Torów, Dróg i Terenu. Ma cztery narzędz
 **Wytnij powierzchnię.**
 - Obrys rysuje się jak w Wypełnieniu: LPM dodaje punkt, Shift+LPM cofa ostatni.
 - Duży przycisk „Wytnij jako osobną powierzchnię” maluje obszar materiałem z palety prosto w teren. Nie ma dziury ani osobnej siatki, więc nie ma szwu. Wysokości zostają terenu.
+- **Trawa 3D pod spodem:** zostaje, jest usuwana (domyślnie) albo w jej miejsce sadzony jest inny rodzaj z palety trawy. Samo malowanie zmienia tylko teksturę, a źdźbła rosłyby dalej. „Oddaj terenowi” sadzi z powrotem pierwszy rodzaj z palety.
 - Ustawia się:
   - **szerokość przejścia** w materiał dookoła;
   - **szum krawędzi**, czyli na ile krawędź faluje w obie strony, żeby nie była od linijki;
@@ -40,6 +41,7 @@ Powierzchnia pamięta kliknięte punkty i opcje, więc „Obrysuj ponownie” pr
   - **torowisko:** pas do krawędzi formacji (3,52 m od osi). Przy kilku torach granica wypada w połowie odstępu między nimi.
   - **nasypy i przekopy:** od krawędzi torowiska do miejsca, gdzie skarpa 1:1,5 spotyka teren. Osobno lewa i prawa strona.
 - Kawałki są malowane w teren, tak samo jak wycinane powierzchnie.
+- Trawę 3D ustawia się osobno dla torowiska (domyślnie usuwana) i dla skarp (domyślnie zostaje).
 - Przejścia ustawia się osobno: torowisko–skarpa (domyślnie 0,5 m) i skarpa–teren (1,5 m). Do tego szum krawędzi.
 - Nazwy wyglądają tak: `L132 t1 torowisko km 012.300-012.400`, `L132 t1 nasyp L km …`.
 - Zakres to tory wokół kamery (promień do ustawienia) albo cała sceneria.
