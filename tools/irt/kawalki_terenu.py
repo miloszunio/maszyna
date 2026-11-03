@@ -278,6 +278,8 @@ def main():
     ap.add_argument("--zapas", type=float, default=1.0, help="o ile dziura w terenie jest wezsza od kawalkow [m]")
     ap.add_argument("--tylko", type=int, default=0, help="tylko tyle pierwszych modyfikatorow (do prob)")
     ap.add_argument("--material", default="", help="material kawalkow (domyslnie pierwszy z palety terenu)")
+    ap.add_argument("--bez-dziur", action="store_true",
+                    help="bez dziur w terenie: kawalki do przemalowania w edytorze (Ficzery, Przemaluj je w teren) - bez szwow")
     args = ap.parse_args()
 
     manifest = os.path.join(args.teren, "terrain.yaml")
@@ -460,7 +462,7 @@ def main():
     # dziury pod kawalkami: probki co metr wewnatrz kawalkow, dalej niz --zapas od ich brzegu
     from matplotlib.path import Path as MplPath
     holes = defaultdict(lambda: np.zeros((HOLE_SAMPLES + 1, HOLE_SAMPLES + 1), bool))
-    for name, rodzaj, poly in patches:
+    for name, rodzaj, poly in ([] if args.bez_dziur else patches):
         P = np.array(poly)
         if len(P) < 3:
             continue
