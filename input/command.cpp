@@ -413,6 +413,7 @@ commanddescription_sequence Commands_descriptions = {
     {"fmradiotunedecrease", command_target::vehicle, command_mode::oneoff},
     {"fmradiotuneset", command_target::vehicle, command_mode::oneoff},
     {"vehiclegraphcontrol", command_target::vehicle, command_mode::oneoff},
+    {"oilfuelpumptoggle", command_target::vehicle, command_mode::oneoff},
 };
 
 // Maps of command and coresponding strings
@@ -805,6 +806,7 @@ std::unordered_map<std::string, user_command> const commandMap = {
 	{"fmradiotunedecrease", user_command::fmradiotunedecrease},
 	{"fmradiotuneset", user_command::fmradiotuneset},
     {"vehiclegraphcontrol", user_command::vehiclegraphcontrol},
+    {"oilfuelpumptoggle", user_command::oilfuelpumptoggle},
 	{"none", user_command::none}};
 
 } // namespace simulation

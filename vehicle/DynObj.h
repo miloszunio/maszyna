@@ -21,6 +21,7 @@ http://mozilla.org/MPL/2.0/.
 #include "interfaces/ITexture.h"
 #include "audio/sound.h"
 #include "world/Spring.h"
+#include "vehicle/mirrors.h"
 
 namespace vgraph
 {
@@ -398,6 +399,13 @@ private:
         side placement {};
     };
 
+    struct mirror_sounds {
+        sound_source unfold { sound_placement::general };
+        sound_source fold { sound_placement::general };
+        side placement {};
+        int end {}; // of the vehicle, the mirror moves with the cab at this end occupied
+    };
+
     struct exchange_sounds {
         sound_source loading { sound_placement::general };
         sound_source unloading { sound_placement::general };
@@ -592,6 +600,8 @@ private:
     std::vector<graph_animation> m_graphanimations;
     std::vector<door_sounds> m_doorsounds; // can expect symmetrical arrangement, but don't count on it
     bool m_doorlocks { false }; // sound helper, current state of door locks
+    std::vector<mirror_sounds> m_mirrorsounds;
+    std::array<mirror_moves::motion, 2> m_mirrormotion; // indexed by side: right, left
     sound_source sHorn1 { sound_placement::external, 5 * EU07_SOUND_RUNNINGNOISECUTOFFRANGE };
     sound_source sHorn2 { sound_placement::external, 5 * EU07_SOUND_RUNNINGNOISECUTOFFRANGE };
     sound_source sHorn3 { sound_placement::external, 5 * EU07_SOUND_RUNNINGNOISECUTOFFRANGE };
@@ -737,6 +747,8 @@ private:
     void create_graph_animations();
     // applies the state of these blocks to the shared model, right before the vehicle is drawn
     void update_graph_animations();
+    // plays the sounds of the mirrors on the Side, of the occupied cab, starting the Event
+    void play_mirror_sounds( side const Side, mirror_moves::event const Event );
     inline glm::dvec3 GetPosition() const {
         return vPosition; };
     // converts location from vehicle coordinates frame to world frame
@@ -849,7 +861,9 @@ private:
     void ParamSet(int what, int into);
     // zapytanie do AI, po którym segmencie skrzyżowania jechać
     int RouteWish(TTrack *tr);
-    void DestinationSet(std::string to, std::string numer);
+    void DestinationSet(std::string const &to, std::string const &numer);
+    // blanks electronic destination sign at the end of the service; physical signs stay until changed
+    void DestinationClear();
     material_handle DestinationFind( std::string Destination );
     void OverheadTrack(float o);
     glm::dvec3 get_future_movement() const;

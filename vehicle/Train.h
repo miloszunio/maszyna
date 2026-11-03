@@ -208,6 +208,9 @@ class TTrain {
     void export_graph_values(dictionary_source &Dictionary) const;
     // helper, returns true for EMU with oerlikon brake
     bool is_eztoer() const;
+    // helper, returns true if both horn tones are operated with the same lever, without separate low and high tone buttons
+    bool has_single_horn_lever() const {
+        return ggHornButton.SubModel != nullptr && ggHornLowButton.SubModel == nullptr && ggHornHighButton.SubModel == nullptr; }
     // locates nearest vehicle belonging to the consist
 	TDynamicObject *find_nearest_consist_vehicle(bool freefly, glm::vec3 pos) const;
     // mover master controller to specified position
@@ -353,6 +356,7 @@ class TTrain {
     static void OnCommand_fuelpumpenable( TTrain *Train, command_data const &Command );
     static void OnCommand_fuelpumpdisable( TTrain *Train, command_data const &Command );
     static void OnCommand_oilpumptoggle( TTrain *Train, command_data const &Command );
+    static void OnCommand_oilfuelpumptoggle( TTrain *Train, command_data const &Command );
     static void OnCommand_oilpumpenable( TTrain *Train, command_data const &Command );
     static void OnCommand_oilpumpdisable( TTrain *Train, command_data const &Command );
     static void OnCommand_waterheaterbreakertoggle( TTrain *Train, command_data const &Command );
@@ -719,7 +723,8 @@ public: // reszta może by?publiczna
     TGauge ggWaterHeaterButton; // water heater switch
     TGauge ggWaterCircuitsLinkButton;
     TGauge ggFuelPumpButton; // fuel pump switch
-    TGauge ggOilPumpButton; // fuel pump switch
+    TGauge ggOilPumpButton; // oil pump switch
+    TGauge ggOilFuelPumpButton; // joint oil and fuel pump switch
     TGauge ggMotorBlowersFrontButton; // front traction motor fan switch
     TGauge ggMotorBlowersRearButton; // rear traction motor fan switch
     TGauge ggMotorBlowersAllOffButton; // motor fans shutdown switch
