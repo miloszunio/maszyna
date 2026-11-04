@@ -4434,7 +4434,183 @@ void editor_mode::render_base_layers()
         ImGui::SetTooltip("%s", STR_C("Where the terrain of the scenery ends, the terrain model is made under the tracks as they're laid, around the cursor from the first point placed; "
                                       "the chunks there are stay as they are. Off, it's made only when asked for"));
 
+    render_wms_presets();
     render_wms_adding();
+}
+
+namespace
+{
+// the public WMS services of Poland drawing in PUWG 1992, ready to tick. Some layers are named as the service has them; where the names
+// aren't known for sure, the layers are found in the capabilities by words of their names and titles, all of them where none match
+struct wms_preset
+{
+    char const *title;
+    char const *what;
+    char const *url;
+    char const *layers; // the names, comma separated; none: by the words below
+    std::vector<char const *> words;
+};
+
+std::vector<wms_preset> const &wms_presets()
+{
+    static std::vector<wms_preset> const presets{
+        {"Railway lines and stations (PKP PLK)", "The lines of PKP PLK with their numbers, the stations and the stops, the plants of the lines",
+         "http://mapa.plk-sa.pl:8080/geoserver/SILK/ows", "WMS_SILK_linie_kolejowe,WMS_SILK_stacje_przystanki,WMS_SILK_zaklady", {}},
+        {"Railways (BDOT10k)", "The tracks of the topographic database, platforms and the railway areas", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
+         {"kolej", "torow", "tory", "sktr", "peron"}},
+        {"Power lines and poles (BDOT10k)", "Overhead power lines, their poles, masts and towers", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
+         {"energ", "przesy", "suln", "slup", "słup", "maszt", "wież", "wiez"}},
+        {"Utility networks (KIUT)", "Power, telecommunication, water, sewage, gas and heating lines of the districts; seen zoomed in",
+         "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaUzbrojeniaTerenu", "", {}},
+        {"Buildings (land register)", "The outlines of the buildings of the land register of the districts", "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow", "budynki", {}},
+        {"Buildings (BDOT10k)", "The buildings of the topographic database", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "", {"budyn", "bubd"}},
+        {"Parcel boundaries", "The parcels of the land register with their numbers; seen zoomed in", "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow", "dzialki,numery_dzialek", {}},
+        {"Land use (land register)", "The kinds of the land of the register: arable, meadows, forest, built up...", "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow", "",
+         {"uzytk", "użytk"}},
+        {"Forests and woods (BDOT10k)", "Forests, woods and bushes of the topographic database", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
+         {"lasy", "leśn", "lesn", "zadrzew", "ptlz", "krzew"}},
+        {"Forests (Forest Data Bank)", "The forest compartments of the Forest Data Bank", "https://mapserver.bdl.lasy.gov.pl/ArcGIS/services/WMS_BDL/MapServer/WMSServer", "", {"wydziel", "oddzia", "las"}},
+        {"Roads (BDOT10k)", "Roads, streets and their carriageways of the topographic database", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
+         {"drog", "jezdn", "ulic", "skdr", "skjz"}},
+        {"Waters (BDOT10k)", "Rivers, ditches and lakes of the topographic database", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
+         {"wod", "rzek", "rów", "jezior", "ptwp", "swrs"}},
+        {"Everything of BDOT10k", "The whole topographic database at once", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "", {}},
+        {"Streets and addresses", "The streets, the squares and the address points of the national register", "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaNumeracjiAdresowej",
+         "prg-ulice,prg-place,prg-adresy", {}},
+        {"Local plans (MPZP)", "The local zoning plans of the communes", "https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego", "", {}},
+        {"Listed monuments", "The immovable monuments of the register", "http://usluga.zabytek.gov.pl/INSPIRE_IMD/service.svc/get", "Immovable_Monuments", {}},
+    };
+    return presets;
+}
+
+// the layers of the preset the service has: those named, or those whose names or titles hold its words, or all of them
+std::string preset_layers(wms_preset const &Preset, editor_orthophoto::service_info const &Info)
+{
+    std::string layers;
+    auto const add = [&](std::string const &Name) {
+        if (false == Name.empty())
+            layers += (layers.empty() ? "" : ",") + Name;
+    };
+    if (*Preset.layers != '\0')
+    {
+        std::string const wanted{Preset.layers};
+        std::size_t from{0};
+        while (from <= wanted.size())
+        {
+            auto const comma{wanted.find(',', from)};
+            auto const name{wanted.substr(from, comma == std::string::npos ? std::string::npos : comma - from)};
+            // as named, where the capabilities weren't read or have no such layer the service is asked for it anyway
+            auto const found{std::find_if(Info.layers.begin(), Info.layers.end(), [&](auto const &Layer) { return ToLower(Layer.first) == ToLower(name); })};
+            add(found != Info.layers.end() ? found->first : name);
+            if (comma == std::string::npos)
+                break;
+            from = comma + 1;
+        }
+        return layers;
+    }
+    for (auto const &[name, title] : Info.layers)
+    {
+        auto const text{ToLower(name + " " + title)};
+        if (Preset.words.empty() || std::any_of(Preset.words.begin(), Preset.words.end(), [&](char const *Word) { return text.find(ToLower(Word)) != std::string::npos; }))
+            add(name);
+    }
+    if (layers.empty() && false == Preset.words.empty())
+        for (auto const &layer : Info.layers)
+            add(layer.first);
+    return layers;
+}
+} // namespace
+
+void editor_mode::render_wms_presets()
+{
+    auto &stored{EditorSettings.wms_layers()};
+    ImGui::PushID("wmspresets");
+    if (false == ImGui::TreeNode("##presets", "%s", STR_C("Ready WMS layers: railways, poles, buildings, parcels...")))
+    {
+        ImGui::PopID();
+        return;
+    }
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("%s", STR_C("Public services of GUGiK, PKP PLK and others, drawn over the orthophoto as it lies. Ticked, a layer is added above and shown; its terms are in its entry"));
+    ImGui::PopTextWrapPos();
+    auto const &presets{wms_presets()};
+    auto save{false};
+    for (std::size_t i = 0; i < presets.size(); ++i)
+    {
+        auto const &preset{presets[i]};
+        auto const title{STR(preset.title)};
+        auto const entry{std::find_if(stored.begin(), stored.end(), [&](editorSettings::wms_layer const &Layer) { return Layer.url == preset.url && (Layer.title == title || Layer.title == preset.title); })};
+        auto const reading{m_wms_preset_reading.count(i) != 0};
+        bool ticked{entry != stored.end() && entry->visible};
+        ImGui::PushID(static_cast<int>(i));
+        if (reading)
+            ImGui::BeginDisabled();
+        if (ImGui::Checkbox(title.c_str(), &ticked))
+        {
+            if (entry != stored.end())
+            {
+                entry->visible = ticked;
+                save = true;
+            }
+            else if (ticked)
+            {
+                // the layers of the service read first, on a thread of its own
+                m_wms_preset_note.erase(i);
+                std::string const url{preset.url};
+                m_wms_preset_reading[i] = std::async(std::launch::async, [url]() { return editor_orthophoto::describe(url); });
+            }
+        }
+        if (reading)
+            ImGui::EndDisabled();
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s\n%s", STR_C(preset.what), preset.url);
+        if (reading)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("%s", STR_C("reading the service..."));
+        }
+        if (auto const note{m_wms_preset_note.find(i)}; note != m_wms_preset_note.end())
+        {
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "%s", note->second.c_str());
+            ImGui::PopTextWrapPos();
+        }
+        ImGui::PopID();
+    }
+    // the services read: the layer added on top of the others, shown
+    for (auto it = m_wms_preset_reading.begin(); it != m_wms_preset_reading.end();)
+    {
+        if (it->second.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
+        {
+            ++it;
+            continue;
+        }
+        auto const info{it->second.get()};
+        auto const &preset{presets[it->first]};
+        auto const layers{preset_layers(preset, info)};
+        if (false == info.layers.empty() && false == info.puwg)
+            m_wms_preset_note[it->first] = STR("The service doesn't draw in PUWG 1992 (EPSG:2180), the editor can't lay it out");
+        else if (layers.empty())
+            m_wms_preset_note[it->first] = info.error.empty() ? std::string{STR_C("The service has no layers to show")} : format(STR_C("The service can't be read: %s"), info.error.c_str());
+        else
+        {
+            if (false == info.error.empty())
+                m_wms_preset_note[it->first] = format(STR_C("The service can't be read: %s"), info.error.c_str()) + "\n" + STR("The layers are asked for as named, they may not come");
+            editorSettings::wms_layer entry;
+            entry.url = preset.url;
+            entry.layers = layers;
+            entry.title = STR(preset.title);
+            entry.terms = info.terms;
+            entry.opacity = 0.9f;
+            stored.insert(stored.begin(), entry);
+            save = true;
+        }
+        it = m_wms_preset_reading.erase(it);
+    }
+    if (save)
+        EditorSettings.save();
+    ImGui::TreePop();
+    ImGui::PopID();
 }
 
 void editor_mode::render_wms_adding()
@@ -4596,6 +4772,62 @@ void editor_mode::update_wms_layers()
     }
 }
 
+void editor_mode::apply_camera_settings()
+{
+    auto const &camera{EditorSettings.camera()};
+    Global.EditorCameraSpeed = camera.speed;
+    Global.EditorCameraFast = camera.fast;
+    Global.EditorCameraZoomed = camera.zoomed;
+}
+
+void editor_mode::render_camera_settings()
+{
+    auto &camera{EditorSettings.camera()};
+    auto changed{false};
+    auto release{false};
+    ImGui::PushItemWidth(180.0f * Global.ui_scale);
+    float speed{static_cast<float>(camera.speed)};
+    if (ImGui::SliderFloat(STR_C("Speed of the camera"), &speed, 0.05f, 10.0f, "x %.2f", ImGuiSliderFlags_Logarithmic))
+    {
+        camera.speed = speed;
+        changed = true;
+    }
+    release |= ImGui::IsItemDeactivatedAfterEdit();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("How fast the arrows or WSAD move the camera, Shift a bit faster; 1 as it was"));
+    float fast{static_cast<float>(camera.fast)};
+    if (ImGui::SliderFloat(STR_C("Ctrl speeds it up"), &fast, 1.0f, 30.0f, "x %.1f", ImGuiSliderFlags_Logarithmic))
+    {
+        camera.fast = fast;
+        changed = true;
+    }
+    release |= ImGui::IsItemDeactivatedAfterEdit();
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("How many times faster the camera goes with Ctrl held, Ctrl+Shift too; 30 as it was"));
+    ImGui::PopItemWidth();
+    if (ImGui::Checkbox(STR_C("In the top view as fast as the view is zoomed"), &camera.zoomed))
+        changed = release = true;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("Zoomed in the map moves slowly, zoomed out fast: across the screen at the same pace whatever the zoom"));
+    ImGui::Separator();
+    if (ImGui::Checkbox(STR_C("Hold the wheel and drag: pan in the top view"), &camera.pan_ortho))
+        changed = release = true;
+    if (ImGui::Checkbox(STR_C("Hold the wheel and drag: pan in the perspective view too"), &camera.pan_perspective))
+        changed = release = true;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("The ground under the cursor goes along with it, the height and the turn of the camera stay"));
+    ImGui::Separator();
+    if (ImGui::MenuItem(STR_C("As it was")))
+    {
+        camera = {};
+        changed = release = true;
+    }
+    if (changed)
+        apply_camera_settings();
+    if (release)
+        EditorSettings.save();
+}
+
 void editor_mode::render_view_menu()
 {
     if (false == ImGui::BeginMenu(STR_C("View")))
@@ -4604,6 +4836,11 @@ void editor_mode::render_view_menu()
         toggle_ortho();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The view straight down without perspective, as on a map; again for the camera as it was"));
+    if (ImGui::BeginMenu(STR_C("Camera speed and panning")))
+    {
+        render_camera_settings();
+        ImGui::EndMenu();
+    }
     if (ImGui::BeginMenu(STR_C("Tracks in the top view")))
     {
         render_top_tracks_choice(false);
@@ -6555,8 +6792,10 @@ void editor_mode::ortho_pan_to(double const Horizontal, double const Vertical)
     auto const dx{Horizontal - m_ortho_pan_cursor.x};
     auto const dy{Vertical - m_ortho_pan_cursor.y};
     m_ortho_pan_cursor = {Horizontal, Vertical};
-    auto const scale{2.0 * static_cast<double>(Global.EditorOrthoExtent) / static_cast<double>(io.DisplaySize.y)};
-    auto const world{RotateY(glm::dvec3{dx * scale, 0.0, dy * scale}, static_cast<double>(Camera.Angle.y))};
+    auto const scale{Global.EditorOrtho ? 2.0 * static_cast<double>(Global.EditorOrthoExtent) / static_cast<double>(io.DisplaySize.y) : m_pan_metres};
+    // looked at from the side, a pixel up the screen is more of the ground than one across
+    auto const along{Global.EditorOrtho ? 1.0 : 1.0 / std::max(0.25, std::abs(std::sin(static_cast<double>(Camera.Angle.x))))};
+    auto const world{RotateY(glm::dvec3{dx * scale, 0.0, dy * scale * along}, static_cast<double>(Camera.Angle.y))};
     Camera.Pos.x -= world.x;
     Camera.Pos.z -= world.z;
     Camera.Velocity = {};
@@ -6684,6 +6923,8 @@ void editor_mode::update_camera(double const Deltatime)
 void editor_mode::enter()
 {
     m_statebackup = {Global.pCamera, FreeFlyModeFlag, Global.ControlPicking};
+    apply_camera_settings();
+    Global.EditorCameraOn = true;
     // the editor changes the tracks, their sleepers are worked out as they're needed
     track_sleepers::lay_in_background(false);
 
@@ -6782,6 +7023,7 @@ void editor_mode::enter()
 
 void editor_mode::exit()
 {
+    Global.EditorCameraOn = false;
     track_sleepers::lay_in_background(true);
     Global.editor_tracks = false;
     EditorModeFlag = false;
@@ -7093,6 +7335,8 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         // the chunks of the terrain selected, where the terrain is the field of work; else what's selected in the scenery
         if (is_press(Action) && m_terrain_open && false == m_terrain_selection.empty())
             remove_selected_chunks();
+        else if (is_press(Action) && ui()->mode() == nodebank_panel::TRACK && m_track_tab == track_tab::lay && lay_delete())
+            break;
         else if (is_press(Action))
             delete_selected();
         break;
@@ -7557,7 +7801,7 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
         // game-engine style look: hide & grab the cursor while flying, restore it on release
         Application.set_cursor(is_press(Action) ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
     }
-    else if (Button == GLFW_MOUSE_BUTTON_MIDDLE && Global.EditorOrtho)
+    else if (Button == GLFW_MOUSE_BUTTON_MIDDLE && (Global.EditorOrtho ? EditorSettings.camera().pan_ortho : EditorSettings.camera().pan_perspective))
     {
         if (is_press(Action))
         {
@@ -7565,6 +7809,18 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
             m_ortho_pan_cursor = m_input.mouse.position();
             m_focus_active = false;
             Camera.Velocity = {};
+            // in the perspective the ground under the cursor goes along with it: metres of it to a pixel there, as far as it is
+            m_pan_metres = 0.0;
+            if (false == Global.EditorOrtho)
+            {
+                auto const &io{ImGui::GetIO()};
+                auto const ground{cursor_ground()};
+                auto const distance{glm::distance(ground, glm::dvec3{Camera.Pos})};
+                if (io.DisplaySize.y > 0.0f && distance > 0.5 && distance < 20000.0)
+                    m_pan_metres = 2.0 * distance * std::tan(glm::radians(Global.FieldOfView / Global.ZoomFactor) * 0.5) / static_cast<double>(io.DisplaySize.y);
+                else
+                    m_ortho_pan = false;
+            }
         }
         else if (is_release(Action))
             ortho_pan_stop();

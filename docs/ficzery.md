@@ -110,6 +110,26 @@ Ograniczenie: jeden chunk 250×250 m mieści najwyżej 8 materiałów, razem z t
 - **Punkt odniesienia scenerii.** Edytor czyta linię `//$g` także z pliku dołączonego przez `include`. W narzędziu „Prawdziwy teren z map (NMT)” w dziale Teren, w sekcji Położenie, są dwa nowe przyciski:
   - **„Przypisz z kamery”:** punkt kliknięty na mapie to miejsce, gdzie stoi kamera, a z tego wylicza się środek scenerii. Cofa przestawienie przyciskiem „Sceneria jest tutaj”. Wystarczy podlecieć kamerą nad znaną stację, kliknąć ją na mapie i przypisać.
   - **„Środek zapisany w pliku scenerii”:** bierze środek z linii `//$g`.
+- **Ułożony tor da się poprawić i usunąć od razu.** W zakładce kładzenia torów edytor nie zaznacza torów, więc wcześniej nie dało się ich ani chwycić, ani usunąć: Delete kasował tylko ostatni 2-metrowy kawałek. Teraz:
+  - panel kładzenia pokazuje „Ułożony ostatnio: … m, … odcinków” z przyciskami **„Popraw go”** (przejście do zakładki torów z całym ułożonym torem zaznaczonym) i **„Usuń go (Del)”**,
+  - **Delete** w zakładce kładzenia usuwa cały ostatnio ułożony tor, a nad innym torem ten tor,
+  - **Ctrl+klik** na torze przenosi go do zakładki torów do poprawy.
+- **Prędkość kamery (Widok > Prędkość kamery i przesuwanie).**
+  - Suwak prędkości.
+  - Suwak „Przyspieszenie z Ctrl”: było na sztywno 30×, przez co Ctrl+Shift gnał ok. 1,5 km/s.
+  - Opcja „W widoku z góry prędkość zależna od powiększenia”, domyślnie włączona.
+  - Przesuwanie wciśniętą rolką: w widoku z góry, opcjonalnie także w perspektywie.
+- **Gotowe warstwy WMS.** W oknie warstw, nad „Dodaj warstwę WMS”, jest lista do zaznaczania:
+  - linie i stacje PKP PLK,
+  - kolej, linie energetyczne ze słupami, budynki, lasy, drogi i wody z BDOT10k,
+  - uzbrojenie terenu (KIUT),
+  - budynki, granice działek i użytki z EGiB,
+  - lasy z BDL,
+  - ulice i adresy,
+  - plany miejscowe,
+  - zabytki.
+
+  Po zaznaczeniu edytor czyta usługę i dobiera jej warstwy. Gdy usługa nie odpowiada albo nie rysuje w EPSG:2180, przy pozycji pojawia się komunikat.
 - **Dokumentacja.** Jak powstaje sceneria IRT jest w `docs/irt-konwersja.md`, normy PLK w `docs/plk-normy.md`, literatura w `docs/literatura-kolejowa.md`.
 - **Narzędzia.** Konwerter jest w `tools/irt/`, audyt PLK w `tools/plk/`.
 

@@ -649,6 +649,8 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 				intent.path = under.path;
 				if (shift)
 					return make(kind::select, "Click: the Parallel tool (N) with this track");
+				if (control)
+					return make(kind::lay, "Click: this track fixed in the tab of the paths. Del: deleted");
 				return make(kind::lay, "Click: start on the ground beside this track. Shift+click: a parallel track to it, T: a switch into it");
 			}
 		return make(kind::lay, lay.points.empty() ? "Click: start of the new track" : "Click: lay the track to here");
@@ -1033,6 +1035,16 @@ void editor_mode::track_press(track_intent const &Intent)
 			return;
 		[[fallthrough]];
 	case kind::lay:
+		// Ctrl+click on a track with no points clicked: the track taken to the tab of the paths, to be fixed there
+		if (m_lay.points.empty() && ImGui::GetIO().KeyCtrl)
+			if (auto const hit{track_under_cursor()}; hit.track != nullptr)
+			{
+				auto const laid{lay_laid()};
+				auto const ours{std::find(laid.begin(), laid.end(), hit.track) != laid.end()};
+				show_track_tab(track_tab::path);
+				select_tracks(ours ? laid : std::vector<TTrack *>{hit.track});
+				return;
+			}
 		GfxRenderer->Pick_Node_Callback([this](scene::basic_node * /*node*/) {
 			if (viewport_click())
 				lay_click();

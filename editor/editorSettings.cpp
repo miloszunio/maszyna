@@ -161,6 +161,22 @@ bool editorSettings::load()
 			m_top_tracks = value == "1" ? 0 : 1;
 		else if (key == "top_tracks")
 			m_top_tracks = std::clamp(std::atoi(value.c_str()), 0, 2);
+		else if (key == "camera_speed")
+		{
+			parse(value, m_camera.speed);
+			m_camera.speed = std::clamp(m_camera.speed, 0.05, 10.0);
+		}
+		else if (key == "camera_fast")
+		{
+			parse(value, m_camera.fast);
+			m_camera.fast = std::clamp(m_camera.fast, 1.0, 30.0);
+		}
+		else if (key == "camera_zoomed")
+			m_camera.zoomed = (value == "1");
+		else if (key == "pan_ortho")
+			m_camera.pan_ortho = (value == "1");
+		else if (key == "pan_perspective")
+			m_camera.pan_perspective = (value == "1");
 		else if (key == "top_rails")
 			m_top_rails = static_cast<std::uint32_t>(std::strtoul(value.c_str(), nullptr, 16)) | 0xff000000u;
 		// under a key of its own since the laying goes from point to point unless told otherwise: the fitted heights chosen
@@ -256,6 +272,11 @@ bool editorSettings::save()
 	stream << "nmt_shape " << (m_terrain_model.shape ? 1 : 0) << "\n";
 	stream << "nmt_follow " << (m_terrain_model.follow ? 1 : 0) << "\n";
 	stream << "top_tracks " << m_top_tracks << "\n";
+	stream << "camera_speed " << m_camera.speed << "\n";
+	stream << "camera_fast " << m_camera.fast << "\n";
+	stream << "camera_zoomed " << (m_camera.zoomed ? 1 : 0) << "\n";
+	stream << "pan_ortho " << (m_camera.pan_ortho ? 1 : 0) << "\n";
+	stream << "pan_perspective " << (m_camera.pan_perspective ? 1 : 0) << "\n";
 	stream << "top_rails " << std::hex << (m_top_rails & 0xffffffu) << std::dec << "\n";
 	stream << "laying_heights " << (m_heights == lay_heights::points ? "points" : m_heights == lay_heights::level ? "level" : "fitted") << "\n";
 	for (auto const &layer : m_wms_layers)

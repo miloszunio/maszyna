@@ -2098,6 +2098,7 @@ void editor_mode::lay_finish(editor_track::snap_target const &End)
 	}
 	if (scene::Layers.active() == null_handle && style == nullptr)
 		tool.status += "\n" + STR("The scenery isn't opened for editing: new track won't be saved");
+	tool.laid = created;
 	m_node = created.back();
 	ui()->set_node(m_node);
 	if (nmt_fit_laid(tool.history, created.back()->m_paths.front().points[segment_data::point::end]))
@@ -2298,9 +2299,90 @@ alignment::limits editor_mode::laying_norms() const
 	return norms;
 }
 
+std::vector<TTrack *> editor_mode::lay_laid()
+{
+	auto &laid{m_lay.laid};
+	laid.erase(std::remove_if(laid.begin(), laid.end(), [](TTrack const *Track) { return Track == nullptr || Track->m_editorremoved; }), laid.end());
+	return laid;
+}
+
+void editor_mode::lay_fix_laid()
+{
+	auto const laid{lay_laid()};
+	if (laid.empty())
+		return;
+	show_track_tab(track_tab::path);
+	select_tracks(laid);
+	ui()->set_status(format(STR_P("%zu piece laid last selected: its points are dragged here, Delete deletes it", "%zu pieces laid last selected: their points are dragged here, Delete deletes them", static_cast<long long>(laid.size())), laid.size()));
+}
+
+bool editor_mode::lay_delete()
+{
+	if (false == m_lay.active || false == m_lay.points.empty())
+		return false;
+	// the tab picks no track while laying: the one under the cursor is looked for here
+	auto const laid{lay_laid()};
+	auto const hit{track_under_cursor()};
+	auto const ours{hit.track != nullptr && std::find(laid.begin(), laid.end(), hit.track) != laid.end()};
+	if (hit.track != nullptr && false == ours)
+	{
+		m_track_set.clear();
+		m_node = hit.track;
+		m_track_point = {};
+		ui()->set_node(m_node);
+		delete_selected_track();
+		return true;
+	}
+	return lay_delete_laid();
+}
+
+bool editor_mode::lay_delete_laid()
+{
+	auto const laid{lay_laid()};
+	if (laid.empty())
+		return false;
+	m_track_point = {};
+	if (laid.size() == 1)
+	{
+		m_track_set.clear();
+		m_node = laid.front();
+		ui()->set_node(m_node);
+		delete_selected_track();
+	}
+	else
+	{
+		m_track_set = laid;
+		track_set_delete();
+	}
+	m_lay.laid.clear();
+	m_track_set.clear();
+	m_node = nullptr;
+	ui()->set_node(nullptr);
+	ui()->set_status(STR_C("The track laid last deleted, Ctrl+Z brings it back"));
+	return true;
+}
+
 void editor_mode::render_lay_ui()
 {
 	auto &tool{m_lay};
+	// the track laid last: the tab picks no track, so it's fixed or deleted from here
+	if (tool.points.empty())
+		if (auto const laid{lay_laid()}; false == laid.empty())
+		{
+			double length{0.0};
+			for (auto const *track : laid)
+				for (auto const &path : track->m_paths)
+					length += geometry::bezier{path}.plan_length();
+			ImGui::TextDisabled("%s", format(STR_P("Laid last: %.1f m, %zu piece", "Laid last: %.1f m, %zu pieces", static_cast<long long>(laid.size())), length, laid.size()).c_str());
+			if (ImGui::Button(STR_C("Fix it")))
+				lay_fix_laid();
+			item_tooltip("Goes to the tab of the paths with the track laid last selected: its points are dragged there. Ctrl+click on any track does it with that one");
+			ImGui::SameLine();
+			if (ImGui::Button(STR_C("Delete it  (Del)")))
+				lay_delete_laid();
+			item_tooltip("Del over another track deletes that one; Ctrl+Z brings it back");
+			ImGui::Separator();
+		}
 	// the points clicked are no track until they're laid: said first, with the keys as buttons
 	if (tool.points.size() > 1)
 	{
