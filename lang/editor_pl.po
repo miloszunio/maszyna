@@ -15306,3 +15306,177 @@ msgstr "Trawa 3D na skarpach##bed"
 
 msgid "3D grass under it##patch"
 msgstr "Trawa 3D pod spodem##patch"
+
+msgid "%zu piece laid last selected: its points are dragged here, Delete deletes it"
+msgid_plural "%zu pieces laid last selected: their points are dragged here, Delete deletes them"
+msgstr[0] "Zaznaczono %zu odcinek ułożony ostatnio: tu przeciągasz jego punkty, Delete go usuwa"
+msgstr[1] "Zaznaczono %zu odcinki ułożone ostatnio: tu przeciągasz ich punkty, Delete je usuwa"
+msgstr[2] "Zaznaczono %zu odcinków ułożonych ostatnio: tu przeciągasz ich punkty, Delete je usuwa"
+
+msgid "The track laid last deleted, Ctrl+Z brings it back"
+msgstr "Usunięto ostatnio ułożony tor, Ctrl+Z przywraca"
+
+msgid "Laid last: %.1f m, %zu piece"
+msgid_plural "Laid last: %.1f m, %zu pieces"
+msgstr[0] "Ułożony ostatnio: %.1f m, %zu odcinek"
+msgstr[1] "Ułożony ostatnio: %.1f m, %zu odcinki"
+msgstr[2] "Ułożony ostatnio: %.1f m, %zu odcinków"
+
+msgid "Fix it"
+msgstr "Popraw go"
+
+msgid "Goes to the tab of the paths with the track laid last selected: its points are dragged there. Ctrl+click on any track does it with that one"
+msgstr "Przechodzi do zakładki torów z zaznaczonym ostatnio ułożonym torem: tam przeciągasz jego punkty. Ctrl+klik na dowolnym torze robi to samo z tamtym"
+
+msgid "Delete it  (Del)"
+msgstr "Usuń go  (Del)"
+
+msgid "Del over another track deletes that one; Ctrl+Z brings it back"
+msgstr "Del nad innym torem usuwa tamten; Ctrl+Z przywraca"
+
+msgid "Click: this track fixed in the tab of the paths. Del: deleted"
+msgstr "Klik: popraw ten tor w zakładce torów. Del: usuń go"
+
+msgid "Camera speed and panning"
+msgstr "Prędkość kamery i przesuwanie"
+
+msgid "Speed of the camera"
+msgstr "Prędkość kamery"
+
+msgid "How fast the arrows or WSAD move the camera, Shift a bit faster; 1 as it was"
+msgstr "Jak szybko strzałki albo WSAD przesuwają kamerę, z Shiftem trochę szybciej; 1 = jak dotąd"
+
+msgid "Ctrl speeds it up"
+msgstr "Przyspieszenie z Ctrl"
+
+msgid "How many times faster the camera goes with Ctrl held, Ctrl+Shift too; 30 as it was"
+msgstr "Ile razy szybciej jedzie kamera z wciśniętym Ctrl, także Ctrl+Shift; 30 = jak dotąd"
+
+msgid "In the top view as fast as the view is zoomed"
+msgstr "W widoku z góry prędkość zależna od powiększenia"
+
+msgid "Zoomed in the map moves slowly, zoomed out fast: across the screen at the same pace whatever the zoom"
+msgstr "Przybliżona mapa jedzie wolno, oddalona szybko: po ekranie zawsze w tym samym tempie"
+
+msgid "Hold the wheel and drag: pan in the top view"
+msgstr "Wciśnięta rolka i przeciąganie: przesuwanie w widoku z góry"
+
+msgid "Hold the wheel and drag: pan in the perspective view too"
+msgstr "Wciśnięta rolka i przeciąganie: przesuwanie także w perspektywie"
+
+msgid "The ground under the cursor goes along with it, the height and the turn of the camera stay"
+msgstr "Teren pod kursorem jedzie razem z nim, wysokość i obrót kamery zostają"
+
+msgid "As it was"
+msgstr "Przywróć domyślne"
+
+msgid "Ready WMS layers: railways, poles, buildings, parcels..."
+msgstr "Gotowe warstwy WMS: kolej, słupy, budynki, działki..."
+
+msgid "Public services of GUGiK, PKP PLK and others, drawn over the orthophoto as it lies. Ticked, a layer is added above and shown; its terms are in its entry"
+msgstr "Publiczne usługi GUGiK, PKP PLK i innych, rysowane na ortofotomapie. Zaznaczona warstwa trafia na listę powyżej i się wyświetla; warunki usługi są w jej wpisie"
+
+msgid "reading the service..."
+msgstr "czytam usługę..."
+
+msgid "The service has no layers to show"
+msgstr "Usługa nie ma warstw do pokazania"
+
+msgid "The layers are asked for as named, they may not come"
+msgstr "Warstwy są pobierane wg nazw, mogą nie przyjść"
+
+msgid "Railway lines and stations (PKP PLK)"
+msgstr "Linie kolejowe i stacje (PKP PLK)"
+
+msgid "The lines of PKP PLK with their numbers, the stations and the stops, the plants of the lines"
+msgstr "Linie PKP PLK z numerami, stacje i przystanki, zakłady linii kolejowych"
+
+msgid "Railways (BDOT10k)"
+msgstr "Kolej (BDOT10k)"
+
+msgid "The tracks of the topographic database, platforms and the railway areas"
+msgstr "Tory z bazy topograficznej, perony i tereny kolejowe"
+
+msgid "Power lines and poles (BDOT10k)"
+msgstr "Linie energetyczne i słupy (BDOT10k)"
+
+msgid "Overhead power lines, their poles, masts and towers"
+msgstr "Napowietrzne linie energetyczne, słupy, maszty i wieże"
+
+msgid "Utility networks (KIUT)"
+msgstr "Uzbrojenie terenu (KIUT)"
+
+msgid "Power, telecommunication, water, sewage, gas and heating lines of the districts; seen zoomed in"
+msgstr "Sieci energetyczne, telekomunikacyjne, wodociągi, kanalizacja, gaz i ciepło z powiatów; widać po przybliżeniu"
+
+msgid "Buildings (land register)"
+msgstr "Budynki (EGiB)"
+
+msgid "The outlines of the buildings of the land register of the districts"
+msgstr "Obrysy budynków z ewidencji gruntów i budynków powiatów"
+
+msgid "Buildings (BDOT10k)"
+msgstr "Budynki (BDOT10k)"
+
+msgid "The buildings of the topographic database"
+msgstr "Budynki z bazy topograficznej"
+
+msgid "Parcel boundaries"
+msgstr "Granice działek"
+
+msgid "The parcels of the land register with their numbers; seen zoomed in"
+msgstr "Działki ewidencyjne z numerami; widać po przybliżeniu"
+
+msgid "Land use (land register)"
+msgstr "Użytki gruntowe (EGiB)"
+
+msgid "The kinds of the land of the register: arable, meadows, forest, built up..."
+msgstr "Rodzaje użytków z ewidencji: grunty orne, łąki, lasy, zabudowa..."
+
+msgid "Forests and woods (BDOT10k)"
+msgstr "Lasy i zadrzewienia (BDOT10k)"
+
+msgid "Forests, woods and bushes of the topographic database"
+msgstr "Lasy, zadrzewienia i zakrzewienia z bazy topograficznej"
+
+msgid "Forests (Forest Data Bank)"
+msgstr "Lasy (Bank Danych o Lasach)"
+
+msgid "The forest compartments of the Forest Data Bank"
+msgstr "Wydzielenia leśne z Banku Danych o Lasach"
+
+msgid "Roads (BDOT10k)"
+msgstr "Drogi (BDOT10k)"
+
+msgid "Roads, streets and their carriageways of the topographic database"
+msgstr "Drogi, ulice i jezdnie z bazy topograficznej"
+
+msgid "Waters (BDOT10k)"
+msgstr "Wody (BDOT10k)"
+
+msgid "Rivers, ditches and lakes of the topographic database"
+msgstr "Rzeki, rowy i jeziora z bazy topograficznej"
+
+msgid "Everything of BDOT10k"
+msgstr "Całe BDOT10k"
+
+msgid "The whole topographic database at once"
+msgstr "Cała baza topograficzna naraz"
+
+msgid "Streets and addresses"
+msgstr "Ulice i adresy"
+
+msgid "The streets, the squares and the address points of the national register"
+msgstr "Ulice, place i punkty adresowe z krajowego rejestru"
+
+msgid "Local plans (MPZP)"
+msgstr "Plany miejscowe (MPZP)"
+
+msgid "The local zoning plans of the communes"
+msgstr "Miejscowe plany zagospodarowania przestrzennego gmin"
+
+msgid "Listed monuments"
+msgstr "Zabytki"
+
+msgid "The immovable monuments of the register"
+msgstr "Zabytki nieruchome z rejestru"

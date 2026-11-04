@@ -56,6 +56,16 @@ public:
 		bool visible{true};
 	};
 	std::vector<wms_layer> &wms_layers() { return m_wms_layers; }
+	// the free camera: its speed, how many times faster Ctrl makes it, in the top view as far as it reaches; the wheel held pans
+	struct camera_settings
+	{
+		double speed{1.0};
+		double fast{30.0};
+		bool zoomed{true};
+		bool pan_ortho{true};
+		bool pan_perspective{false};
+	};
+	camera_settings &camera() { return m_camera; }
 
 	double platform_edge() const { return m_platform_edge; }
 	void platform_edge(double Distance) { m_platform_edge = Distance; }
@@ -127,6 +137,7 @@ private:
 	orthophoto_settings m_orthophoto;
 	std::map<std::string, std::pair<double, double>> m_orthophoto_origins;
 	std::vector<wms_layer> m_wms_layers;
+	camera_settings m_camera;
 	double m_platform_edge{1.725};
 	double m_signal_offset{2.25};
 	bool m_nodebank_previews{true};

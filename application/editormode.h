@@ -993,9 +993,16 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	} m_wms_adding;
 	// the orthophoto and the WMS layers of the user's at the bottom of the layers window, with their settings
 	void render_base_layers();
+	void render_wms_presets(); // the WMS layers ready to tick: railways, poles, buildings, parcels, forests, roads...
+	std::map<std::size_t, std::future<editor_orthophoto::service_info>> m_wms_preset_reading;
+	std::map<std::size_t, std::string> m_wms_preset_note;
 	void render_wms_adding();
 	// the WMS layers as the settings have them, laid out by the origin and on the ground of the orthophoto, around the camera
 	void update_wms_layers();
+	// the camera speed and the panning with the wheel held, from the View menu
+	void render_camera_settings();
+	void apply_camera_settings();
+	double m_pan_metres{0.0}; // of the ground to a pixel, the panning in the perspective view holds it
 	// the ground the imagery is fitted onto, the same for the orthophoto and the WMS layers
 	void ground_sources(editor_orthophoto &Layer);
 	std::size_t m_ortho_resident{0}; // chunks of the terrain in memory, as the imagery last heard of them
@@ -1879,8 +1886,13 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::string skew; // what Alt turned the straight to
 		double escape_time{-100.0}; // when Esc was pressed over points not laid: the second Esc drops them
 		std::size_t history{0}; // the step of the history the track laid last was begun at
+		std::vector<TTrack *> laid; // the pieces laid last: the tab of the laying picks no track, so these are fixed or deleted from it as a whole
 	};
 	lay_tool m_lay;
+	std::vector<TTrack *> lay_laid(); // the pieces laid last still in the scenery
+	void lay_fix_laid(); // the pieces laid last selected in the tab of the paths, to be fixed there
+	bool lay_delete_laid(); // the pieces laid last deleted, one step of the history
+	bool lay_delete(); // Delete in the tab of the laying: the track under the cursor, or the pieces laid last
 	alignment::limits laying_norms() const;
 	glm::dvec3 lay_angle_snap(glm::dvec3 const &Mouse, std::string &Label) const;
 	// the straight track Alt turns the laid straight to: the nearest one the straight from From to To crosses, or one along From
