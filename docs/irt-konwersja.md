@@ -154,7 +154,7 @@ Teren pod torami i przy nich jest wycinany na osobne powierzchnie, każda nie d�
 Uruchomienie:
 
 ```
-python3 tools/irt/kawalki_terenu.py terrain/irt wynik --tory scenery/irt_tory.inc --dlugosc 100
+python3 tools/irt/kawalki_terenu.py terrain/irt wynik --tory scenery/irt_tory.scm --dlugosc 100
 ```
 
 ## Co w silniku i edytorze obsługuje te dane

@@ -15992,3 +15992,114 @@ msgstr "Zabytki"
 
 msgid "The immovable monuments of the register"
 msgstr "Zabytki nieruchome z rejestru"
+
+msgid "Covers the new chunks and the ones not painted. A texture dragged from the browser onto it takes its place"
+msgstr "Pokrywa nowe kafle i te niepomalowane. Tekstura przeciągnięta z przeglądarki na pozycję zajmuje jej miejsce"
+
+msgid "A texture dragged from the browser onto an entry of the palette takes its place"
+msgstr "Tekstura przeciągnięta z przeglądarki na pozycję palety zajmuje jej miejsce"
+
+msgid "Higher up the list"
+msgstr "Wyżej na liście"
+
+msgid "Lower down the list"
+msgstr "Niżej na liście"
+
+msgid "The first material stays: it covers the new chunks"
+msgstr "Pierwszy materiał zostaje: pokrywa nowe kafle"
+
+msgid "Off the palette: what's painted with it gets another material of the palette"
+msgstr "Usuń z palety: to, co nim pomalowano, dostanie inny materiał z palety"
+
+msgid "\"%s\" off the palette"
+msgstr "Usuń \"%s\" z palety"
+
+msgid "Where it's painted, the terrain gets instead:"
+msgstr "Tam, gdzie nim pomalowano, teren dostanie zamiast niego:"
+
+msgid "Take it off"
+msgstr "Usuń"
+
+msgid "The material is off the palette, the terrain painted with it has the other one; Ctrl+S saves it"
+msgstr "Materiał usunięty z palety, teren nim pomalowany ma teraz ten drugi; Ctrl+S zapisuje"
+
+msgid "Waves of the ground"
+msgstr "Falowanie terenu"
+
+msgid "Make the ground under the surface wavy"
+msgstr "Pofałduj teren pod powierzchnią"
+
+msgid "The heights of the terrain within the outline get the waves chosen below, fading in from the edge: a field ploughed into furrows, a meadow of gentle hills, a hollow. Ctrl+Z takes them back with the surface"
+msgstr "Wysokości terenu w obrysie dostają wybrane niżej fale, narastające od krawędzi: pole zaorane w bruzdy, łąka z łagodnymi pagórkami, niecka. Ctrl+Z cofa je razem z powierzchnią"
+
+msgid "Rolling hills"
+msgstr "Łagodne pagórki"
+
+msgid "Furrows of a field"
+msgstr "Bruzdy na polu"
+
+msgid "Bumps and molehills"
+msgstr "Garby i kretowiska"
+
+msgid "Long waves"
+msgstr "Długie fale"
+
+msgid "A hollow or a mound"
+msgstr "Niecka albo kopiec"
+
+msgid "Gentle hills of all sizes, as a meadow or a pasture has them"
+msgstr "Łagodne pagórki różnej wielkości, jak na łące albo pastwisku"
+
+msgid "Ridges and furrows side by side, along the angle below, as a ploughed field or the beds of a garden"
+msgstr "Grzbiety i bruzdy obok siebie, w kierunku podanym niżej, jak na zaoranym polu albo grządkach"
+
+msgid "Small mounds scattered about, as molehills or tussocks"
+msgstr "Rozrzucone małe garby, jak kretowiska albo kępy"
+
+msgid "Long even waves across the angle below, as a field rolling over a hill or dunes"
+msgstr "Długie równe fale w poprzek kierunku podanego niżej, jak pole na zboczu albo wydmy"
+
+msgid "The middle lowered (a negative height raises it): a hollow by a pond, a dip in a field, or a mound"
+msgstr "Obniżony środek (ujemna wysokość go podnosi): niecka przy stawie, zagłębienie w polu albo kopiec"
+
+msgid "Kind##waves"
+msgstr "Rodzaj##waves"
+
+msgid "Height (m)##waves"
+msgstr "Wysokość (m)##waves"
+
+msgid "From the bottom of a wave to its top; for the hollow how deep its middle goes, negative: a mound"
+msgstr "Od dołu fali do jej szczytu; dla niecki głębokość środka, ujemna: kopiec"
+
+msgid "Length of a wave (m)##waves"
+msgstr "Długość fali (m)##waves"
+
+msgid "From one top to the next: furrows 0.7-2 m, the beds of a garden 1.5-3 m, hills 20-100 m"
+msgstr "Od jednego szczytu do następnego: bruzdy 0,7-2 m, grządki 1,5-3 m, pagórki 20-100 m"
+
+msgid "Direction (deg)##waves"
+msgstr "Kierunek (°)##waves"
+
+msgid "Which way the furrows or the ridges of the waves run, counterclockwise from the x axis of the scenery; the texture turned by the same angle lies along them"
+msgstr "Kierunek bruzd albo grzbietów fal, przeciwnie do zegara od osi x scenerii; tekstura obrócona o ten sam kąt leży wzdłuż nich"
+
+msgid "as the texture"
+msgstr "jak tekstura"
+
+msgid "Differences between them##waves"
+msgstr "Zróżnicowanie##waves"
+
+msgid "0: every wave alike, as drawn; 1: waves of quite different heights and places, as nature has them"
+msgstr "0: wszystkie fale jednakowe, jak od linijki; 1: fale o bardzo różnej wysokości i położeniu, jak w naturze"
+
+msgid "Fading in from the edge (m)##waves"
+msgstr "Narastanie od krawędzi (m)##waves"
+
+msgid "Metres inside the outline over which the waves grow from nothing, so the ground around meets the surface without a step"
+msgstr "Ile metrów w głąb obrysu fale narastają od zera, żeby teren dookoła łączył się z powierzchnią bez progu"
+
+msgid "No fog in the editor"
+msgstr "Bez mgły w edytorze"
+
+msgid "The fog and the haze of the air left out in the perspective view too, the textures of the ground seen in their own colours. In the top view they're always left out"
+msgstr "Mgła i zamglenie powietrza wyłączone także w perspektywie, tekstury terenu widać w ich prawdziwych kolorach. W widoku z góry są wyłączone zawsze"

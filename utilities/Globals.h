@@ -187,6 +187,8 @@ struct global_settings {
     double EditorCameraSpeed{ 1.0 };
     double EditorCameraFast{ 30.0 };
     bool EditorCameraZoomed{ false };
+    // the fog and the haze of the air left out in the editor: always in its top view, in the perspective when this is set
+    bool EditorNoFog{ false };
     int EditorOrthoTracks{ 0 }; // the railway in the top view of the editor: 0 whole, 1 without the ballast, 2 the rails alone
     GLint iMaxTextureSize{ 4096 }; // maksymalny rozmiar tekstury
     GLint iMaxCabTextureSize{ 4096 }; // largest allowed texture in vehicle cab

@@ -64,6 +64,7 @@ public:
 		bool zoomed{true};
 		bool pan_ortho{true};
 		bool pan_perspective{false};
+		bool no_fog{false}; // the fog and the haze left out in the perspective view too (in the top view they always are)
 	};
 	camera_settings &camera() { return m_camera; }
 

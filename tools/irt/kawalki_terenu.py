@@ -20,7 +20,7 @@ robi dalej modyfikator torowiska edytora (ten sam, ktory je przelicza po zmianie
 Wynik: kopia folderu terenu z paczkami z dziurami, terrain.yaml z "patches_file: patches.txt" i patches.txt (linia na
 kawalek: nazwa, material, powtarzanie, obrot, uniesienie, siatka, obrys).
 
-  python kawalki_terenu.py terrain/irt terrain/irt_kawalki --tory scenery/irt_tory.inc
+  python kawalki_terenu.py terrain/irt terrain/irt_kawalki --tory scenery/irt_tory.scm
 """
 import argparse
 import math
@@ -220,12 +220,27 @@ def read_modifiers(path):
     return [m for m in mods if len(m["points"]) >= 2]
 
 
+def scenery_lines(path, seen=None):
+    """Linie pliku scenerii razem z plikami, ktore dolacza (include ... end), wzgledem jego katalogu."""
+    seen = set() if seen is None else seen
+    full = os.path.abspath(path)
+    if full in seen or not os.path.exists(full):
+        return
+    seen.add(full)
+    for line in open(full, encoding="utf-8", errors="replace"):
+        m = re.match(r"\s*include\s+(\S+)", line)
+        if m:
+            yield from scenery_lines(os.path.join(os.path.dirname(full), m.group(1)), seen)
+            continue
+        yield line
+
+
 def track_names(path):
-    """Srodki torow z pliku .inc i ich nazwy bez numeru kawalka (L132_t1_00491 -> L132 t1)."""
+    """Srodki torow z pliku torow (.inc albo warstwy .scm z dolaczonymi) i ich nazwy bez numeru kawalka (L132_t1_00491 -> L132 t1)."""
     pts, names = [], []
     name = None
     numbers = []
-    for line in open(path, encoding="utf-8", errors="replace"):
+    for line in scenery_lines(path):
         m = re.match(r"node \S+ \S+ (\S+) track (normal|switch)", line)
         if m:
             name = m.group(1)
@@ -268,7 +283,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("teren", help="folder terenu (terrain.yaml + .tch)")
     ap.add_argument("wynik", help="folder wynikowy (kopia terenu z kawalkami)")
-    ap.add_argument("--tory", help="plik .inc z torami, do nazw kawalkow")
+    ap.add_argument("--tory", help="plik z torami (irt_tory.scm z warstwami albo stary .inc), do nazw kawalkow")
     ap.add_argument("--dlugosc", type=float, default=100.0, help="najwieksza dlugosc kawalka wzdluz osi [m]")
     ap.add_argument("--krok", type=float, default=5.0, help="krok punktow obrysu wzdluz osi [m]")
     ap.add_argument("--zasieg", type=float, default=60.0, help="najdalej od krawedzi torowiska do konca skarpy [m]")
@@ -278,6 +293,7 @@ def main():
     ap.add_argument("--zapas", type=float, default=1.0, help="o ile dziura w terenie jest wezsza od kawalkow [m]")
     ap.add_argument("--tylko", type=int, default=0, help="tylko tyle pierwszych modyfikatorow (do prob)")
     ap.add_argument("--material", default="", help="material kawalkow (domyslnie pierwszy z palety terenu)")
+    ap.add_argument("--miejsca", type=int, default=2, help="miejsc po przecinku we wspolrzednych obrysow (1: plik patches.txt o ~1/4 mniejszy)")
     ap.add_argument("--bez-dziur", action="store_true",
                     help="bez dziur w terenie: kawalki do przemalowania w edytorze (Ficzery, Przemaluj je w teren) - bez szwow")
     args = ap.parse_args()
@@ -524,7 +540,7 @@ def main():
         fh.write("# powierzchnie wyciete z terenu wzdluz torow (tools/irt/kawalki_terenu.py): nazwa, material, powtarzanie, obrot, "
                  "uniesienie, siatka, obrys x z ...\n")
         for name, rodzaj, poly in patches:
-            pts_text = " ".join(f"{x:.2f} {z:.2f}" for x, z in poly)
+            pts_text = " ".join(f"{x:.{args.miejsca}f} {z:.{args.miejsca}f}" for x, z in poly)
             fh.write(f"{name}\t{material}\t0\t0\t{lifts[rodzaj]:g}\t2\t{pts_text}\n")
     text = re.sub(r"^patches_file:.*\n", "", text, flags=re.M)
     lines = text.split("\n")

@@ -3927,7 +3927,9 @@ void vulkan14_renderer::update_lights(light_array &Lights, bool const Headlights
 	light_data.lights[0].intensity = 1.0f;
 	// fill fog data
 	light_data.fog_color = m_fogcolor;
-	if (Global.fFogEnd > 0)
+	// the editor shows the colours of the ground as they are in its top view, which looks down through a kilometre of the air, and
+	// in the perspective too when asked: the fog and the haze of the air are left out there
+	if (Global.fFogEnd > 0 && false == (EditorModeFlag && (Global.EditorOrtho || Global.EditorNoFog)))
 	{
 		// the fog of the weather; the regular density is a reference the shading scales the fog of a draw with
 		m_fogrange = m_weatherstate.fog_range();

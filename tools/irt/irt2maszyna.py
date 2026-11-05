@@ -979,7 +979,8 @@ def main():
     geo_out = {"type": "FeatureCollection", "name": "os_po_korekcji",
                "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:EPSG::2180"}},
                "features": []}
-    master = open(os.path.join(args.outdir, "irt_sceneria.inc"), "w", encoding="utf-8")
+    # plik scenerii (warstwa), nie .inc: z .inc silnik zrobilby szablon razem z tym, co dolacza
+    master = open(os.path.join(args.outdir, "irt_sceneria.scm"), "w", encoding="utf-8")
     master.write(f"// tory z IRT po korekcji ST-T1-A6; origin EPSG:2180 E={origin[0]:.0f} N={origin[1]:.0f}\n")
     master.write(f"//$g PUWG1992 {origin[0]/1000:.3f} {origin[1]/1000:.3f}\n")
 
@@ -1155,8 +1156,11 @@ def main():
     by_chain = defaultdict(list)
     for r in lay.runs.values():
         by_chain[r.file].append(r)
-    # cale torowisko w jednym pliku: rekordy //$r, rozjazdy, potem tory linia po linii
-    with open(os.path.join(args.outdir, "irt_tory.inc"), "w", encoding="utf-8") as fh:
+    # torowisko: rekordy //$r, rozjazdy, potem tory linia po linii; zapisane jako warstwy .scm edytora (tory_na_warstwy.py),
+    # bo z pliku .inc silnik robi szablon, ktorego torow edytor nie daje zmienic
+    import io
+    import tory_na_warstwy
+    with io.StringIO() as fh:
         fh.write("// torowisko Dolnego Slaska z IRT (Geoportal Dolnego Slaska), geometria wg PKP PLK ST-T1-A6 (17.04.2025)\n")
         fh.write(f"// origin EPSG:2180 E={origin[0]:.0f} N={origin[1]:.0f}; X = -(E - E0), Z = N - N0, Y = m n.p.m.\n")
         fh.write(f"//$g PUWG1992 {origin[0]/1000:.3f} {origin[1]/1000:.3f}\n")
@@ -1173,7 +1177,14 @@ def main():
         for b in built:
             fh.write(f"// ---- linia {b['LN']} ({b['name']}), km {b['km'][0]}-{b['km'][1]}\n")
             wr_runs(fh, by_chain[b["name"]])
-    master.write("include irt_tory.inc end\n")
+        head, switches, sections = tory_na_warstwy.split(fh.getvalue())
+    layers = tory_na_warstwy.write_layers(head, switches, sections, args.outdir, "irt_tory")
+    with open(os.path.join(args.outdir, "irt_tory.scm"), "w", encoding="utf-8") as fh:
+        fh.write("// torowisko z IRT: warstwy edytora, rozjazdy i kazda linia w swoim pliku\n")
+        fh.write(f"//$g PUWG1992 {origin[0]/1000:.3f} {origin[1]/1000:.3f}\n")
+        for name in layers:
+            fh.write(f"include {name} end\n")
+    master.write("include irt_tory.scm end\n")
     if args.terrain_nmt:
         master.write("heightmap_terrain irt endheightmap_terrain\n")
     for b in built:

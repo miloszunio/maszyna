@@ -1801,10 +1801,14 @@ void terrain_streamer::grass_kind(std::uint16_t const Index, heightmap::grass_de
 std::uint16_t terrain_streamer::layer(std::string const &Material, float const Size, float const Rotation)
 {
 	for (std::size_t i = 0; i < m_manifest.layers.size(); ++i)
-		if (m_manifest.layers[i].material == Material && (Size <= 0.f || m_manifest.layers[i].size == Size) && m_manifest.layers[i].rotation == Rotation)
+		if (false == m_manifest.layers[i].hidden && m_manifest.layers[i].material == Material && (Size <= 0.f || m_manifest.layers[i].size == Size) && m_manifest.layers[i].rotation == Rotation)
 			return static_cast<std::uint16_t>(i);
 	remember_manifest();
-	m_manifest.layers.push_back({Material, std::max(0.f, Size), Rotation});
+	heightmap::layer_def added;
+	added.material = Material;
+	added.size = std::max(0.f, Size);
+	added.rotation = Rotation;
+	m_manifest.layers.push_back(added);
 	m_manifestchanged = true;
 	return static_cast<std::uint16_t>(m_manifest.layers.size() - 1);
 }
@@ -1857,6 +1861,56 @@ void terrain_streamer::layer_material(std::uint16_t const Layer, std::string con
 	for (auto &entry : m_chunks)
 		if (entry.second->data().slot_of(Layer) >= 0 || (Layer == 0 && entry.second->data().layer_count() == 0))
 			entry.second->m_paintedversion = 0;
+}
+
+bool terrain_streamer::hide_layer(std::uint16_t const Layer, std::uint16_t const Into)
+{
+	auto &layers{m_manifest.layers};
+	if (Layer == 0 || Layer >= layers.size() || Into >= layers.size() || Into == Layer || layers[Layer].hidden || layers[Into].hidden)
+		return false;
+	remember_manifest();
+	auto &entry{layers[Layer]};
+	entry.material = layers[Into].material;
+	entry.size = layers[Into].size;
+	entry.rotation = layers[Into].rotation;
+	entry.hidden = true;
+	m_manifestchanged = true;
+	m_palette.erase(Layer);
+	for (auto &chunk : m_chunks)
+		if (chunk.second->data().slot_of(Layer) >= 0)
+			chunk.second->m_paintedversion = 0;
+	return true;
+}
+
+std::vector<std::uint16_t> terrain_streamer::layer_order() const
+{
+	std::vector<std::uint16_t> order;
+	auto const &layers{m_manifest.layers};
+	for (std::size_t i = 0; i < layers.size(); ++i)
+		if (false == layers[i].hidden)
+			order.push_back(static_cast<std::uint16_t>(i));
+	auto const place = [&](std::uint16_t const Index) { return layers[Index].place >= 0 ? layers[Index].place : static_cast<int>(Index); };
+	std::stable_sort(order.begin(), order.end(), [&](std::uint16_t const A, std::uint16_t const B) { return place(A) < place(B); });
+	return order;
+}
+
+void terrain_streamer::move_layer(std::uint16_t const Layer, int const Step)
+{
+	auto order{layer_order()};
+	auto const at{std::find(order.begin(), order.end(), Layer)};
+	if (at == order.end() || Step == 0)
+		return;
+	auto const from{static_cast<int>(at - order.begin())};
+	auto const to{std::clamp(from + Step, 0, static_cast<int>(order.size()) - 1)};
+	if (to == from)
+		return;
+	remember_manifest();
+	order.erase(order.begin() + from);
+	order.insert(order.begin() + to, Layer);
+	// the places written anew for all of the listed entries, so the order is kept as it's seen
+	for (std::size_t i = 0; i < order.size(); ++i)
+		m_manifest.layers[order[i]].place = static_cast<int>(i);
+	m_manifestchanged = true;
 }
 
 void terrain_streamer::compress(bool const State)

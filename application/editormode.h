@@ -729,6 +729,22 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	float m_cut_feather{1.0f};
 	float m_cut_noise{0.3f};
 	float m_cut_noise_scale{4.0f};
+	// the ground under a surface cut out made wavy: rolling hills, furrows of a field, bumps, long waves, a hollow or a mound
+	struct terrain_waves
+	{
+		enum kind { hills, furrows, bumps, waves, hollow, count };
+		bool on{false};
+		int kind{hills};
+		float height{0.4f}; // metres, from the lowest to the highest point of a wave; negative for the hollow, upside down
+		float length{25.0f}; // metres, of a wave
+		float angle{0.0f}; // degrees the furrows and the waves run at, counterclockwise from x
+		float edge{6.0f}; // metres inside the outline over which the waves fade in from nothing
+		float variation{0.35f}; // 0..1, how much the waves differ from one another
+	};
+	terrain_waves m_waves;
+	void render_waves_options();
+	// the ground within Outline made wavy as m_waves says; returns true if it changed
+	bool apply_waves(std::vector<glm::dvec2> const &Outline);
 	// the 3D grass under the surfaces painted: -2 left, -1 taken away, 0 or more: that kind grown (heightmap::surface_patch::grass)
 	int m_cut_grass{-1};
 	// a combo of what's done with the grass; true if changed
@@ -784,6 +800,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	track_bed_settings m_track_bed;
 	void render_features_ui();
 	void render_material_palette();
+	void render_palette_entries(); // the entries of the palette of the terrain: picked, moved up and down, taken off
 	void cut_track_bed();
 	// the slopes of the formation modifiers around the camera (or of all) made natural, the terrain shaped anew
 	heightmap::modifier::natural_shape m_natural{0.8, 15.0, 0.15, 0.3, 0.08};

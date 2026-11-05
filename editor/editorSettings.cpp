@@ -177,6 +177,8 @@ bool editorSettings::load()
 			m_camera.pan_ortho = (value == "1");
 		else if (key == "pan_perspective")
 			m_camera.pan_perspective = (value == "1");
+		else if (key == "no_fog")
+			m_camera.no_fog = (value == "1");
 		else if (key == "top_rails")
 			m_top_rails = static_cast<std::uint32_t>(std::strtoul(value.c_str(), nullptr, 16)) | 0xff000000u;
 		// under a key of its own since the laying goes from point to point unless told otherwise: the fitted heights chosen
@@ -277,6 +279,7 @@ bool editorSettings::save()
 	stream << "camera_zoomed " << (m_camera.zoomed ? 1 : 0) << "\n";
 	stream << "pan_ortho " << (m_camera.pan_ortho ? 1 : 0) << "\n";
 	stream << "pan_perspective " << (m_camera.pan_perspective ? 1 : 0) << "\n";
+	stream << "no_fog " << (m_camera.no_fog ? 1 : 0) << "\n";
 	stream << "top_rails " << std::hex << (m_top_rails & 0xffffffu) << std::dec << "\n";
 	stream << "laying_heights " << (m_heights == lay_heights::points ? "points" : m_heights == lay_heights::level ? "level" : "fitted") << "\n";
 	for (auto const &layer : m_wms_layers)

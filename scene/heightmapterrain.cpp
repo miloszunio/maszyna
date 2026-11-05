@@ -776,6 +776,10 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 						entry.size = std::max(0.f, size.as<float>());
 					if (auto const rotation{layer["rotation"]})
 						entry.rotation = rotation.as<float>();
+					if (auto const hidden{layer["hidden"]})
+						entry.hidden = hidden.as<bool>();
+					if (auto const place{layer["place"]})
+						entry.place = place.as<int>();
 					if (false == entry.material.empty())
 						result.layers.push_back(entry);
 				}
@@ -961,11 +965,15 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 	out << YAML::Key << "layers" << YAML::Value << YAML::BeginSeq;
 	for (auto const &layer : Manifest.layers)
 	{
-		if (layer.size > 0.f || layer.rotation != 0.f)
+		if (layer.size > 0.f || layer.rotation != 0.f || layer.hidden || layer.place >= 0)
 		{
 			out << YAML::Flow << YAML::BeginMap << YAML::Key << "material" << YAML::Value << layer.material << YAML::Key << "size" << YAML::Value << layer.size;
 			if (layer.rotation != 0.f)
 				out << YAML::Key << "rotation" << YAML::Value << layer.rotation;
+			if (layer.hidden)
+				out << YAML::Key << "hidden" << YAML::Value << true;
+			if (layer.place >= 0)
+				out << YAML::Key << "place" << YAML::Value << layer.place;
 			out << YAML::EndMap;
 		}
 		else

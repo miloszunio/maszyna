@@ -262,6 +262,11 @@ struct layer_def
 	std::string material;
 	float size{0.f};
 	float rotation{0.f}; // degrees the textures are turned by, counterclockwise seen from above
+	// taken off the palette in the editor: the entry stays for the chunks painted with it, with the material of the entry they
+	// went to instead, and the palette doesn't list it any more
+	bool hidden{false};
+	// where the palette of the editor lists the entry, before those of a higher place; -1: by its index
+	int place{-1};
 };
 
 // kind of grass of the grass palette: blades the renderer makes up where the grass is painted

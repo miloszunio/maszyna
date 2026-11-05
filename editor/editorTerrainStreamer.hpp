@@ -158,6 +158,13 @@ class terrain_streamer
 	void layer_rotation(std::uint16_t Layer, float Rotation);
 	// gives the palette entry Layer another material; the chunks painted with it change with it
 	void layer_material(std::uint16_t Layer, std::string const &Material);
+	// takes the palette entry Layer off the palette: what's painted with it gets the look of the entry Into, the chunks keep
+	// pointing at it (so none has to be loaded and written again). the first entry, which covers the new chunks, stays
+	bool hide_layer(std::uint16_t Layer, std::uint16_t Into);
+	// the entries of the palette in the order the editor lists them, the hidden ones left out
+	std::vector<std::uint16_t> layer_order() const;
+	// moves the entry Layer by Step places up (-) or down (+) the list of the editor
+	void move_layer(std::uint16_t Layer, int Step);
 	void compress(bool State);
 	void default_spacing(float Spacing);
 	// bodies of water

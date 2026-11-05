@@ -1,17 +1,33 @@
-Gałąź `ficzery` buduje się od nowa na świeżym kodzie chłopaków. Dokłada do niego tylko nasze sprawdzone zmiany i nowy dział **Ficzery** w edytorze.
+Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrrycho leżą najnowsze zmiany maj00ra, a na tym wszystkie nasze wdrożenia.
 
 ## Skąd jest kod
 
-- **Hirek:** `feat/gl46-migration` z 1.11 (OpenGL 4.6, raporty awarii, `eu07_starter`) oraz `feat/vhg` (pojazdy z grafów).
-- **maj00r:**
-  - `feat/switch-blades` (iglice rozjazdów);
-  - `fix/imgui-panels-no-auto-detach`;
-  - z `feat/track-uneven` opis i narzędzie do oceny nierówności. Jego porządki w `Segment`/`TrackUneven` zostały pominięte, bo gl46 ma te pliki już dalej przerobione.
-- **Nasze:**
-  - poprawka kursora: punkt ląduje tam, gdzie się kliknie, także gdy kamera się rusza;
-  - lista wypełnionych obszarów (Enter / Esc, zapis `//$w`);
-  - Magic w rozjazdach (z normami PLK, `editor/editorNorms.hpp`);
-  - wycinanie powierzchni terenu.
+- **Hirek:** `feat/gl46-migration` (OpenGL 4.6 i Vulkan, mieszanie tekstur torów, sieć trakcyjna, raporty awarii, `eu07_starter`).
+  `feat/vhg` (pojazdy z grafów) na razie **nie wchodzi**: Hirek i jerrrrycho po swojemu pocięli te same funkcje fizyki w `Mover.cpp`, wejdzie, gdy Hirek dopasuje je do nowej fizyki.
+- **master:** do 5.11 (sprzęgi przegubowe, polskie litery z windows-1250).
+- **jerrrrycho:** `refactor/mover-long-functions` z `test/core-unit-coverage` (porządki po SonarCloud, testy).
+- **maj00r:** `feat/switch-blades` (wszystkie 33 nowe commity z 3.11) i jego najnowszy łańcuch `split/*` → `feat/signal-descriptions` → `feat/sbl-chain`:
+  - zakładka Sygnalizacja: sygnalizacja stacji rozkładana od jej rozjazdu jak na liniach PKP PLK, schemat stacji;
+  - semafory i tarcze dobierane po opisie tego, co pokazują, SBL rozpoznawana po łańcuchu semaforów i obwodach torowych;
+  - narzędzie kładzenia samo bierze największy promień, rozjazd dobierany po prędkości na torze zwrotnym, przejścia rozjazdowe ciągnięte od rozjazdu;
+  - wspólna niweleta: tory dokładane i zdejmowane ręcznie; tekstury dróg, terenu i wody z podglądu; przenoszenie właściwości toru;
+  - podkłady 3D (`sleepers3d`) i krzyżownice (`frogs`) włączane w `eu07.ini`.
+  Uwaga: maj00r zajął znaczniki `//$w` (niwelety), `//$t` i `//$z`, więc nasze wypełnione obszary są teraz zapisywane jako `//$u`.
+- **Nasze:** wszystkie wdrożenia z `ficzery` (lista niżej) i nowe rzeczy z tej generacji.
+
+## Nowe w ficzery2
+
+- **Paleta materiałów terenu:** przy każdej pozycji strzałki ▲▼ (kolejność na liście) i **X** (usunięcie z palety).
+  Usuwając, wybierasz, jaki materiał dostanie teren nim pomalowany. Pierwszej pozycji nie da się usunąć, bo pokrywa nowe kafle.
+  Kafle nie są przepisywane, więc działa to od razu na całej scenerii.
+- **Falowanie terenu przy wycinaniu powierzchni** (Ficzery > Wytnij powierzchnię > „Falowanie terenu”).
+  Rodzaje: łagodne pagórki, bruzdy na polu, garby i kretowiska, długie fale, niecka albo kopiec.
+  Ustawiasz wysokość, długość fali, kierunek (przycisk „jak tekstura”), zróżnicowanie i narastanie od krawędzi. Ctrl+Z cofa razem z powierzchnią.
+- **Bez mgły w rzucie z góry:** widok z góry pokazuje prawdziwe kolory terenu, bo wcześniej kamera patrzyła przez ponad kilometr powietrza z mgłą.
+  W Widok > „Prędkość kamery i przesuwanie” jest też przełącznik „Bez mgły w edytorze” dla perspektywy.
+- **Tory z IRT jako warstwy `.scm`:** konwerter zapisuje `irt_tory.scm`, który dołącza `irt_tory_rozjazdy.scm` i osobny plik na każdą linię.
+  Plik `.inc` silnik traktował jak szablon, więc tory z niego nie dawały się chwycić, przesunąć ani usunąć.
+  Teraz zachowują się jak położone w edytorze. Stary plik przerabia `tools/irt/tory_na_warstwy.py`.
 
 ## Dział Ficzery (F7)
 

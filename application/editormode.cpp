@@ -1955,21 +1955,8 @@ void editor_mode::render_terrain_ui()
     if (ImGui::CollapsingHeader(STR_C("Materials"), m_terrain_tool == terrain_tool::paint ? ImGuiTreeNodeFlags_DefaultOpen : 0))
     {
         auto const &layers{m_streamer.manifest().layers};
-        m_terrain_layer = std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1);
-        for (std::size_t i = 0; i < layers.size(); ++i)
-        {
-            auto label{layers[i].size > 0.f ? format("%zu: %s (%.1f m)", i, layers[i].material.c_str(), layers[i].size) : format("%zu: %s", i, layers[i].material.c_str())};
-            if (layers[i].rotation != 0.f)
-                label += format(STR_C(", turned %.0f°"), layers[i].rotation);
-            if (ImGui::Selectable(label.c_str(), static_cast<int>(i) == m_terrain_layer))
-                m_terrain_layer = static_cast<int>(i);
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s", STR_C("New chunks are covered with the first material. A texture dragged from the browser onto an entry of the palette takes its place"));
-            // a material dropped on an entry takes its place, on every chunk painted with it
-            std::string dropped;
-            if (material_drop(dropped))
-                m_streamer.layer_material(static_cast<std::uint16_t>(i), dropped);
-        }
+        // the entries, moved up and down and taken off the palette as in the Features
+        render_palette_entries();
         if (false == layers.empty())
         {
             // the values are kept while dragged and given to the palette once the dragging ends;
@@ -4778,6 +4765,7 @@ void editor_mode::apply_camera_settings()
     Global.EditorCameraSpeed = camera.speed;
     Global.EditorCameraFast = camera.fast;
     Global.EditorCameraZoomed = camera.zoomed;
+    Global.EditorNoFog = camera.no_fog;
 }
 
 void editor_mode::render_camera_settings()
@@ -4809,6 +4797,11 @@ void editor_mode::render_camera_settings()
         changed = release = true;
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("Zoomed in the map moves slowly, zoomed out fast: across the screen at the same pace whatever the zoom"));
+    ImGui::Separator();
+    if (ImGui::Checkbox(STR_C("No fog in the editor"), &camera.no_fog))
+        changed = release = true;
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("The fog and the haze of the air left out in the perspective view too, the textures of the ground seen in their own colours. In the top view they're always left out"));
     ImGui::Separator();
     if (ImGui::Checkbox(STR_C("Hold the wheel and drag: pan in the top view"), &camera.pan_ortho))
         changed = release = true;

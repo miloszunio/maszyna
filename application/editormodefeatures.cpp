@@ -222,29 +222,108 @@ struct piece
 
 void editor_mode::render_material_palette()
 {
-	auto const &layers{m_streamer.manifest().layers};
-	if (layers.empty())
-		return;
-	m_terrain_layer = std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1);
-	for (std::size_t i = 0; i < layers.size(); ++i)
-	{
-		auto label{layers[i].size > 0.f ? format("%zu: %s (%.1f m)", i, layers[i].material.c_str(), layers[i].size) : format("%zu: %s", i, layers[i].material.c_str())};
-		if (layers[i].rotation != 0.f)
-			label += format(STR_C(", turned %.0f°"), layers[i].rotation);
-		if (ImGui::Selectable(label.c_str(), static_cast<int>(i) == m_terrain_layer))
-			m_terrain_layer = static_cast<int>(i);
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("New chunks are covered with the first material. A texture dragged from the browser onto an entry of the palette takes its place"));
-		std::string dropped;
-		if (material_drop(dropped))
-			m_streamer.layer_material(static_cast<std::uint16_t>(i), dropped);
-	}
+	render_palette_entries();
 	ImGui::SetNextItemWidth(160.0f);
 	ImGui::InputText(STR_C("Material"), m_terrain_material, IM_ARRAYSIZE(m_terrain_material));
 	material_drop(m_terrain_material, IM_ARRAYSIZE(m_terrain_material));
 	ImGui::SameLine();
 	if (ImGui::Button(STR_C("Add to the palette")) && m_terrain_material[0] != '\0')
 		m_terrain_layer = m_streamer.layer(m_terrain_material, m_terrain_material_size);
+}
+
+void editor_mode::render_palette_entries()
+{
+	auto const &layers{m_streamer.manifest().layers};
+	if (layers.empty())
+		return;
+	m_terrain_layer = std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1);
+	auto const order{m_streamer.layer_order()};
+	if (layers[m_terrain_layer].hidden && false == order.empty())
+		m_terrain_layer = order.front();
+	auto const label_of = [&](std::size_t const I) {
+		auto label{layers[I].size > 0.f ? format("%zu: %s (%.1f m)", I, layers[I].material.c_str(), layers[I].size) : format("%zu: %s", I, layers[I].material.c_str())};
+		if (layers[I].rotation != 0.f)
+			label += format(STR_C(", turned %.0f°"), layers[I].rotation);
+		return label;
+	};
+	static int removing{-1};
+	static int into{0};
+	auto const button{ImGui::GetFrameHeight()};
+	for (std::size_t at = 0; at < order.size(); ++at)
+	{
+		auto const i{static_cast<std::size_t>(order[at])};
+		ImGui::PushID(static_cast<int>(i));
+		// up, down and off the palette at the end of the row
+		auto const room{ImGui::GetContentRegionAvail().x - 3.0f * (button + ImGui::GetStyle().ItemSpacing.x)};
+		if (ImGui::Selectable(label_of(i).c_str(), static_cast<int>(i) == m_terrain_layer, 0, ImVec2(std::max(60.0f, room), 0.0f)))
+			m_terrain_layer = static_cast<int>(i);
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", i == 0 ? STR_C("Covers the new chunks and the ones not painted. A texture dragged from the browser onto it takes its place")
+			                               : STR_C("A texture dragged from the browser onto an entry of the palette takes its place"));
+		std::string dropped;
+		if (material_drop(dropped))
+			m_streamer.layer_material(static_cast<std::uint16_t>(i), dropped);
+		ImGui::SameLine();
+		ImGui::BeginDisabled(at == 0);
+		if (ImGui::ArrowButton("##up", ImGuiDir_Up))
+			m_streamer.move_layer(static_cast<std::uint16_t>(i), -1);
+		ImGui::EndDisabled();
+		item_tooltip("Higher up the list");
+		ImGui::SameLine();
+		ImGui::BeginDisabled(at + 1 >= order.size());
+		if (ImGui::ArrowButton("##down", ImGuiDir_Down))
+			m_streamer.move_layer(static_cast<std::uint16_t>(i), +1);
+		ImGui::EndDisabled();
+		item_tooltip("Lower down the list");
+		ImGui::SameLine();
+		ImGui::BeginDisabled(i == 0 || order.size() < 2);
+		if (ImGui::Button("X", ImVec2(button, button)))
+		{
+			removing = static_cast<int>(i);
+			into = order.front() == i ? order[1] : order.front();
+			ImGui::OpenPopup("##removelayer");
+		}
+		ImGui::EndDisabled();
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			ImGui::SetTooltip("%s", i == 0 ? STR_C("The first material stays: it covers the new chunks") : STR_C("Off the palette: what's painted with it gets another material of the palette"));
+		if (ImGui::BeginPopup("##removelayer"))
+		{
+			if (removing >= 0 && static_cast<std::size_t>(removing) < layers.size())
+			{
+				ImGui::TextUnformatted(format(STR_C("\"%s\" off the palette"), layers[removing].material.c_str()).c_str());
+				ImGui::TextDisabled("%s", STR_C("Where it's painted, the terrain gets instead:"));
+				ImGui::SetNextItemWidth(220.0f);
+				if (ImGui::BeginCombo("##into", label_of(static_cast<std::size_t>(into)).c_str()))
+				{
+					for (auto const other : order)
+						if (static_cast<int>(other) != removing && ImGui::Selectable(label_of(other).c_str(), static_cast<int>(other) == into))
+							into = other;
+					ImGui::EndCombo();
+				}
+				if (ImGui::Button(STR_C("Take it off")))
+				{
+					if (m_streamer.hide_layer(static_cast<std::uint16_t>(removing), static_cast<std::uint16_t>(into)))
+					{
+						if (m_terrain_layer == removing)
+							m_terrain_layer = into;
+						ui()->set_status(STR_C("The material is off the palette, the terrain painted with it has the other one; Ctrl+S saves it"));
+					}
+					removing = -1;
+					ImGui::CloseCurrentPopup();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button(STR_C("Cancel")))
+				{
+					removing = -1;
+					ImGui::CloseCurrentPopup();
+				}
+			}
+			else
+				ImGui::CloseCurrentPopup();
+			ImGui::EndPopup();
+		}
+		ImGui::PopID();
+	}
 }
 
 void editor_mode::render_features_ui()
@@ -297,6 +376,7 @@ void editor_mode::render_features_ui()
 			ImGui::SetNextItemWidth(120.0f);
 			ImGui::SliderFloat(STR_C("Texture turned by (deg)"), &m_paint_rotation, -180.0f, 180.0f, "%.0f");
 			grass_choice(STR_C("3D grass under it##cut"), m_cut_grass);
+			render_waves_options();
 			ImGui::Spacing();
 			ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
 			if (main_button(STR_C("Cut out as a separate surface"), ImVec2(-FLT_MIN, tall_button_height())))
@@ -819,12 +899,224 @@ void editor_mode::cut_out_surface()
 			break;
 	}
 	auto const name{patch.name};
+	// the waves of the ground and the paint are one step of the undo
+	terrain_history_step();
+	auto const waved{m_waves.on && apply_waves(patch.outline)};
+	if (waved)
+		forget_ground();
 	patches.push_back(std::move(patch));
 	auto const index{patches.size() - 1};
 	repaint_patches(std::move(patches), {index});
+	terrain_history_step();
 	m_patch_selected = static_cast<int>(index);
 	m_paint_outline.clear();
 	m_terrain_status = format(STR_C("Cut out as %s with %s, Ctrl+Z puts it back"), name.c_str(), chosen.material.c_str());
+}
+
+namespace
+{
+// value noise of the waves, 0..1, smooth, the same for the same place: the waves of the ground don't change as it's cut again
+double wave_hash(std::int64_t const X, std::int64_t const Z)
+{
+	auto h{static_cast<std::uint64_t>(X) * 0x9E3779B97F4A7C15ull ^ static_cast<std::uint64_t>(Z) * 0xC2B2AE3D27D4EB4Full};
+	h ^= h >> 31;
+	h *= 0xBF58476D1CE4E5B9ull;
+	h ^= h >> 29;
+	return static_cast<double>(h & 0xffffff) / static_cast<double>(0xffffff);
+}
+
+double wave_noise(double const X, double const Z)
+{
+	auto const ix{static_cast<std::int64_t>(std::floor(X))};
+	auto const iz{static_cast<std::int64_t>(std::floor(Z))};
+	auto const fx{X - std::floor(X)};
+	auto const fz{Z - std::floor(Z)};
+	auto const sx{fx * fx * (3.0 - 2.0 * fx)};
+	auto const sz{fz * fz * (3.0 - 2.0 * fz)};
+	auto const a{wave_hash(ix, iz) + (wave_hash(ix + 1, iz) - wave_hash(ix, iz)) * sx};
+	auto const b{wave_hash(ix, iz + 1) + (wave_hash(ix + 1, iz + 1) - wave_hash(ix, iz + 1)) * sx};
+	return a + (b - a) * sz;
+}
+
+// a few octaves of it, 0..1
+double wave_fractal(double const X, double const Z, int const Octaves)
+{
+	double sum{0.0};
+	double weight{1.0};
+	double total{0.0};
+	double scale{1.0};
+	for (int i = 0; i < Octaves; ++i)
+	{
+		sum += wave_noise(X * scale + i * 17.3, Z * scale - i * 9.1) * weight;
+		total += weight;
+		weight *= 0.5;
+		scale *= 2.0;
+	}
+	return sum / total;
+}
+} // namespace
+
+void editor_mode::render_waves_options()
+{
+	auto &waves{m_waves};
+	ImGui::SeparatorText(STR_C("Waves of the ground"));
+	ImGui::Checkbox(STR_C("Make the ground under the surface wavy"), &waves.on);
+	item_tooltip("The heights of the terrain within the outline get the waves chosen below, fading in from the edge: a field ploughed into furrows, a meadow of gentle hills, a hollow. Ctrl+Z takes them back with the surface");
+	if (false == waves.on)
+		return;
+	char const *const kinds[]{STR_C("Rolling hills"), STR_C("Furrows of a field"), STR_C("Bumps and molehills"), STR_C("Long waves"), STR_C("A hollow or a mound")};
+	char const *const tips[]{STR_C("Gentle hills of all sizes, as a meadow or a pasture has them"), STR_C("Ridges and furrows side by side, along the angle below, as a ploughed field or the beds of a garden"),
+	                         STR_C("Small mounds scattered about, as molehills or tussocks"), STR_C("Long even waves across the angle below, as a field rolling over a hill or dunes"),
+	                         STR_C("The middle lowered (a negative height raises it): a hollow by a pond, a dip in a field, or a mound")};
+	ImGui::SetNextItemWidth(180.0f);
+	if (ImGui::BeginCombo(STR_C("Kind##waves"), kinds[std::clamp(waves.kind, 0, static_cast<int>(terrain_waves::count) - 1)]))
+	{
+		for (int i = 0; i < terrain_waves::count; ++i)
+		{
+			if (ImGui::Selectable(kinds[i], i == waves.kind))
+			{
+				waves.kind = i;
+				// the sizes a kind usually has
+				static float const heights[]{0.6f, 0.25f, 0.2f, 1.0f, -0.8f};
+				static float const lengths[]{40.0f, 1.5f, 3.0f, 60.0f, 0.0f};
+				waves.height = heights[i];
+				if (lengths[i] > 0.0f)
+					waves.length = lengths[i];
+			}
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("%s", tips[i]);
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Height (m)##waves"), &waves.height, 0.01f, -5.0f, 5.0f, "%.2f");
+	item_tooltip("From the bottom of a wave to its top; for the hollow how deep its middle goes, negative: a mound");
+	if (waves.kind != terrain_waves::hollow)
+	{
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::DragFloat(STR_C("Length of a wave (m)##waves"), &waves.length, 0.1f, 0.5f, 300.0f, "%.1f");
+		waves.length = std::clamp(waves.length, 0.5f, 300.0f);
+		item_tooltip("From one top to the next: furrows 0.7-2 m, the beds of a garden 1.5-3 m, hills 20-100 m");
+	}
+	if (waves.kind == terrain_waves::furrows || waves.kind == terrain_waves::waves)
+	{
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::SliderFloat(STR_C("Direction (deg)##waves"), &waves.angle, -180.0f, 180.0f, "%.0f");
+		item_tooltip("Which way the furrows or the ridges of the waves run, counterclockwise from the x axis of the scenery; the texture turned by the same angle lies along them");
+		ImGui::SameLine();
+		if (ImGui::SmallButton(STR_C("as the texture")))
+			waves.angle = m_paint_rotation;
+	}
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::SliderFloat(STR_C("Differences between them##waves"), &waves.variation, 0.0f, 1.0f, "%.2f");
+	item_tooltip("0: every wave alike, as drawn; 1: waves of quite different heights and places, as nature has them");
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Fading in from the edge (m)##waves"), &waves.edge, 0.1f, 0.0f, 100.0f, "%.1f");
+	waves.edge = std::max(0.0f, waves.edge);
+	item_tooltip("Metres inside the outline over which the waves grow from nothing, so the ground around meets the surface without a step");
+}
+
+bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
+{
+	if (Outline.size() < 3 || std::abs(m_waves.height) < 0.001f)
+		return false;
+	auto const waves{m_waves};
+	glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
+	for (auto const &point : Outline)
+	{
+		low = glm::min(low, point);
+		high = glm::max(high, point);
+	}
+	auto const centre{(low + high) * 0.5};
+	auto const radians{glm::radians(static_cast<double>(waves.angle))};
+	glm::dvec2 const along{std::cos(radians), std::sin(radians)};
+	glm::dvec2 const across{-along.y, along.x};
+	auto const length{std::max(0.5, static_cast<double>(waves.length))};
+	auto const variation{std::clamp(static_cast<double>(waves.variation), 0.0, 1.0)};
+	auto const edge{std::max(0.0, static_cast<double>(waves.edge))};
+	// for the hollow: how far in the middle of it is, the most distance from the edge found in the outline
+	double deepest{edge};
+	auto const inside_by = [&](glm::dvec2 const &Point, double &Distance) {
+		bool inside{false};
+		auto nearest{std::numeric_limits<double>::max()};
+		for (std::size_t i = 0, j = Outline.size() - 1; i < Outline.size(); j = i++)
+		{
+			auto const &a{Outline[i]};
+			auto const &b{Outline[j]};
+			if ((a.y > Point.y) != (b.y > Point.y) && Point.x < (b.x - a.x) * (Point.y - a.y) / (b.y - a.y) + a.x)
+				inside = !inside;
+			auto const run{b - a};
+			auto const run2{glm::dot(run, run)};
+			auto const t{run2 > 1e-12 ? std::clamp(glm::dot(Point - a, run) / run2, 0.0, 1.0) : 0.0};
+			nearest = std::min(nearest, glm::length(Point - (a + run * t)));
+		}
+		Distance = nearest;
+		return inside;
+	};
+	if (waves.kind == terrain_waves::hollow)
+	{
+		// a coarse look for the middle, every few metres
+		auto const step{std::max(1.0, std::max(high.x - low.x, high.y - low.y) / 60.0)};
+		for (double z = low.y; z <= high.y; z += step)
+			for (double x = low.x; x <= high.x; x += step)
+				if (double distance; inside_by({x, z}, distance))
+					deepest = std::max(deepest, distance);
+	}
+	auto const shape = [&](glm::dvec2 const &Point) -> double {
+		auto const u{glm::dot(Point - centre, across)}; // across the furrows and the ridges
+		auto const v{glm::dot(Point - centre, along)};
+		switch (waves.kind)
+		{
+		case terrain_waves::hills:
+			return wave_fractal(Point.x / length, Point.y / length, variation > 0.0 ? 3 : 1) * 2.0 - 1.0;
+		case terrain_waves::furrows:
+		{
+			// the furrows wander a little sideways and change their depth along the field
+			auto const wander{(wave_noise(v / (length * 12.0), u / (length * 40.0)) - 0.5) * length * variation};
+			auto const depth{1.0 - variation * 0.5 * wave_noise(v / (length * 8.0) + 3.1, u / (length * 8.0))};
+			return std::sin(glm::two_pi<double>() * (u + wander) / length) * depth;
+		}
+		case terrain_waves::bumps:
+		{
+			auto const n{wave_fractal(Point.x / length, Point.y / length, 2)};
+			auto const threshold{0.55 - 0.15 * variation};
+			auto const t{std::clamp((n - threshold) / (1.0 - threshold), 0.0, 1.0)};
+			return t * t * 2.0; // 0..2 of the half height: the ground between the bumps stays as it is
+		}
+		case terrain_waves::waves:
+		{
+			auto const shift{(wave_noise(v / (length * 3.0), 0.37) - 0.5) * length * variation};
+			auto const size{1.0 - variation * 0.6 * wave_noise(u / (length * 2.0), v / (length * 2.0) + 5.7)};
+			return std::sin(glm::two_pi<double>() * (u + shift) / length) * size;
+		}
+		default:
+			return 0.0;
+		}
+	};
+	auto const half{static_cast<double>(waves.height) * 0.5};
+	return m_streamer.reshape(low, high, [&](double const X, double const Z, float &Height) {
+		glm::dvec2 const point{X, Z};
+		double distance;
+		if (false == inside_by(point, distance))
+			return false;
+		auto fade{edge > 0.0 ? std::clamp(distance / edge, 0.0, 1.0) : 1.0};
+		fade = fade * fade * (3.0 - 2.0 * fade);
+		double offset;
+		if (waves.kind == terrain_waves::hollow)
+		{
+			// lowered most in the middle, a smooth bowl to the edge, a little uneven
+			auto t{std::clamp(distance / std::max(deepest, 0.5), 0.0, 1.0)};
+			t = t * t * (3.0 - 2.0 * t);
+			auto const uneven{1.0 + variation * 0.3 * (wave_noise(X / 10.0, Z / 10.0) * 2.0 - 1.0)};
+			offset = -static_cast<double>(waves.height) * t * uneven;
+		}
+		else
+			offset = shape(point) * half * fade;
+		if (std::abs(offset) < 1e-4)
+			return false;
+		Height += static_cast<float>(offset);
+		return true;
+	});
 }
 
 bool editor_mode::paint_patch(heightmap::surface_patch const &Patch)
