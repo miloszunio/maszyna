@@ -70,6 +70,8 @@ class vulkan14_renderer : public gfx_renderer, public gfx::scene_walk
 	bool AddViewport(global_settings::extraviewport_config const &conf) override;
 	void Shutdown() override;
 	bool Render() override;
+	// the 3D sleepers and switch timbers of the tracks are drawn
+	auto Draws_Timbers() const -> bool override { return true; }
 	void SwapBuffers() override;
 	float Framerate() override;
 	// geometry

@@ -70,6 +70,8 @@ class opengl46_renderer : public gfx_renderer, public gfx::scene_walk {
     // main draw call. returns false on error
     bool
         Render() override;
+        // the 3D sleepers and switch timbers of the tracks are drawn
+        auto Draws_Timbers() const -> bool override { return true; }
     void
         SwapBuffers() override;
     inline
