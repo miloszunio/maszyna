@@ -514,6 +514,18 @@ void TSegment::RaPositionGet(double const fDistance, glm::dvec3 &position, glm::
     position += track_uneven::across_only( stray( position, amount, fDistance ), across );
 };
 
+void TSegment::plan_frame( double const Distance, glm::dvec3 &Point, glm::dvec3 &Across ) const {
+    if( fTsBuffer.empty() ) {
+        // never made into a path: tt_Cross and the like
+        Point = Point1;
+        Across = glm::dvec3 { 0.0 };
+        return;
+    }
+    auto const t { FastGetTFromS( std::clamp( Distance, 0.0, fLength ) ) };
+    Point = FastGetPoint( t );
+    Across = track_uneven::across_of( FastGetDirection( t, 0.1 / fLength ), FastGetPoint_1() - FastGetPoint_0() );
+}
+
 glm::dvec3 TSegment::FastGetPoint(double const t) const
 {
     // return (bCurve?std::lerp(t,Point1,CPointOut,CPointIn,Point2):((1.0-t)*Point1+(t)*Point2));
