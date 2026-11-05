@@ -27,7 +27,7 @@ struct skin_set;
 class vehicle_tool final : public editor_tool
 {
   public:
-	vehicle_tool(editor_selection &Selection, editor_guide &Guide) : m_selection{Selection}, m_guide{Guide} {}
+	vehicle_tool(editor_selection &Selection) : m_selection{Selection} {}
 	void draw_overlay() const override;
 	void render_options() override;
 	editor_selftest_result selftest(std::string const &Command, std::istringstream &Words) override;
@@ -39,7 +39,6 @@ class vehicle_tool final : public editor_tool
 
   private:
 	editor_selection &m_selection;
-	editor_guide &m_guide;
 	tool_tab m_tab;
 	struct vehicle_state
 	{

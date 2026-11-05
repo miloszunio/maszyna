@@ -68,19 +68,6 @@ bool rail(TTrack const &Track)
 	return (Track.iCategoryFlag & 15) == kRailCategory && false == Track.m_editorremoved && Track.visible();
 }
 
-char const *type_of(TTrack const &Track)
-{
-	switch (Track.eType)
-	{
-	case tt_Normal: return "normal";
-	case tt_Switch: return "switch";
-	case tt_Cross: return "cross";
-	case tt_Table: return "turntable";
-	case tt_Tributary: return "tributary";
-	default: return "unknown type";
-	}
-}
-
 double ortho_metres_per_pixel()
 {
 	auto const height{ImGui::GetIO().DisplaySize.y};
@@ -130,6 +117,20 @@ double segment_distance2(glm::vec2 const &Point, glm::vec2 const &A, glm::vec2 c
 }
 
 } // namespace
+
+// the type of a track in words, a tributary kept as a river told by its own name
+char const *track_type_name(TTrack const &Track)
+{
+	switch (Track.eType)
+	{
+	case tt_Normal: return Track.m_tributary ? "tributary" : "normal";
+	case tt_Switch: return "switch";
+	case tt_Cross: return "cross";
+	case tt_Table: return "turntable";
+	case tt_Tributary: return "tributary";
+	default: return "unknown type";
+	}
+}
 
 editor_mode::track_hover editor_mode::track_under_cursor(TTrack const *Only, float const Pixels) const
 {
@@ -1201,7 +1202,7 @@ void editor_mode::draw_track_intent() const
 	{
 		auto const &path{track->m_paths[std::min<std::size_t>(m_hover.path, track->m_paths.size() - 1)]};
 		details = name_of(*track);
-		details += "\n" + std::string{STR_C(type_of(*track))};
+		details += "\n" + std::string{STR_C(track_type_name(*track))};
 		if (track->eType == tt_Switch)
 			details += m_hover.path == 0 ? STR(" (main)") : STR(" (branch)");
 		bezier const curve{path};
@@ -1327,7 +1328,7 @@ void editor_mode::render_track_context()
 	bool const normal{track->eType == tt_Normal && editor_track::is_supported(*track)};
 	auto const tracks{selected_tracks()};
 	auto const many{tracks.size() >= 2};
-	ImGui::TextDisabled("%s  (%s, %.1f m)", name_of(*track).c_str(), STR_C(type_of(*track)), track->Length());
+	ImGui::TextDisabled("%s  (%s, %.1f m)", name_of(*track).c_str(), STR_C(track_type_name(*track)), track->Length());
 	if (many)
 		ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f), STR_P("one of %d selected tracks", "one of %d selected tracks", static_cast<long long>(tracks.size())), static_cast<int>(tracks.size()));
 	ImGui::Separator();
@@ -1465,7 +1466,7 @@ void editor_mode::render_track_search()
 			focus_track(*track, 0, bezier{track->m_paths.front()}.point(0.5));
 		}
 		ImGui::SameLine(ImGui::GetWindowContentRegionMax().x * 0.6f);
-		ImGui::TextDisabled("%s, %.1f m", STR_C(type_of(*track)), track->Length());
+		ImGui::TextDisabled("%s, %.1f m", STR_C(track_type_name(*track)), track->Length());
 	}
 	ImGui::EndChild();
 }

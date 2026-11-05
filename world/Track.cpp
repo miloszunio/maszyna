@@ -81,6 +81,15 @@ void init_switch_piece( TSegment &Segment, segment_data const &Piece, bool const
     }
 }
 
+// whether the path was drawn straight before, told a straight by its first control vector alone, where its second one bends it
+// now; both of them along it, it bends a centimetre or so at most, a radius given or not
+bool straightened_before( glm::dvec3 const &P1, glm::dvec3 const &Cp1, glm::dvec3 const &Cp2, glm::dvec3 const &P2 ) {
+
+    return glm::length2( ( P1 + P1 + P2 ) / 3.0 - P1 - Cp1 ) < sq( 0.02 )
+        && Cp2 != glm::dvec3()
+        && glm::length2( ( P1 + P2 + P2 ) / 3.0 - P2 - Cp2 ) >= sq( 0.02 );
+}
+
 } // namespace
 
 TTrack::profiles_array TTrack::m_profiles;
@@ -433,7 +442,6 @@ void TTrack::Load(cParser *parser, glm::dvec3 const &pOrigin)
     std::string str;
     size_t i; //,state; //Ra: teraz już nie ma początkowego stanu zwrotnicy we wpisie
     std::string token;
-    bool tributary{false};
 
     parser->getTokens();
     *parser >> str; // typ toru
@@ -475,17 +483,15 @@ void TTrack::Load(cParser *parser, glm::dvec3 const &pOrigin)
     }
     else if (str == "tributary")
     {
-        ErrorLog("Bad track: type \"tributary\" of track \"" + m_name + "\" in file \"" + parser->Name() + "\" (line " + std::to_string(parser->Line()) + ") isn't supported, loaded as a river with its first path");
+        // dopływ: no path of it was ever made, the simulator falling over it as it loaded. a river of its first path now, the
+        // second one kept and written back
+        ErrorLog("Bad track: tributary \"" + m_name + "\" in file \"" + parser->Name() + "\" (line " + std::to_string(parser->Line()) + ") is drawn and run on as a river of its first path");
         eType = tt_Normal;
         iCategoryFlag = 4;
-        tributary = true;
+        m_tributary = true;
     }
     else
-    {
-        ErrorLog("Bad track: unknown type \"" + str + "\" of track \"" + m_name + "\" in file \"" + parser->Name() + "\" (line " + std::to_string(parser->Line()) + "), loaded as a normal track");
-        eType = tt_Normal;
-        iCategoryFlag = 1;
-    }
+        eType = tt_Unknown; // left out by the loader
     if (Global.iWriteLogEnabled & 4)
         WriteLog(str);
     parser->getTokens(4);
@@ -558,10 +564,6 @@ void TTrack::Load(cParser *parser, glm::dvec3 const &pOrigin)
     // all subtypes contain at least one path
     m_paths.emplace_back();
     m_paths.back().deserialize( *parser, pOrigin );
-    if( tributary ) {
-        segment_data ignored;
-        ignored.deserialize( *parser, pOrigin );
-    }
     switch( eType ) {
         case tt_Switch:
         case tt_Cross:
@@ -574,6 +576,11 @@ void TTrack::Load(cParser *parser, glm::dvec3 const &pOrigin)
         default: {
             break;
         }
+    }
+    if( m_tributary ) {
+        // the second path of a tributary, kept to be written back
+        m_paths.emplace_back();
+        m_paths.back().deserialize( *parser, pOrigin );
     }
 
     // optional attributes
@@ -817,6 +824,10 @@ void TTrack::Load(cParser *parser, glm::dvec3 const &pOrigin)
         m_name = m_name.substr(0, i - 1); // usunięcie z nazwy
     }
 
+    if( CurrentSegment() == nullptr ) {
+        // of an unknown type, no path of it is made
+        return;
+    }
     update_location();
     // sleeper transforms are baked later in create_geometry(), once the owning cell has
     // assigned this track its m_origin (otherwise the local-space matrices would be relative
@@ -886,6 +897,10 @@ void TTrack::init_segments( bool const Initial ) {
         auto const endalong { cp2 == glm::dvec3() || glm::length2( ( p1 + p2 + p2 ) / 3.0 - p2 - cp2 ) < sq( 0.02 ) };
         if( startalong && endalong && fRadius == 0 ) {
 			cp1 = cp2 = glm::dvec3(0, 0, 0);
+        }
+        else if( Initial && straightened_before( p1, cp1, cp2, p2 ) ) {
+            // a scenery made before may count on the straight; told once, as the track loads
+            WriteLog( "Track \"" + name() + "\" is drawn bent by its second control vector, it was drawn straight before" );
         }
 
         if( fRadius != 0 ) {
@@ -977,13 +992,16 @@ void TTrack::init_segments( bool const Initial ) {
         }
 
         if( eType != tt_Cross && fRadiusTable[ 0 ] == 0 ) {
-            // dla skrzyżowań muszą być podane kontrolne; a path with its radius given is a curve however gently it bends
+            // dla skrzyżowań muszą być podane kontrolne; a path with its radius given is a curve however gently it bends. With no
+            // radius a path of a switch is told a straight by its first control vector alone, as before, unlike a plain track
 			// length2 is better than length for comparing because it does not require sqrt function
-            if( glm::length2(( p1 + p1 + p2 ) / 3.0 - p1 - cp1 ) < sq(0.02)
-             || glm::length2(( p1 + p2 + p2 ) / 3.0 - p2 + cp1 ) < sq(0.02) ) {
+            if( glm::length2(( p1 + p1 + p2 ) / 3.0 - p1 - cp1 ) < sq(0.02) ) {
                 // "prostowanie" prostych z kontrolnymi, dokładność 2cm
 				cp1 = cp2 = glm::dvec3(0, 0, 0);
             }
+        }
+        else if( Initial && eType != tt_Cross && straightened_before( p1, cp1, cp2, p2 ) ) {
+            WriteLog( "Track \"" + name() + "\": its first path is drawn bent by its second control vector, it was drawn straight before" );
         }
 
         if( fRadiusTable[ 0 ] != 0 ) {
@@ -1042,13 +1060,16 @@ void TTrack::init_segments( bool const Initial ) {
         }
 
         if( eType != tt_Cross && fRadiusTable[ 1 ] == 0 ) {
-            // dla skrzyżowań muszą być podane kontrolne; a path with its radius given is a curve however gently it bends
+            // dla skrzyżowań muszą być podane kontrolne; a path with its radius given is a curve however gently it bends. With no
+            // radius a path of a switch is told a straight by its first control vector alone, as before, unlike a plain track
 			// length2 is better than length for comparing because it does not require sqrt function
-            if( glm::length2((p3 + p3 + p4) / 3.0 - p3 - cp3) < sq(0.02)
-             || glm::length2((p3 + p4 + p4) / 3.0 - p4 + cp3) < sq(0.02) ) {
+            if( glm::length2((p3 + p3 + p4) / 3.0 - p3 - cp3) < sq(0.02) ) {
                 // "prostowanie" prostych z kontrolnymi, dokładność 2cm
 				cp3 = cp4 = glm::dvec3(0, 0, 0);
             }
+        }
+        else if( Initial && eType != tt_Cross && straightened_before( p3, cp3, cp4, p4 ) ) {
+            WriteLog( "Track \"" + name() + "\": its second path is drawn bent by its second control vector, it was drawn straight before" );
         }
 
         if( fRadiusTable[ 1 ] != 0 ) {
@@ -2664,6 +2685,7 @@ TTrack::export_as_text_( std::ostream &Output ) const {
     // type
     Output << (
             eType == tt_Normal ? (
+                m_tributary ? "tributary" :
                 ( iCategoryFlag & 15 ) == 1 ? "normal" :
                 ( iCategoryFlag & 15 ) == 2 ? "road" :
                 ( iCategoryFlag & 15 ) == 4 ? "river" :

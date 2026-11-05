@@ -367,6 +367,30 @@ std::string win1250_to_utf8(const std::string &Input)
 	return output;
 }
 
+// counterpart of win1250_to_utf8(). characters outside of the supported set are replaced with question marks
+std::string utf8_to_win1250(std::string const &Text)
+{
+	// polish letters, as utf-8 sequences; the same set win1250_to_utf8() handles
+	static std::unordered_map<std::string, char> const charmap{{"\xC4\x84", '\xA5'}, {"\xC4\x86", '\xC6'}, {"\xC4\x98", '\xCA'}, {"\xC5\x81", '\xA3'}, {"\xC5\x83", '\xD1'}, {"\xC3\x93", '\xD3'},
+	                                                           {"\xC5\x9A", '\x8C'}, {"\xC5\xB9", '\x8F'}, {"\xC5\xBB", '\xAF'}, {"\xC4\x85", '\xB9'}, {"\xC4\x87", '\xE6'}, {"\xC4\x99", '\xEA'},
+	                                                           {"\xC5\x82", '\xB3'}, {"\xC5\x84", '\xF1'}, {"\xC3\xB3", '\xF3'}, {"\xC5\x9B", '\x9C'}, {"\xC5\xBA", '\x9F'}, {"\xC5\xBC", '\xBF'}};
+	std::string output;
+	for (std::size_t idx = 0; idx < Text.size();)
+	{
+		auto const lead{static_cast<unsigned char>(Text[idx])};
+		if (lead < 0x80)
+		{
+			output += Text[idx++];
+			continue;
+		}
+		auto const length{std::min<std::size_t>((lead & 0xE0) == 0xC0 ? 2 : (lead & 0xF0) == 0xE0 ? 3 : (lead & 0xF8) == 0xF0 ? 4 : 1, Text.size() - idx)};
+		auto const lookup{charmap.find(Text.substr(idx, length))};
+		output += (lookup != charmap.end() ? lookup->second : '?');
+		idx += length;
+	}
+	return output;
+}
+
 namespace
 {
 // unicode code points of the upper half of the windows-1250 code page; 0 marks the unassigned bytes
@@ -512,6 +536,12 @@ std::string FileCased(std::string const &Filename)
 	std::error_code error;
 	if (std::filesystem::exists(Filename, error))
 		return Filename;
+#ifdef _WIN32
+	// the names there are found in any case already: no folder to go through for every file missing, nor names outside of the
+	// code page to throw on
+	return {};
+#else
+	// only the name of the file itself, a folder named in another case isn't found
 	std::filesystem::path const path{Filename};
 	auto const directory{path.has_parent_path() ? path.parent_path() : std::filesystem::path{"."}};
 	auto const wanted{ToLower(path.filename().string())};
@@ -519,6 +549,7 @@ std::string FileCased(std::string const &Filename)
 		if (ToLower(entry->path().filename().string()) == wanted)
 			return path.has_parent_path() ? (directory / entry->path().filename()).string() : entry->path().filename().string();
 	return {};
+#endif
 }
 
 std::pair<std::string, std::string> FileExists(std::vector<std::string> const &Names, std::vector<std::string> const &Extensions)

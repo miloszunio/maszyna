@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include "world/SleeperWorker.h"
 #include "world/Track.h"
 #include "world/TrackRails.h"
+#include "rendering/renderer.h"
 #include "simulation/simulation.h"
 #include "scene/scene.h"
 #include "utilities/utilities.h"
@@ -62,8 +63,9 @@ bool bedded( TTrack const &Track ) {
 
 bool lays( TTrack const &Track ) {
 
-    // the model of the track itself (timbermodel) is enough, without sleepers3d in eu07.ini
-    return bedded( Track ) && timber_model( Track ) != nullptr;
+    // the model of the track itself (timbermodel) is enough, without sleepers3d in eu07.ini; a renderer which doesn't draw them leaves
+    // the tracks their ballast, as they have it without the sleepers
+    return GfxRenderer != nullptr && GfxRenderer->Draws_Timbers() && bedded( Track ) && timber_model( Track ) != nullptr;
 }
 
 double blade_rise( TTrack const &Track ) {
@@ -379,7 +381,7 @@ layout_check check() {
     layout_check result;
     result.digest = 1469598103934665603ull;
     settle_background();
-    faults() = {};
+    faults().reset();
     // laid anew, for the counts of what's wrong with them
     outdate_layouts();
     // the beams of all the tracks in plan, as boxes, with the grid of where they are
@@ -501,6 +503,10 @@ layout_check check() {
 
 void unsettle_around( TTrack &Track ) {
 
+    if( Global.Sleepers3D.empty() ) {
+        // nothing laid, nothing to lay again
+        return;
+    }
     outdate_layouts();
     tracks_near( Track, []( TTrack *Other ) {
         if( Other->m_sleepers3d.active ) {

@@ -43,7 +43,6 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorGroundFollow.hpp"
 #include "editor/editorInfra.hpp"
 #include "editor/editorGauge.hpp"
-#include "editor/editorClips.hpp"
 #include "editor/editorIcons.hpp"
 #include "application/scriptedinput.h"
 #include "world/Sweep.h"
@@ -262,16 +261,6 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void render_help_menu();
 	void render_shortcuts_window();
 	bool m_shortcuts_open{false};
-	using first_step = editor_first_step;
-	void render_first_steps();
-	void first_step_done(first_step const Step) override;
-	bool m_first_steps_open{false};
-	std::array<bool, static_cast<std::size_t>(first_step::count)> m_first_steps_done{};
-	int m_tutorial_page{0};
-	char const *m_tutorial_goto{nullptr}; // the lesson of this title opened by a button of a panel
-	std::string m_tutorial_followed; // the lesson the tool in use asked for last: it's opened when that changes
-	double m_tutorial_since{0.0};
-	editor_clips::clip m_tutorial_clip;
 	// deletes what's selected: a road piece or point, a signal, an include of a scenery template, a model, tracks (Del)
 	void delete_selected();
 	void delete_model(TAnimModel *Model, bool const Joined);
@@ -2631,7 +2620,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::size_t remove_templates(std::vector<scene::instance_handle> const &Instances) override;
 	bool standing_signals(std::vector<standing_signal> &Signals, bool const Wait) override;
 	std::size_t signal_batch(signal_changes const &Changes, std::vector<std::pair<TTrack *, editor_track::state>> States, std::vector<TTrack *> Created, std::string &Error) override;
+	std::string signal_templates_missing(std::vector<signal_order> const &Orders) override;
 	bool signal_heads(std::vector<signal_head> &Heads, bool const Wait) override;
+	std::string signal_mount(std::string const &Kind, std::string const &File) override;
 	std::size_t signal_reattach(std::vector<scene::instance_handle> const &Instances) override;
 	void select_signal(scene::instance_handle const Instance) override;
 	void render_signal_templates() override;
@@ -2651,6 +2642,13 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool linked{false};
 		std::vector<int> speeds;
 		int aspects{0}; // of a block signal, 3 or 4
+		int arms{0}; // of a semaphore, 1 or 2, from its description
+		// the aspects its description lists, by name (Sr1, Od2...) with the event giving each; empty for a template not described so
+		std::vector<std::pair<std::string, std::string>> aspect_events;
+		// of a warning disc: its event for each speed class of the signal after it, stop, vmax, 100, 60, 40
+		std::vector<std::pair<std::string, std::string>> repeats;
+		// of a block signal: for an event of its own, the event the block signal before it is to get then, from its description
+		std::vector<std::pair<std::string, std::string>> chain;
 	};
 	struct signal_spot
 	{
@@ -2708,6 +2706,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	signal_template const *signal_current() const;
 	signal_template const *signal_armed() const;
 	signal_template const *signal_template_of(std::string const &File) const;
+	// the template it is placed by: the one of its file if that is of its kind, else the one chosen for its kind. returns: nullptr if none
+	signal_template const *signal_template_for(signal_order const &Order) const;
 	bool signal_spot_at(TTrack &Track, int const Path, glm::dvec3 const &Point, glm::dvec3 const &Cursor, int const Facing, int const Side, signal_template const &Template, signal_spot &Spot) const;
 	void signal_refresh(bool const Force = false);
 	// the signals standing, read by the tracks as they are now, the templates as found so far
@@ -2723,6 +2723,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool signal_flip(scene::instance_handle const Instance);
 	bool signal_turn(scene::instance_handle const Instance);
 	bool signal_swap(scene::instance_handle const Instance, std::string const &File);
+	// the signal set to the aspect in the editor, as its event sets it in the game: only how it looks, nothing saved
+	bool signal_show_aspect(scene::instance_handle const Instance, std::string const &Aspect, std::string const &Event);
 	signal_standing const *signal_standing_of(scene::instance_handle const Instance) const;
 	bool signal_delete(scene::instance_handle const Instance);
 	void signal_detach_events(std::string const &Read, std::vector<std::pair<TTrack *, editor_track::state>> &States);
@@ -3054,7 +3056,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void profiles_to_history(std::vector<stored_profile> Library);
 	// the kept grade lines back to the library given, the step changing them given up before it went to the history
 	void profiles_restore(std::vector<stored_profile> Library);
-	// the tracks whose grade line was fitted, by name, with the shape they had then, kept as "//$f" comment lines: a track
+	// the tracks whose grade line was fitted, by name, with the shape they had then, kept as "//$t" comment lines: a track
 	// changed since, by hand or taken back, isn't fitted any more
 	struct fitted_mark
 	{
@@ -3218,8 +3220,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	gauge_tool m_gauge{*this, *this, *this, *this};
 	speed_tool m_speed{*this, *this, *this, *this};
 	joints_tool m_joints{*this, *this, *this, *this};
-	vehicle_tool m_vehicle{*this, *this};
-	hekto_tool m_hekto{*this, *this, *this, *this, *this, *this};
+	vehicle_tool m_vehicle{*this};
+	hekto_tool m_hekto{*this, *this, *this, *this, *this};
 	fouling_tool m_fouling{*this, *this, *this, *this, *this};
 	parallel_tool m_parallel{*this, *this, *this, *this};
 	srk_tool m_srk{*this, *this, *this, *this, *this};

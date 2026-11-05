@@ -126,14 +126,6 @@ bool ui_layer::char_callback(unsigned int c)
 bool ui_layer::scroll_callback(double xoffset, double yoffset)
 {
 	ImGui_ImplGlfw_ScrollCallback(m_window, xoffset, yoffset);
-	// a line a second in the log of where a scroll went, for a wheel or a touchpad that seems to do nothing
-	static double logged{-10.0};
-	if (auto const now{glfwGetTime()}; now - logged > 1.0)
-	{
-		logged = now;
-		auto const *hovered{ImGui::GetCurrentContext() != nullptr ? ImGui::GetCurrentContext()->HoveredWindow : nullptr};
-		WriteLog("scroll " + std::to_string(xoffset) + " " + std::to_string(yoffset) + ", taken by the ui: " + (m_imguiio->WantCaptureMouse ? "yes" : "no") + ", over: " + (hovered != nullptr ? hovered->Name : "the view"));
-	}
 	return m_imguiio->WantCaptureMouse;
 }
 

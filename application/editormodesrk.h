@@ -45,6 +45,9 @@ class srk_tool final : public editor_tool
 	void boundary_click();
 	// the stations described go to the files of their layers, as "//$s" lines
 	void store();
+	// of a block signal along a line of the open station, by its name: the track circuit it guards, the block signal before it,
+	// shown, the events of those its chain sets that one to which it hasn't, joined; false where none is known so
+	bool block_signal(std::string const &Name, std::string &Circuit, std::string &Before, std::string &Missing) const;
 
   private:
 	editor_selection &m_selection;
@@ -164,6 +167,8 @@ class srk_tool final : public editor_tool
 		glm::dvec2 travel{0.0, 1.0};
 		std::string file; // of its template
 		std::string lamps;
+		int arms{0}; // of a semaphore described with its arms: its aspects checked by name, not by lights
+		std::vector<std::string> aspect_names; // of its template, from its description
 		std::vector<int> own; // the speeds of its template
 		bool station{false}; // stands by the station, not out on a line
 		std::vector<station::route> routes;
@@ -173,6 +178,8 @@ class srk_tool final : public editor_tool
 		bool white{false}; // it must give the substitute signal
 		int shortened{0}; // km/h, it slows the trains to, the next signal nearer than the braking distance: Ie-4 § 8 ust. 5
 		bool indicator{false}; // a W21 "14" beside it, for 140 km/h so
+		bool told{false}; // a shaped warning disc before a semaphore described: the events it repeats checked
+		bool unsaid{false}; // of those, its template doesn't say what it repeats: the one described offered, the fitting leaves it be
 		bool fits{true}; // its template shows all of it
 		bool more{false}; // its template has more than it needs
 		std::string fit; // the template that fits best, empty for none
@@ -238,8 +245,16 @@ class srk_tool final : public editor_tool
 			std::string name; // shown
 			bool wrong{false}; // facing the wrong-track trains
 			double km{0.0};
+			bool block{false}; // a block signal, else a warning disc
+			std::string signal; // of a block signal: its name as it stands
+			std::string file; // its template
+			std::string circuit; // the track circuit it guards, beyond the joint it turns its trains to stop at; empty for none
+			std::string before; // the block signal its trains pass before it, as it stands; empty for none, a station signal
+			std::string before_file; // the template of that one
+			std::string chain; // what it sets the one before it to, by its description, in words: S1: S5, S3: S2...; empty for none
+			std::string missing; // the events of those the one before it hasn't, by its description, joined
 		};
-		std::vector<post> posts; // the block signals along it
+		std::vector<post> posts; // the block signals along it, the warning discs
 		// the signals of the other block standing along it: warning discs on a line of the automatic block, block signals on one of the
 		// semi-automatic one, the first of them
 		std::size_t leftovers{0};
@@ -286,6 +301,9 @@ class srk_tool final : public editor_tool
 		bool remove{false}; // the block signals standing there taken away, else placed
 	};
 	std::string m_status;
+	// the renames Number the switches was clicked for while events aim at the switches by their old names: a second click with
+	// the same ones renames anyway
+	std::string m_numbering_confirm;
 
 	void load();
 	void open(TTrack &Track);

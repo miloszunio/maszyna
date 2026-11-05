@@ -1971,8 +1971,6 @@ bool editor_mode::render_route_band()
 		list->AddText(at, IM_COL32(255, 255, 255, 255), text.c_str());
 	}
 	ImGui::PopClipRect();
-	if (changed)
-		first_step_done(first_step::plan_band);
 
 	if (part != 0 && false == dragging && ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
 	{
@@ -2398,7 +2396,6 @@ void editor_mode::render_route_result()
 		if (main_button(STR_C("Apply to the scenery"), ImVec2(-1.0f, 28.0f)))
 		{
 			route_apply();
-			first_step_done(first_step::plan_apply);
 		}
 	}
 	else

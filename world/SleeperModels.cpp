@@ -10,7 +10,6 @@ http://mozilla.org/MPL/2.0/.
 #include "stdafx.h"
 
 #include "world/TrackSleepers.h"
-#include "world/TrackFeatures.h"
 #include "world/SleeperRules.h"
 #include "world/Track.h"
 #include "model/Model3d.h"
@@ -26,6 +25,7 @@ http://mozilla.org/MPL/2.0/.
 #include <fstream>
 #include <iterator>
 #include <optional>
+#include <mutex>
 
 namespace track_sleepers {
 
@@ -36,6 +36,15 @@ std::map<std::string, beam_model> &known_models() {
     static std::map<std::string, beam_model> models;
     return models;
 }
+
+// the models found and loaded by more than one thread
+std::mutex &models_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+// whether this thread loads the models it doesn't find
+thread_local bool loads_models { true };
 
 // the vertices of the submodel in the space of the model, through its own transform
 template <typename Visit>
@@ -94,8 +103,13 @@ beam_model const *find_model( std::string const &Name, std::string const &Skinna
     }
     auto const Skin { Skinname == "none" ? std::string {} : Skinname };
     auto const key { Name + '|' + Skin + '|' + std::to_string( Seat ) };
+    std::lock_guard<std::mutex> lock { models_mutex() };
     auto &models { known_models() };
     auto found { models.find( key ) };
+    if( found == models.end() && false == loads_models ) {
+        // loaded for it before a layout is asked for of the thread, for all the tracks, so it's none it could load
+        return nullptr;
+    }
     if( found == models.end() ) {
         auto &model { models[ key ] };
         model.name = Name;
@@ -113,6 +127,23 @@ beam_model const *find_model( std::string const &Name, std::string const &Skinna
         for( int part = 0; part < part_count; ++part ) {
             model.parts[ part ] = model.model->GetFromName( part_names[ part ] );
             model.stretchable = model.stretchable && ( part >= timber_parts || model.parts[ part ] != nullptr );
+        }
+        if( model.stretchable ) {
+            // a part is drawn with the other submodels of the top level hidden, so the parts are there too
+            auto toplevel { 0 };
+            for( auto *submodel { model.model->Root }; submodel != nullptr; submodel = submodel->Next ) {
+                if( std::find( model.parts.begin(), model.parts.end(), submodel ) != model.parts.end() ) {
+                    ++toplevel;
+                }
+                else {
+                    model.others.push_back( submodel );
+                }
+            }
+            if( toplevel < part_count ) {
+                ErrorLog( "Bad sleepers3d: model \"" + Name + "\" has its parts begin, main and end below its top level, it's drawn whole" );
+                model.stretchable = false;
+                model.others.clear();
+            }
         }
         auto top { std::numeric_limits<float>::lowest() };
         model.span = { std::numeric_limits<float>::max(), std::numeric_limits<float>::lowest() };
@@ -193,11 +224,13 @@ beam_model const *find_model( std::string const &Name, std::string const &Skinna
 
 } // namespace
 
+void models_loaded( bool const Loaded ) {
+
+    loads_models = Loaded;
+}
+
 beam_model const *timber_model() {
 
-    if( false == track_features::sleepers ) {
-        return nullptr;
-    }
     return find_model( Global.Sleepers3D, std::string {}, -1.f );
 }
 

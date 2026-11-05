@@ -24,6 +24,7 @@ http://mozilla.org/MPL/2.0/.
 #include "rendering/renderer.h"
 #include "application/uilayer.h"
 #include "utilities/Logs.h"
+#include "world/SleeperWorker.h"
 #include "rendering/screenshot.h"
 #include "utilities/translation.h"
 #include "vehicle/Train.h"
@@ -295,7 +296,7 @@ void eu07_application::DiscordRPCService()
 		if (currentMode != mode::driver)
 		{
 			// the editor and the other modes: nothing to tell, without spinning a core on it
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+			std::this_thread::sleep_for(std::chrono::milliseconds(250));
 			continue;
 		}
 
@@ -720,6 +721,9 @@ void eu07_application::exit()
 	auto const step = [&](char const *What) {
 		WriteLog(std::string{"Closing: "} + What + " at " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - closing).count()) + " ms");
 	};
+	step("the sleepers laid in the background");
+	// the sleepers laid in the background read the scenery, which goes below
+	track_sleepers::stop_background();
 	step("the modes");
 	for (auto &mode : m_modes)
 		mode.reset();
@@ -1338,7 +1342,7 @@ int eu07_application::create_main_window()
 	}
 
 	// a selftest of the editor run while the computer is in use for something else draws into a window never shown nor focused
-	bool const shown{std::getenv("EU07_EDITOR_SELFTEST_HIDDEN") == nullptr};
+	bool const shown{selftest_script("EU07_EDITOR_SELFTEST_HIDDEN") == nullptr};
 	auto *mainwindow = window(-1, shown, Global.window_size.x, Global.window_size.y, Global.bFullScreen && shown ? monitor : nullptr, true, false);
 
 	if (mainwindow == nullptr)

@@ -1188,7 +1188,6 @@ void editor_mode::nmt_update()
 			m_orthophoto.refit();
 			for (auto &layer : m_wms)
 				layer->refit();
-			first_step_done(first_step::nmt);
 		}
 	}
 	if (unrecorded)

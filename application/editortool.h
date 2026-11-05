@@ -119,6 +119,14 @@ struct signal_head
 	bool chosen{false}; // chosen for its kind among the templates of the signals, placed by hand and with the signalling
 	int aspects{0}; // of a block signal: 3, or 4 with the warning two signals ahead
 	std::string lean; // its head leans towards the track: left, standing on the right of it, right, or none
+	int arms{0}; // of a semaphore, 1 or 2: its aspects are the names below, not its lights
+	std::vector<std::string> aspect_names; // the aspects its description lists: Sr1, Sr2, Sr3, Sz...; empty where it lists none
+	// of a warning disc: its event for each speed class of the signal after it, stop, vmax, 100, 60, 40
+	std::vector<std::pair<std::string, std::string>> repeats;
+	// of a block signal: for an event of its own, the event the block signal before it is to get then
+	std::vector<std::pair<std::string, std::string>> chain;
+	// the aspects its description lists, by name with the event giving each, the part after "(p1)_"
+	std::vector<std::pair<std::string, std::string>> aspect_events;
 };
 // one step of the history of the signalling: signals placed, standing ones renamed, other templates placed with them, the values
 // of standing ones replaced
@@ -199,7 +207,8 @@ class editor_templates
 {
   public:
 	virtual std::vector<standing_template> standing_templates(std::function<bool(std::string const &)> const &Accept) const = 0;
-	// the layer a tool keeps what it makes in, "<scenery>_<Part>.scm", made when the scenery has none yet. returns: null_handle if there can't be one
+	// the layer a tool keeps what it makes in, "<scenery>_<Part>.scm", or the one made for the part of the scenery a copy was saved
+	// from, told by its first line; made when the scenery has none yet. returns: null_handle if there can't be one
 	virtual scene::layer_handle output_layer(std::string const &Part) = 0;
 	// in the active layer unless given another
 	virtual std::size_t place_templates(std::vector<template_item> const &Items, std::string &Error, scene::layer_handle Layer = scene::layer_handle{}) = 0;
@@ -218,8 +227,13 @@ class editor_signals
 	// the signals placed by the templates chosen for their kinds and the rest of the changes, with the tracks changed before: one
 	// step of the history. returns: how many signals were placed
 	virtual std::size_t signal_batch(signal_changes const &Changes, std::vector<std::pair<TTrack *, editor_track::state>> States, std::vector<TTrack *> Created, std::string &Error) = 0;
+	// the error signal_batch would stop with for the signals given, a kind with no template, so a step finds it before it cuts any
+	// track for them. returns: empty if each one has its template
+	virtual std::string signal_templates_missing(std::vector<signal_order> const &Orders) = 0;
 	// the signal templates with lights, false while they are still being looked for
 	virtual bool signal_heads(std::vector<signal_head> &Heads, bool const Wait) = 0;
+	// the mount of the signal template given, with none of the one chosen for the kind; empty for none
+	virtual std::string signal_mount(std::string const &Kind, std::string const &File) = 0;
 	// the signals given which no track reads, read again by the track they stand by: one step of the history. returns: how many
 	virtual std::size_t signal_reattach(std::vector<scene::instance_handle> const &Instances) = 0;
 	// the signal picked, its card at the top of the panel
@@ -257,16 +271,7 @@ class editor_track_design
 	~editor_track_design() = default;
 };
 
-class editor_guide
-{
-  public:
-	virtual void first_step_done(editor_first_step const Step) = 0;
-
-  protected:
-	~editor_guide() = default;
-};
-
-class editor_services : public editor_selection, public editor_view, public editor_history, public editor_templates, public editor_signals, public editor_ground, public editor_track_design, public editor_guide
+class editor_services : public editor_selection, public editor_view, public editor_history, public editor_templates, public editor_signals, public editor_ground, public editor_track_design
 {
   protected:
 	~editor_services() = default;

@@ -22,7 +22,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "rendering/renderer.h"
 #include "world/Track.h"
-#include "world/TrackFeatures.h"
+#include "utilities/Globals.h"
 #include "world/TrackSleepers.h"
 #include "scene/scenelayers.h"
 #include "simulation/simulation.h"
@@ -57,19 +57,6 @@ double const kOutcomeSeconds{10.0}; // the line under a row telling how a value 
 bool rail(TTrack const &Track)
 {
 	return (Track.iCategoryFlag & 15) == kRailCategory && false == Track.m_editorremoved && Track.visible();
-}
-
-char const *type_of(TTrack const &Track)
-{
-	switch (Track.eType)
-	{
-	case tt_Normal: return "normal";
-	case tt_Switch: return "switch";
-	case tt_Cross: return "cross";
-	case tt_Table: return "turntable";
-	case tt_Tributary: return "tributary";
-	default: return "unknown type";
-	}
 }
 
 // a number as short as it can be written: no trailing zeros
@@ -245,7 +232,7 @@ struct track_property
 	char const *empty{nullptr}; // hint of an empty field
 	std::vector<char const *> choices;
 	std::function<bool(TTrack const &)> applies;
-	bool off{false}; // the feature isn't in this build: the field is shown greyed and nothing changes it
+	bool off{false}; // the feature is turned off in eu07.ini: the field is shown greyed and nothing changes it
 	std::function<std::string(TTrack const &)> get;
 	// false: the text doesn't fit the track or changes nothing, the track stays as it was
 	std::function<bool(TTrack &, std::string const &)> set;
@@ -460,7 +447,7 @@ std::vector<track_property> make_properties()
 		auto &property{add(list, "frogs", field::check, section::look, group::frogs, "Frog and check rails made from the rails", "Cuts the rails of the switch at its frog and lays wing rails and check rails.\nOff for a switch whose include has its own model of them")};
 		property.rebuild = true;
 		property.applies = [](TTrack const &Track) { return Track.eType == tt_Switch && Track.SwitchExtension != nullptr; };
-		property.off = false == track_features::crossings;
+		property.off = false == Global.Frogs;
 		property.get = [](TTrack const &Track) { return std::string{Track.SwitchExtension->m_frogs ? "1" : "0"}; };
 		property.set = [](TTrack &Track, std::string const &Text) {
 			auto const frogs{Text == "1"};
@@ -474,7 +461,7 @@ std::vector<track_property> make_properties()
 		auto &property{add(list, "movablenose", field::check, section::look, group::frogs, "Movable nose", "The nose of the frog moves with the blades over to the wing rail of the track set, leaving no gap; the frog has no check rails")};
 		property.rebuild = true;
 		property.applies = [](TTrack const &Track) { return Track.eType == tt_Switch && Track.SwitchExtension != nullptr; };
-		property.off = false == track_features::crossings;
+		property.off = false == Global.Frogs;
 		property.get = [](TTrack const &Track) { return std::string{Track.SwitchExtension->m_movablenose ? "1" : "0"}; };
 		property.set = [](TTrack &Track, std::string const &Text) {
 			auto const movable{Text == "1"};
@@ -629,7 +616,6 @@ std::vector<track_property> make_properties()
 		{
 			auto &property{add(list, "sleeperpack", field::choice, section::look_sleepers, group::sleepers, "Sleeper model from the pack", "Model of the sleepers of the track running alone, of the models of sleepers in the scenery data, laid as 3D sleepers\nin place of the one set with sleepers3dplain in eu07.ini. (as in eu07.ini): the one set there")};
 			property.rebuild = true;
-			property.off = false == track_features::sleepers;
 			property.choices = choices(sleepermodels);
 			property.get = [index_of](TTrack const &Track) { return std::to_string(Track.m_sleeper_enabled ? index_of(sleepermodels, Track.m_sleeper_model_name) : 0); };
 			property.set = [](TTrack &Track, std::string const &Text) {
@@ -647,7 +633,6 @@ std::vector<track_property> make_properties()
 		{
 			auto &property{add(list, "timbermodel", field::choice, section::look_sleepers, group::sleepers, "Timber model", "Model of the timbers under the switch or the crossing the track is part of, of the models of timbers in the scenery data,\nin place of the one set with sleepers3d in eu07.ini. It's put together from its submodels begin, main and end to the length of each timber")};
 			property.rebuild = true;
-			property.off = false == track_features::sleepers;
 			property.choices = choices(timbermodels);
 			property.get = [index_of](TTrack const &Track) { return std::to_string(index_of(timbermodels, Track.m_timber_model_name)); };
 			property.set = [](TTrack &Track, std::string const &Text) {
@@ -664,7 +649,6 @@ std::vector<track_property> make_properties()
 		{
 			auto &property{add(list, "timberskin", field::text, section::look_sleepers, group::sleepers, "Timber skin", "Replaceable skin of the timber model, empty: the one of the model")};
 			property.rebuild = true;
-			property.off = false == track_features::sleepers;
 			property.empty = "of the model";
 			property.get = [](TTrack const &Track) { return Track.m_timber_skin_name; };
 			property.set = [](TTrack &Track, std::string const &Text) {
@@ -1610,7 +1594,7 @@ void editor_mode::render_track_properties(std::vector<TTrack *> const &Tracks)
 			}
 			ImGui::EndDisabled();
 			if (list[i].off && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-				ImGui::SetTooltip("%s", STR_C("Switched off in this build of the simulator"));
+				ImGui::SetTooltip("%s", STR_C("Turned on with frogs yes in eu07.ini"));
 			ImGui::PopID();
 			for (auto const &note : m_track_notes)
 				if (note.property == static_cast<int>(i))
@@ -2124,7 +2108,7 @@ void editor_mode::render_track_set_header(std::vector<TTrack *> const &Tracks)
 					ImGui::SetTooltip("%s", STR_C("Click: look at it, double click: select only this one"));
 				}
 				ImGui::SameLine(column);
-				ImGui::TextDisabled("%s, %.1f m", STR_C(type_of(*track)), track->Length());
+				ImGui::TextDisabled("%s, %.1f m", STR_C(track_type_name(*track)), track->Length());
 				ImGui::PopID();
 			}
 		ImGui::EndChild();

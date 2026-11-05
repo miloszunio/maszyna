@@ -217,6 +217,7 @@ public:
 
     std::vector<segment_data> m_paths; // source data for owned paths
     bool m_editorremoved { false };
+    bool m_tributary { false }; // loaded as a tributary: a river of its first path, the second one kept to be written back
     std::vector<TTrack *> m_crossings; // tracks whose rails cross the rails of this one, found when its geometry was made
     track_rails::rail_plan m_railplans[ 2 ][ 2 ]; // the cuts of its rails, by path and right side, as its geometry was made
     std::vector<glm::dvec2> m_railguards[ 2 ][ 2 ]; // the guard rails inside its rails at the crossings at wide angles, from and to along the path, as its geometry was made

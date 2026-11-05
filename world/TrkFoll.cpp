@@ -15,6 +15,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "world/TrkFoll.h"
+#include "world/TrackRails.h"
 
 #include "simulation/simulation.h"
 #include "utilities/Globals.h"
@@ -94,10 +95,16 @@ TTrack * TTrackFollower::SetCurrentTrack(TTrack *pTrack, int end)
             }
             int i = JoinedEnd( end );
             if( i & 1 ) {
-                // coming from the frog end the axle runs on its path whichever way the switch is set; it gets trailed through
-                // only where the wheels get to the blades, or to the nose of a movable frog
+                // coming from the frog end the axle runs on its path whichever way the switch is set. Where the blades are shaped
+                // it gets trailed through only where the wheels get to them, or to the nose of a movable frog; elsewhere as it
+                // enters, as before
                 path = i >> 1;
-                trailat = pTrack->trailing_point( path );
+                if( pTrack->SwitchExtension->m_movablenose || track_rails::shaped_blades( *pTrack ) ) {
+                    trailat = pTrack->trailing_point( path );
+                }
+                else {
+                    pTrack->SwitchForced( path, Owner ); // to przełożenie zwrotnicy - rozprucie!
+                }
             }
             else if (i > 0) // jeżeli wjazd z ostrza
                 pTrack->SwitchForced(i >> 1, Owner); // to przełożenie zwrotnicy - rozprucie!

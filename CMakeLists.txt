@@ -82,6 +82,7 @@ option(WITH_CRASHPAD "Compile with crashpad" OFF)
 option(WITH_DISCORD_RPC "Compile with DISCORD RICH PRESENCE" ON)
 option(USE_LTO "Use link-time optimization" OFF)
 option(WITH_TESTS "Build and run the unit tests with the game, a failing test fails the build" ON)
+option(WITH_EDITOR_SELFTESTS "Run the scripts of the editor and launcher self-tests named by the EU07_EDITOR_SELFTEST and EU07_LAUNCHER_SELFTEST variables" OFF)
 option(GENERATE_PDB "Generate executable with program debugging symbols" ON)
 option(ENABLE_MCC "Enable multicore compilation" ON)
 option(WITHDUMPGEN "Enable generating DMP files on crash" ON)
@@ -236,7 +237,6 @@ set(SOURCES
 "editor/editorGeoMap.cpp"
 "editor/editorPreviews.cpp"
 "editor/editorIcons.cpp"
-"editor/editorClips.cpp"
 "application/editormode.cpp"
 "application/editormodetrack.cpp"
 "application/editormoderoute.cpp"
@@ -851,6 +851,12 @@ else()
 	target_compile_definitions(eu07_settings INTERFACE WITH_DISCORD_RPC=0)
 endif()
 
+if(WITH_EDITOR_SELFTESTS)
+	target_compile_definitions(eu07_settings INTERFACE WITH_EDITOR_SELFTESTS=1)
+else()
+	target_compile_definitions(eu07_settings INTERFACE WITH_EDITOR_SELFTESTS=0)
+endif()
+
 find_package(OpenAL REQUIRED)
 if (TARGET OpenAL::OpenAL)
 	target_link_libraries(eu07_settings INTERFACE OpenAL::OpenAL)
@@ -881,7 +887,8 @@ if (WIN32)
 	target_link_libraries(eu07_settings INTERFACE ws2_32)
 endif()
 
-# http client of the editor's geoportal orthophoto layer: WinHTTP on Windows, libcurl elsewhere when available
+# http client of the editor, for the orthophoto, the terrain model and the topo map of geoportal.gov.pl: WinHTTP on Windows,
+# libcurl elsewhere when available
 if (WIN32)
 	target_link_libraries(eu07_settings INTERFACE winhttp)
 else()
@@ -890,7 +897,7 @@ else()
 		target_link_libraries(eu07_settings INTERFACE CURL::libcurl)
 		target_compile_definitions(eu07_settings INTERFACE EU07_WITH_CURL)
 	else()
-		message(STATUS "libcurl not found: the editor's orthophoto layer will only show cached tiles")
+		message(STATUS "libcurl not found: the editor's orthophoto and terrain model will only show what's cached, its topo map nothing")
 	endif()
 endif()
 

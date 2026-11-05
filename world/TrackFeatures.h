@@ -18,7 +18,8 @@ bool constexpr crossings { true };
 // the 3D sleepers and switch timbers of sleepers3d; off, the tracks keep their ballast whatever eu07.ini sets
 bool constexpr sleepers { true };
 // the blades of the switches with the key frogs shaped as their templates have them, from the tip their planed nose ends at to the heel,
-// with the rails left whole where the crossings are off; off with the crossings too, they're laid from the start of the switch as before
+// with the rails left whole where the frogs aren't cut (frogs in eu07.ini off); off with the frogs too, they're laid from the start of
+// the switch as before
 bool constexpr blades { true };
 
 } // namespace track_features

@@ -70,6 +70,7 @@ struct beam_model {
     // model without these is drawn whole, a plain sleeper at its own length and a timber stretched to its length
     bool stretchable { false };
     std::array<TSubModel *, part_count> parts {};
+    std::vector<TSubModel *> others; // the submodels of the top level besides the parts, like the fastenings of the rails, not drawn
     std::array<glm::vec2, part_count> spans {}; // from and to along x, of the parts
     glm::vec2 span { -1.3f, 1.3f }; // from and to along x, of the most detailed submodels of the whole model
     float seat { 0.f }; // the height in the model the feet of the rails go to
@@ -124,6 +125,9 @@ beam_model const *plain_model( TTrack const &Track );
 // the model the track lays the timbers of the beams of: its own, else that of the tracks most of its timbers carry with one of their
 // own, as a switch it shares its timbers with, else the one of eu07.ini
 beam_model const *timber_model( TTrack const &Track, std::vector<beam> const &Beams );
+// whether the models not loaded yet are loaded by the thread asking for them; the thread laying the beams in the background loads
+// none, finding only those loaded for it already, as the renderer runs in the thread loading them
+void models_loaded( bool const Loaded );
 // how long the plain sleepers of the track are, of the model it lays them of; 2.6 m at the standard gauge where there's none
 double plain_length( TTrack const &Track );
 // whether the track has the ballast the simulator makes, which the beams are laid on when there's a model of them
