@@ -803,6 +803,10 @@ void TTrack::Load(cParser *parser, glm::dvec3 const &pOrigin)
 
     auto const velocity { fVelocity };
     init_segments( true );
+    // made with no unevenness, which is read with the attributes and goes onto them by making them again
+    if( is_uneven() ) {
+        init_segments( false );
+    }
     if( SwitchExtension ) {
         fVelocity = velocity;
     }
@@ -1531,6 +1535,7 @@ glm::vec3 TTrack::get_nearest_point(const glm::dvec3 &point) const
 void TTrack::rebuild_geometry( gfx::geometrybank_handle const &Bank ) {
 
     ++s_layoutstamp;
+    m_drawnrun = {};
 
     track_rails::forget();
     auto const erase = [ this ]( gfx::geometry_handle const &Chunk ) {
@@ -1576,6 +1581,9 @@ void TTrack::create_geometry( gfx::geometrybank_handle const &Bank ) {
     }
     share_joints();
     m_sleepers3d.active = track_sleepers::lays( *this );
+    if( rail_phase( 0.0 ) >= 0.0 ) {
+        m_drawnrun = m_railrun;
+    }
     // bake per-instance sleeper transforms now that the owning cell has assigned m_origin.
     // safe to call here even if the track has no sleepermodel (early-outs internally).
     // a track laying the 3D sleepers draws its sleeper model with them, the transforms of the model alone wouldn't be drawn

@@ -74,15 +74,21 @@ std::deque<std::string> ErrorStack;
 
 // lock for log stacks
 std::mutex logMutex;
+// the log is written through the closing of the simulator, to the end
+std::atomic<bool> logStop{false};
+
+void StopLogService()
+{
+	logStop = true;
+}
 
 
 void LogService()
 {
-	bool quitting{false};
-	while (!quitting)
+	// one more pass after the stop, so what came just before it gets written too
+	for (bool last{false}; false == last;)
 	{
-		// read before the stacks are drained, so everything logged before the quit order still gets written
-		quitting = Global.applicationQuitOrder;
+		last = logStop;
 		{
 			// --- Obsługa InfoStack ---
 			while (!InfoStack.empty())

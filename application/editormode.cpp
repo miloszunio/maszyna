@@ -702,7 +702,7 @@ bool editor_mode::init()
     auto const &model{EditorSettings.terrain_model()};
     m_nmt_state.grow = EditorSettings.terrain_while_laying();
     m_nmt_state.band = std::clamp(model.band, 50.0, 3000.0);
-    m_nmt_state.shape = model.shape;
+    // the formation and the slopes are always made along the tracks: the switch of them is gone, a setting left off by it isn't kept
     m_nmt_state.follow = model.follow;
     m_terrain_add_count = std::clamp(model.around, 1, 8);
     EditorModelSets.load();
@@ -1658,6 +1658,12 @@ bool editor_mode::update()
         steps.step("speed");
         m_joints.update();
         steps.step("joints");
+        if (m_nmt_state.grade_lines_dirty)
+        {
+            m_nmt_state.grade_lines_dirty = false;
+            grade_lines_store();
+        }
+        m_nmt_state.grade_line_replaced.clear();
         m_srk.update();
         kilometrage::follow(m_track_edits);
         m_km.update();
@@ -1665,6 +1671,7 @@ bool editor_mode::update()
         draw_track_hints();
         draw_empty_scenery_hint();
         draw_profile_overlay();
+        draw_grade_line_pick();
         draw_infra_overlay();
         m_speed.draw_overlay();
         m_joints.draw_overlay();
@@ -1704,6 +1711,8 @@ bool editor_mode::update()
     render_first_steps();
     render_nmt_prompt();
     render_nmt_banner();
+    render_nmt_buried();
+    render_empty_scenery_hint();
     render_switch_designer();
     render_environment_window();
     if (m_terrain_open)
@@ -1808,6 +1817,12 @@ void editor_mode::render_terrain_ui()
             ImGui::SetTooltip("%s", STR_C("Kept in the folder terrain/<name of the scenery>/ and written there with the scenery (Ctrl+S)"));
         return;
     }
+    // the real terrain first, open: the tracks put onto it from there
+    if (nmt_busy())
+        ImGui::SetNextItemOpen(true);
+    if (ImGui::CollapsingHeader(STR_C("Terrain model (NMT)"), ImGuiTreeNodeFlags_DefaultOpen))
+        render_nmt_ui();
+
     // the tools are chosen in the toolbar, here are their settings
     if (ImGui::CollapsingHeader(STR_C("Chunks"), m_terrain_tool == terrain_tool::chunks ? ImGuiTreeNodeFlags_DefaultOpen : 0))
     {
@@ -1842,11 +1857,6 @@ void editor_mode::render_terrain_ui()
                 ImGui::SetTooltip("%s", STR_C("The chunks under the model take its shape, and the model is removed"));
         }
     }
-
-    if (nmt_busy())
-        ImGui::SetNextItemOpen(true);
-    if (ImGui::CollapsingHeader(STR_C("Terrain model (NMT)")))
-        render_nmt_ui();
 
     if (ImGui::CollapsingHeader(STR_C("Chunk resolution"), m_terrain_tool == terrain_tool::spacing ? ImGuiTreeNodeFlags_DefaultOpen : 0))
     {
@@ -1983,9 +1993,7 @@ void editor_mode::render_terrain_ui()
                 ImGui::SetTooltip("%s", STR_C("Angle the textures of the chosen material are turned by, on every chunk painted with it.\n"
                                         "Ctrl+click to type it. To have the material turned in one place only, fill it there with an angle of its own."));
         }
-        ImGui::SetNextItemWidth(160.0f);
-        ImGui::InputText(STR_C("Material"), m_terrain_material, IM_ARRAYSIZE(m_terrain_material));
-        material_drop(m_terrain_material, IM_ARRAYSIZE(m_terrain_material));
+        texture_field(STR_C("Material"), 160.0f, m_terrain_material, IM_ARRAYSIZE(m_terrain_material), terrain_texture_offer(nullptr));
         ImGui::SameLine();
         if (ImGui::Button(STR_C("Add to the palette")) && m_terrain_material[0] != '\0')
             m_terrain_layer = m_streamer.layer(m_terrain_material, m_terrain_material_size);
@@ -2083,11 +2091,9 @@ void editor_mode::render_terrain_ui()
             ImGui::SetNextItemWidth(120.0f);
             if (ImGui::DragFloat(STR_C("Level (m)"), &m_water_level, 0.01f, -1000.0f, 5000.0f, "%.2f"))
                 m_water_level_edited = true;
-            ImGui::SetNextItemWidth(160.0f);
-            ImGui::InputText(STR_C("Material##water"), m_water_material, IM_ARRAYSIZE(m_water_material));
-            material_drop(m_water_material, IM_ARRAYSIZE(m_water_material));
+            texture_field(STR_C("Material##water"), 160.0f, m_water_material, IM_ARRAYSIZE(m_water_material), terrain_texture_offer(STR_C("The default water material")));
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip(STR_C("Empty: %s, the water material of the terrain"), m_streamer.manifest().water_material.c_str());
+                ImGui::SetTooltip(STR_C("The default one: %s, the water material of the terrain"), m_streamer.manifest().water_material.c_str());
             ImGui::BeginDisabled(m_water_points.size() < 3);
             if (ImGui::Button(STR_C("Make the water")))
             {
@@ -2157,12 +2163,9 @@ void editor_mode::render_terrain_ui()
                 m_water_material_of = m_water_selected;
             }
             bool retexture = false;
-            ImGui::SetNextItemWidth(160.0f);
-            ImGui::InputText(STR_C("Material of the chosen"), m_water_selected_material, IM_ARRAYSIZE(m_water_selected_material));
-            retexture |= ImGui::IsItemDeactivatedAfterEdit();
-            retexture |= material_drop(m_water_selected_material, IM_ARRAYSIZE(m_water_selected_material));
+            retexture |= texture_field(STR_C("Material of the chosen"), 160.0f, m_water_selected_material, IM_ARRAYSIZE(m_water_selected_material), terrain_texture_offer(STR_C("The default water material")));
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip(STR_C("A material or a texture (drag one from the texture browser).\nEmpty: %s, the water material of the terrain"), m_streamer.manifest().water_material.c_str());
+                ImGui::SetTooltip(STR_C("Chosen from the textures, or dragged from the texture browser.\nThe default one: %s, the water material of the terrain"), m_streamer.manifest().water_material.c_str());
             ImGui::SetNextItemWidth(120.0f);
             ImGui::DragFloat(STR_C("Texture repeats every (m)##water"), &m_water_selected_size, 0.1f, 0.0f, 500.0f, "%.1f");
             m_water_selected_size = std::max(0.0f, m_water_selected_size);
@@ -2188,17 +2191,12 @@ void editor_mode::render_terrain_ui()
             m_water_material_of = -1;
         }
         // the material of the bodies of water which don't name their own
-        if (false == m_water_default_edited)
-            std::snprintf(m_water_default_material, sizeof(m_water_default_material), "%s", m_streamer.manifest().water_material.c_str());
-        ImGui::SetNextItemWidth(160.0f);
-        ImGui::InputText(STR_C("Default water material"), m_water_default_material, IM_ARRAYSIZE(m_water_default_material));
-        m_water_default_edited = ImGui::IsItemActive();
-        bool redefault = ImGui::IsItemDeactivatedAfterEdit();
-        redefault |= material_drop(m_water_default_material, IM_ARRAYSIZE(m_water_default_material));
+        auto defaultmaterial{m_streamer.manifest().water_material};
+        auto const redefault{texture_field(STR_C("Default water material"), 160.0f, defaultmaterial, terrain_texture_offer(nullptr))};
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", STR_C("Material of the bodies of water which don't name their own"));
         if (redefault)
-            m_streamer.water_material(m_water_default_material);
+            m_streamer.water_material(defaultmaterial);
     }
 
     if (ImGui::CollapsingHeader(STR_C("Modifiers")))
@@ -2775,7 +2773,8 @@ void editor_mode::draw_ortho_compass() const
     ImGuiIO const &io = ImGui::GetIO();
     float const radius{36.0f};
     float const margin{16.0f};
-    ImVec2 const center{io.DisplaySize.x - margin - radius, margin + radius};
+    // in the corner of the view, where the buttons of the toolbar and the hints along its bottom aren't
+    ImVec2 const center{editor_ui::view_max().x - margin - radius - 14.0f, editor_ui::view_max().y - margin - radius - 54.0f};
     auto *drawlist{ImGui::GetForegroundDrawList()};
     drawlist->AddCircleFilled(center, radius + 14.0f, IM_COL32(0, 0, 0, 180), 48);
     drawlist->AddCircle(center, radius - 6.0f, IM_COL32(255, 255, 255, 50), 48, 1.2f);
@@ -3403,6 +3402,7 @@ void editor_mode::toggle_include(scene::instance_handle const Instance)
         return;
     }
     scene::Layers.removed(Instance, false == included.removed);
+    m_drives_standing.reset();
     ui()->set_status(format(included.removed ? STR_C("Include of \"%s\" removed") : STR_C("Include of \"%s\" restored"), included.file->c_str()));
 }
 
@@ -3439,6 +3439,7 @@ void editor_mode::restore_includes(EditorSnapshot &Snapshot)
         }
         scene::Layers.removed(instance, false == scene::Layers.instance(instance).removed);
     }
+    m_drives_standing.reset();
     for (auto &entry : Snapshot.directives)
     {
         auto current = scene::Layers.directive(entry.first);
@@ -3483,6 +3484,7 @@ void editor_mode::select_include(scene::instance_handle const Instance)
 
 void editor_mode::set_include_directive(scene::instance_handle const Instance, std::string const &Directive)
 {
+    m_drives_standing.reset();
     std::string file;
     std::vector<std::string> values;
     if (scene::Layers.tracked(Instance) && editor_includes::parse_directive(Directive, file, values) && scene::Layers.instance(Instance).file != nullptr &&
@@ -4652,6 +4654,26 @@ void editor_mode::terrain_workspace(bool const Open)
         m_terrain_spacing = m_streamer.manifest().spacing;
 }
 
+editor_mode::texture_offer editor_mode::terrain_texture_offer(char const *None)
+{
+    return {STR_C("In the palette and on the water of this terrain:"),
+            [this]() {
+                std::vector<texture_use> list;
+                auto const add = [&](std::string const &Name, char const *Note) {
+                    if (Name.empty() || Name == "none" || std::any_of(list.begin(), list.end(), [&](texture_use const &Use) { return Use.name == Name; }))
+                        return;
+                    list.push_back({null_handle, Name, 0, Note});
+                };
+                for (auto const &layer : m_streamer.manifest().layers)
+                    add(layer.material, STR_C("In the palette of the terrain"));
+                add(m_streamer.manifest().water_material, STR_C("The default water material"));
+                for (auto const &body : m_streamer.water())
+                    add(body.material, STR_C("On a body of water"));
+                return list;
+            },
+            None, ""};
+}
+
 void editor_mode::render_terrain_tool_options()
 {
     // the orthophoto has its settings among the base layers in the layers window, see render_base_layers()
@@ -5592,6 +5614,76 @@ void tutorial_profile_sketch(ImDrawList &List, ImVec2 const Low, ImVec2 const Hi
 
 // the route of the grade line picked on the map: a click lights up the whole line through the track, Shift and a box only the
 // tracks between the outermost ones in it; beside it the strip with a point of the line dragged
+// the radius of the curve at a bend: the two straights clicked stay, the curve between them grows from sharp to gentle and back
+// the points of a switch clicked one after another: its start, the ends of its two tracks, the way on, the points along the diverging track
+void tutorial_template_sketch(ImDrawList &List, ImVec2 const Low, ImVec2 const High, double const Time)
+{
+	auto const width{High.x - Low.x};
+	auto const height{High.y - Low.y};
+	auto const at = [&](float const X, float const Y) { return ImVec2(Low.x + width * X, Low.y + height * Y); };
+	auto const curve = [&](float const Share) { return at(0.08f + 0.70f * Share, 0.72f - 0.42f * Share * Share); };
+	auto const shown{static_cast<int>(std::fmod(static_cast<float>(Time), 10.0f))};
+	std::vector<ImVec2> line;
+	for (int i = 0; i <= 24; ++i)
+		line.push_back(curve(i / 24.0f));
+	List.AddLine(at(0.08f, 0.72f), at(0.78f, 0.72f), IM_COL32(150, 150, 150, 130), 3.0f);
+	List.AddPolyline(line.data(), static_cast<int>(line.size()), IM_COL32(150, 150, 150, 130), ImDrawFlags_None, 3.0f);
+	std::array<ImVec2, 8> const points{at(0.08f, 0.72f), at(0.78f, 0.72f), curve(1.0f), at(0.94f, 0.14f), curve(0.28f), curve(0.5f), curve(0.72f), curve(0.88f)};
+	if (shown >= 1)
+		List.AddLine(points[0], points[1], IM_COL32(255, 255, 255, 230), 1.5f);
+	if (shown >= 3)
+		List.AddLine(points[2], points[3], IM_COL32(90, 200, 255, 230), 1.5f);
+	for (int i = 0; i < static_cast<int>(points.size()) && i <= shown; ++i)
+	{
+		List.AddCircleFilled(points[i], 4.0f, i < 4 ? IM_COL32(255, 225, 60, 255) : IM_COL32(120, 255, 120, 255));
+		if (i < 4)
+			List.AddText(ImVec2(points[i].x + 6.0f, points[i].y - 18.0f), IM_COL32(255, 255, 255, 255), std::to_string(i + 1).c_str());
+	}
+	if (shown >= 8)
+		List.AddPolyline(line.data(), static_cast<int>(line.size()), IM_COL32(255, 90, 200, 255), ImDrawFlags_None, 2.0f);
+}
+
+void tutorial_corner_sketch(ImDrawList &List, ImVec2 const Low, ImVec2 const High, double const Time)
+{
+	auto const width{High.x - Low.x};
+	auto const height{High.y - Low.y};
+	glm::vec2 const from{Low.x + width * 0.04f, Low.y + height * 0.80f};
+	glm::vec2 const vertex{Low.x + width * 0.50f, Low.y + height * 0.18f};
+	glm::vec2 const to{Low.x + width * 0.96f, Low.y + height * 0.80f};
+	auto const point = [](glm::vec2 const Point) { return ImVec2(Point.x, Point.y); };
+	List.AddLine(point(from), point(vertex), IM_COL32(150, 150, 150, 130), 1.0f);
+	List.AddLine(point(vertex), point(to), IM_COL32(150, 150, 150, 130), 1.0f);
+	List.AddCircleFilled(point(vertex), 4.0f, IM_COL32(255, 255, 255, 255));
+	// there and back in 8 s, a moment at each end
+	auto const cycle{std::fmod(static_cast<float>(Time), 8.0f) / 8.0f};
+	auto const swing{std::clamp(1.3f - std::abs(cycle * 2.0f - 1.0f) * 1.6f, 0.0f, 1.0f)};
+	auto const share{swing * swing * (3.0f - 2.0f * swing)};
+	auto const in{glm::normalize(from - vertex)};
+	auto const out{glm::normalize(to - vertex)};
+	auto const tangent{glm::mix(0.12f, 0.92f, share) * glm::length(from - vertex)};
+	auto const half{std::acos(glm::dot(in, out)) * 0.5f};
+	auto const centre{vertex + glm::normalize(in + out) * (tangent / std::cos(half))};
+	auto const start{vertex + in * tangent};
+	auto const end{vertex + out * tangent};
+	auto const begin{std::atan2(start.y - centre.y, start.x - centre.x)};
+	auto sweep{std::atan2(end.y - centre.y, end.x - centre.x) - begin};
+	while (sweep > glm::pi<float>())
+		sweep -= glm::two_pi<float>();
+	while (sweep < -glm::pi<float>())
+		sweep += glm::two_pi<float>();
+	auto const radius{glm::length(start - centre)};
+	std::vector<ImVec2> line{point(from)};
+	for (int i = 0; i <= 32; ++i)
+	{
+		auto const angle{begin + sweep * i / 32.0f};
+		line.push_back(ImVec2(centre.x + radius * std::cos(angle), centre.y + radius * std::sin(angle)));
+	}
+	line.push_back(point(to));
+	List.AddPolyline(line.data(), static_cast<int>(line.size()), IM_COL32(230, 190, 90, 255), ImDrawFlags_None, 3.0f);
+	auto const label{format(STR_C("R %.0f m: %s"), glm::mix(300.0, 6000.0, static_cast<double>(share)), share < 0.5f ? STR_C("a sharp curve, a slow train") : STR_C("a gentle curve, a fast train"))};
+	List.AddText(ImVec2(Low.x + (width - ImGui::CalcTextSize(label.c_str()).x) * 0.5f, High.y - ImGui::GetTextLineHeight() - 4.0f), IM_COL32(235, 235, 235, 255), label.c_str());
+}
+
 void tutorial_route_sketch(ImDrawList &List, ImVec2 const Low, ImVec2 const High, double const Time)
 {
 	auto const split{std::round(Low.x + (High.x - Low.x) * 0.48f)};
@@ -5901,6 +5993,16 @@ void editor_mode::render_first_steps()
 	      {"wheel", "Alone it zooms, as everywhere"}},
 	     {{first_step::bend, "Lay a track with a bend in it"}, {first_step::trace, "Switch to tracing a curve with Tab"}},
 	     trial::lay},
+	    {"Radius of the curves at the bends",
+	     nullptr,
+	     {{"LMB", "Where you click a bend, the two straights meet at a sharp corner a train can't take: the editor rounds it off with a curve by itself"},
+	      {"R", "The radius is the size of that curve, in metres: the larger, the gentler the turn and the faster a train can take it"},
+	      {"R", "The largest radius that fits between your points is taken: from 6000 m down to 2000 m two transition curves meeting, with no cant; below that an arc with the transitions and the cant of the norms"},
+	      {"LMB", "Bends too close together leave no room: the curve comes out smaller and its label turns orange. Click the points further apart"},
+	      {"R L h", "The label of a curve: R the radius, L the transition curve easing into it, h how much the outer rail is raised, in mm; each transition curve has a label of its own along it"}},
+	     {{first_step::bend, "Lay a track with a bend and read the label of its curve"}},
+	     trial::lay,
+	     tutorial_corner_sketch},
 	    {"Correcting a curve",
 	     "plan",
 	     {{"G", "The plan tool: a click on a curve shows its design, the vertex and the radius to drag in the view"},
@@ -5914,6 +6016,7 @@ void editor_mode::render_first_steps()
 	     "join",
 	     {{"LMB + move", "Press on a free end (a magenta ring) and drag: a new track goes out of it"},
 	      {"LMB", "Let go on another free end: a curve joins the two tracks"},
+	      {"LMB", "The end snaps by itself: a click on a free end while laying joins the track to it, with no gap and with the cant of the track there going on smoothly"},
 	      {"Ctrl + wheel", "While over the other end: the radius of the joining curve"},
 	      {"Shift + wheel", "While over the other end: another way to join"}},
 	     {{first_step::join, "Join two free ends"}, {first_step::wheel, "Change the radius of the joining curve with Ctrl+wheel"}},
@@ -5928,6 +6031,17 @@ void editor_mode::render_first_steps()
 	      {"Esc", "Back to selecting"}},
 	     {{first_step::turnout, "Put a switch into a track"}},
 	     trial::turnout},
+	    {"Switch templates",
+	     nullptr,
+	     {{"T", "The switch tool, Template editor...: the catalogue and your own templates. A value under the mouse lights up on the drawing"},
+	      {"LMB", "Click off the view...: click the start of the switch, the end of its main track and the end of its diverging track, then a point further on that track"},
+	      {"LMB", "Then points along the diverging track, 3 at least: the shape and the radius follow them"},
+	      {"Backspace", "Takes the last point back; Esc stops clicking"},
+	      {"O", "The top view; the orthophoto is turned on in the Layers panel"},
+	      {"LMB", "Make the template: it lies over the photo where it was clicked and changes with its values"}},
+	     {{first_step::template_open, "Open the template editor"}, {first_step::template_clicked, "Make a template off the view"}},
+	     trial::turnout,
+	     tutorial_template_sketch},
 	    {"Signals and posts",
 	     nullptr,
 	     {{"I", "The signalling tool: click a type of signal in its Signals, from the templates of the scenery"},
@@ -5967,6 +6081,8 @@ void editor_mode::render_first_steps()
 	      {"LMB + move", "Drag a point of the grade line: the grades on both sides of it follow"},
 	      {"LMB LMB", "A double click on the line adds a point"},
 	      {"Del", "Removes the chosen point"},
+	      {"LMB", "Tracks on one common grade line go together: drag a point, Apply, and the tracks beside (blue) go too"},
+	      {"LMB", "Your own grade line for one route: Take off the common grade line, the tracks beside stop going with it"},
 	      {"Ctrl + wheel", "Over the plot: the heights stretched, the grades seen better"},
 	      {"RMB + move", "Over the plot: the view moves along the line"}},
 	     {{first_step::profile, "Open the grade line of a track"}, {first_step::profile_point, "Move or add a point"}, {first_step::profile_apply, "Apply it: the tracks take its heights"}},
@@ -5979,6 +6095,9 @@ void editor_mode::render_first_steps()
 	      {"1", "Location: where the scenery lies, a click on the map or the place typed"},
 	      {"2", "Load along the tracks, or around the camera: the model comes from geoportal.gov.pl"},
 	      {"3", "Tracks onto the terrain: the tracks not fitted yet go onto the model, the ones fitted stay; the terrain to some tracks only: select them, Terrain in the inspector"},
+	      {"LMB", "A new track partly hidden in the ground: the message above the view has Fit the ground to the track, one click makes the track bed along it"},
+	      {"3", "A grade line edited by hand with the profile stays as it is, in All anew too unless you tick it"},
+	      {"3", "Nearly parallel tracks under 5.1 m apart get one grade line, the ones on common timbers one surface; a track crossing others with the ground low on both sides goes under them; a hump keeps to the model"},
 	      {"Ctrl + Z", "Takes the changes back"}},
 	     {{first_step::terrain, "Open the Terrain field of work"}, {first_step::nmt, "Load terrain from the model"}},
 	     trial::terrain,
@@ -5986,7 +6105,7 @@ void editor_mode::render_first_steps()
 	    {"Sceneries made before",
 	     nullptr,
 	     {{"LMB", "A track of an include or of a file that isn't saved: the inspector says why it can't be changed"},
-	      {"T", "Switches laid before keep their shape; Replace the geometry with the template, under More settings of the switch, gives them the one of the catalogue"},
+	      {"T", "Switches laid before keep their shape; a template picked for one in the inspector gives it the one of the catalogue"},
 	      {"P", "Grade lines kept by an older editor are read as they were kept"},
 	      {"Ctrl + S", "Only what changed is written: the other lines stay as they were, the comment lines of other tools too"}},
 	     {},
@@ -6004,6 +6123,45 @@ void editor_mode::render_first_steps()
 	auto const done = [&](lesson const &Lesson) {
 		return false == Lesson.goals.empty() && std::all_of(Lesson.goals.begin(), Lesson.goals.end(), [&](goal const &Goal) { return m_first_steps_done[static_cast<std::size_t>(Goal.step)]; });
 	};
+	auto const open_lesson = [&](std::string_view const Title) {
+		for (std::size_t i = 0; i < lessons.size(); ++i)
+			if (Title == lessons[i].title)
+				m_tutorial_page = static_cast<int>(i);
+	};
+	auto const undone = [&](std::initializer_list<char const *> Titles) -> char const * {
+		for (auto const *title : Titles)
+			for (auto const &entry : lessons)
+				if (std::string_view{title} == entry.title && false == done(entry))
+					return title;
+		return "";
+	};
+	// the lesson of what's being done now, the next one once its goals are reached; opened when that changes, so a page turned by hand stays
+	char const *followed{""};
+	if (m_lay.active)
+		followed = undone({"Laying track", "Radius of the curves at the bends", "Curves", "Joining tracks"});
+	else if (current_work_area() == work_area::terrain)
+		followed = undone({"Terrain from the terrain model"});
+	else if (ui()->mode() == nodebank_panel::TRACK)
+	{
+		if (m_track_tab == track_tab::turnout)
+			followed = m_switch_designer.open ? undone({"Switch templates"}) : undone({"Switches"});
+		else if (m_track_tab == track_tab::profile)
+			followed = undone({"The grade line"});
+		else if (m_track_tab == track_tab::route || m_track_tab == track_tab::straights)
+			followed = undone({"Correcting a curve"});
+		else if (m_track_tab == track_tab::srk)
+			followed = undone({"Signals and posts"});
+	}
+	if (m_tutorial_followed != followed)
+	{
+		m_tutorial_followed = followed;
+		open_lesson(followed);
+	}
+	if (m_tutorial_goto != nullptr)
+	{
+		open_lesson(m_tutorial_goto);
+		m_tutorial_goto = nullptr;
+	}
 	m_tutorial_page = std::clamp(m_tutorial_page, 0, static_cast<int>(lessons.size()) - 1);
 	auto const &lesson{lessons[m_tutorial_page]};
 	if (lesson.clip == nullptr)
@@ -6071,7 +6229,7 @@ void editor_mode::render_first_steps()
 				ImGui::TextWrapped("%s", STR_C(entry.text));
 		}
 		if (m_tutorial_page == 1 && ui()->mode() == nodebank_panel::TRACK && false == GfxRenderer->Mouse_Hit())
-			ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "%s", STR_C("No ground under the cursor: track goes onto the level 0 plane, drawn as a grid. Terrain: F5"));
+			ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "%s", STR_C("No ground under the cursor: track goes onto the level 0 plane. Terrain: F5"));
 		switch (lesson.action)
 		{
 		case trial::top:
@@ -6688,6 +6846,7 @@ void editor_mode::toggle_ortho()
     {
         Camera.Angle.x = m_ortho_pitch;
         ortho_pan_stop();
+        camera_above_ground();
     }
 }
 
@@ -7155,12 +7314,12 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
                 if (from != nullptr)
                     copy_track_style(*from);
                 else
-                    ui()->set_status(STR_C("Select one track, or point at one, to copy its properties"), true);
+                    ui()->set_status(STR_C("Select one track, or point at one, to take its properties"), true);
             }
             else if (m_track_style.values.empty())
-                ui()->set_status(STR_C("Copy the properties of a track first: Ctrl+Shift+C"), true);
+                ui()->set_status(STR_C("Take the properties of a track first: Ctrl+Shift+C"), true);
             else if (tracks.empty())
-                ui()->set_status(STR_C("Select the tracks to paste the properties on"), true);
+                ui()->set_status(STR_C("Select the tracks to set the properties on"), true);
             else
                 paste_track_style(tracks);
         }
@@ -7245,6 +7404,12 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         // an open list or menu takes this Esc for itself, the selection behind it stays
         if (ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
             break;
+        // the switch being clicked off the view given up
+        if (is_press(Action) && m_switch_designer.open && m_switch_designer.picking)
+        {
+            m_switch_designer.picking = false;
+            break;
+        }
         // the download area being drawn given up, the one before stays
         if (is_press(Action) && m_area_drawing.active)
         {
@@ -7266,6 +7431,8 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
                 lay_escape();
             else if (m_track_style.picking)
                 m_track_style.picking = false;
+            else if (m_profile.picking)
+                m_profile.picking = false;
             else if (track_busy())
             {
                 cancel_track_tools();
@@ -7299,6 +7466,16 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         break;
 
     case GLFW_KEY_BACKSPACE:
+        // the switch being clicked off the view: the last point taken back
+        if (m_switch_designer.open && m_switch_designer.picking)
+        {
+            if (is_press(Action) && false == m_switch_designer.clicks.empty())
+            {
+                m_switch_designer.clicks.pop_back();
+                switch_designer_measure();
+            }
+            break;
+        }
         // the download area: the last point taken back
         if (is_press(Action) && m_area_drawing.active)
         {
@@ -7383,6 +7560,16 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     // UI first
     if (m_userinterface->on_mouse_button(Button, Action))
     {
+        m_input.mouse.button(Button, Action);
+        return;
+    }
+
+    // a switch being clicked off the view for the template editor takes the left button
+    if (m_switch_designer.open && m_switch_designer.picking && Button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        // on the terrain under the cursor, then on the level of the first point: no track or ballast in the view catches the point
+        if (is_press(Action))
+            switch_designer_click(m_switch_designer.clicks.empty() ? cursor_terrain(std::as_const(*this).cursor_ground().y) : cursor_level(m_switch_designer.clicks.front().y));
         m_input.mouse.button(Button, Action);
         return;
     }

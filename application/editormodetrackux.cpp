@@ -435,21 +435,25 @@ void editor_mode::draw_track_labels() const
 		}
 		if (length < 0.5)
 			continue;
-		// the label in the middle of the row
-		glm::dvec3 middle{first.point(0.5)};
-		auto left{length * 0.5};
-		for (auto const &[member, forward] : run)
-		{
-			bezier const piece{member->m_paths.front()};
-			auto const span{piece.plan_length()};
-			if (left <= span || &member == &run.back().first)
+		// the point of the row so far along it; the label in its middle
+		auto const along_row = [&](double const Distance) {
+			glm::dvec3 point{first.point(0.5)};
+			auto left{Distance};
+			for (auto const &[member, forward] : run)
 			{
-				auto const share{std::clamp(span > 1e-6 ? left / span : 0.5, 0.0, 1.0)};
-				middle = piece.point(forward ? share : 1.0 - share);
-				break;
+				bezier const piece{member->m_paths.front()};
+				auto const span{piece.plan_length()};
+				if (left <= span || &member == &run.back().first)
+				{
+					auto const share{std::clamp(span > 1e-6 ? left / span : 0.5, 0.0, 1.0)};
+					point = piece.point(forward ? share : 1.0 - share);
+					break;
+				}
+				left -= span;
 			}
-			left -= span;
-		}
+			return point;
+		};
+		auto const middle{along_row(length * 0.5)};
 		if (straight)
 		{
 			labels.push_back({2, -length, middle, format(STR_C("straight %.0f m"), length), IM_COL32(200, 215, 230, 225)});
@@ -458,7 +462,14 @@ void editor_mode::draw_track_labels() const
 		// a track bent by hand, as an S between two points dragged, has no radius to read: its length alone
 		editor_track::curve shape;
 		if (editor_track::analyse_curve(run, m_route.design.norms.gauge, shape) && shape.radius >= 0.5 && shape.radius <= 50000.0)
+		{
 			labels.push_back({1, shape.radius, middle, curve_text(shape), IM_COL32(235, 235, 235, 240)});
+			// the tracks of the transition curves told apart from the arc, each transition by a label of its own in its middle; two
+			// meeting at the radius are both of the curve
+			for (auto const &[transition, at] : {std::pair{shape.transition_in, shape.transition_in * 0.5}, std::pair{shape.transition_out, length - shape.transition_out * 0.5}})
+				if (transition >= 0.5 && transition < length)
+					labels.push_back({2, -transition, along_row(at), format(STR_C("transition L %.0f m"), transition), IM_COL32(150, 205, 255, 235)});
+		}
 		else
 			labels.push_back({2, -length, middle, format("L %.0f m", length), IM_COL32(235, 235, 235, 240)});
 	}
@@ -596,7 +607,8 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 {
 	using kind = track_intent::kind;
 	track_intent intent;
-	if (ImGui::GetIO().WantCaptureMouse)
+	// a switch being clicked off the view for the template editor takes the mouse: no tool offers anything meanwhile
+	if (ImGui::GetIO().WantCaptureMouse || (m_switch_designer.open && m_switch_designer.picking))
 		return intent;
 	glm::dvec3 const ground{cursor_ground()};
 	intent.position = ground;
@@ -750,6 +762,21 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 			return make(kind::box, track_selected(m_hover.track) ? "Click: take out of the selection" : "Click: add to the selection");
 		}
 	}
+	if (m_track_tab == track_tab::profile && m_profile.picking && false == m_profile.route.spans.empty())
+	{
+		intent.track = m_hover.track;
+		intent.index = shift ? 1 : 0;
+		if (m_hover.track == nullptr)
+			return make(kind::grade_line_pick, "Click a track: onto the common grade line of the route or off it; Esc: done");
+		intent.position = m_hover.point;
+		auto const number{route_grade_line()};
+		auto const found{m_nmt_state.grade_lines.find(grade_line_key(*m_hover.track))};
+		auto const on{number >= 0 && found != m_nmt_state.grade_lines.end() && found->second == number};
+		if (shift)
+			return make(kind::grade_line_pick, on ? "Click: this track off the common grade line" : "Click: this track onto the common grade line");
+		return make(kind::grade_line_pick, on ? "Click: the stretch from switch to switch off the common grade line, Shift: the track only"
+		                                      : "Click: the stretch from switch to switch onto the common grade line, Shift: the track only");
+	}
 	if (m_track_tab == track_tab::profile && shift && false == gizmo_frame::over())
 	{
 		// a box from the empty ground is the route by itself, a click on a track adds it to the route or takes it out
@@ -858,14 +885,13 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 		intent.position = m_hover.point;
 		return make(kind::switch_at, "Press and drag: a switch on this track, along sets its direction, sideways its side. Click: select the track");
 	}
-	// a press on the ground lays a switch with no track there, going on from a free end within reach
+	// a press on the ground by a free end within reach lays a switch going on from it; with no track near, none
 	if (m_hover.track == nullptr && free_switch_offered())
-	{
-		auto const end{free_switch_end(ground)};
-		intent.position = end.track != nullptr ? end.position : ground;
-		return make(kind::switch_free, end.track != nullptr ? "Press and drag: a switch going on from this free end, sideways its side"
-		                                                    : "Press and drag: a switch with no track, along the direction of its main track, then sideways its side");
-	}
+		if (auto const end{free_switch_end(ground)}; end.track != nullptr)
+		{
+			intent.position = end.position;
+			return make(kind::switch_free, "Press and drag: a switch going on from this free end, sideways its side");
+		}
 	if (m_track_tab == track_tab::lineside && m_fouling.tab().open)
 		if (auto const hit{m_fouling.hit()}; hit.has_value())
 		{
@@ -1015,11 +1041,11 @@ void editor_mode::track_press(track_intent const &Intent)
 	case kind::box: start_track_box(Intent.index == 1); return;
 	case kind::pick_style:
 		if (Intent.track != nullptr)
-		{
 			copy_track_style(*Intent.track);
-			m_track_style.picking = false;
-			m_track_style.open = true;
-		}
+		return;
+	case kind::grade_line_pick:
+		if (Intent.track != nullptr)
+			grade_line_pick(*Intent.track, Intent.index == 1);
 		return;
 	case kind::spread:
 		if (Intent.track != nullptr)
@@ -1305,13 +1331,15 @@ void editor_mode::render_track_context()
 	if (many)
 		ImGui::TextColored(ImVec4(1.0f, 0.65f, 0.2f, 1.0f), STR_P("one of %d selected tracks", "one of %d selected tracks", static_cast<long long>(tracks.size())), static_cast<int>(tracks.size()));
 	ImGui::Separator();
-	if (ImGui::MenuItem(STR_C("Copy its properties"), "Ctrl+Shift+C"))
+	if (ImGui::MenuItem(STR_C("Take its properties"), "Ctrl+Shift+C"))
 		copy_track_style(*track);
-	auto const paste{many ? format(STR_P("Paste the properties on %d track", "Paste the properties on %d tracks", static_cast<long long>(tracks.size())), static_cast<int>(tracks.size())) : std::string{STR_C("Paste the properties")}};
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("The inspector lists what they change on the selected tracks, From another track or a preset"));
+	auto const paste{many ? format(STR_P("Set the properties taken on %d track", "Set the properties taken on %d tracks", static_cast<long long>(tracks.size())), static_cast<int>(tracks.size())) : std::string{STR_C("Set the properties taken")}};
 	if (ImGui::MenuItem(paste.c_str(), "Ctrl+Shift+V", false, false == m_track_style.values.empty()))
 		paste_track_style(tracks);
 	if (false == m_track_style.values.empty() && ImGui::IsItemHovered())
-		ImGui::SetTooltip(STR_C("Properties of %s"), m_track_style.from.c_str());
+		ImGui::SetTooltip(STR_C("Taken from %s: what's ticked in the inspector"), m_track_style.from.c_str());
 	if (ImGui::BeginMenu(STR_C("Select alike")))
 	{
 		char const *const keys[] = {"rails", "trackbed", "speed", "environment", "circuits"};

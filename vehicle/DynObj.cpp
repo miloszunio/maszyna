@@ -3394,15 +3394,12 @@ bool TDynamicObject::Update(double dt, double dt1)
 				&& MoverParameters->eimc[eimc_p_abed] < 0.001)
 				FzadED = 0; //pętla bezpieczeństwa - bez ED
             auto const FzadPN = Fzad - FrED * MoverParameters->MED_FrED_factor;
-            //np = 0;
-            // BUG: likely memory leak, allocation per inner loop, deleted only once outside
-            // TODO: sort this shit out
-			bool* PrzekrF = new bool[np];
+			std::vector<bool> PrzekrF( np );
 			float nPrzekrF = 0;
 			bool test = true;
-			float* FzED = new float[np];
-			float* FzEP = new float[np];
-			float* FmaxEP = new float[np];
+			std::vector<float> FzED( np );
+			std::vector<float> FzEP( np );
+			std::vector<float> FmaxEP( np );
 			// 3. ustaw pojazdom sile hamowania ED
             //   - proporcjonalnie do mozliwosci
 
@@ -3561,11 +3558,6 @@ bool TDynamicObject::Update(double dt, double dt1)
 
 			}
 
-			delete[] PrzekrF;
-			delete[] FzED;
-			delete[] FzEP;
-			delete[] FmaxEP;
-
 			MED_oldFED = FzadED;
         }
 
@@ -3676,33 +3668,32 @@ bool TDynamicObject::Update(double dt, double dt1)
                             1 :
                             ctOwner->Vehicle()->DirectionGet() == DirectionGet() ? 1 : -1 ) };
                     for( auto &axle : m_axlesounds ) {
-                        if( axle_passed_joint( axle, dDOMoveLen, directioninconsist ) ) {
-                            if( MoverParameters->Vel > 0.1 ) {
-                                // NOTE: for combined clatter sound we supply 1/100th of actual value, as the sound module converts does the opposite, converting received (typically) 0-1 values to 0-100 range
-                                auto const frequency = true == axle.clatter.is_combined() ? MoverParameters->Vel * 0.01 : 1.0;
-                                axle.clatter
-                                    .pitch( frequency )
-                                    .gain( volume )
-                                    .play();
-								// crude bump simulation, drop down on even axles, move back up on
-								// the odd ones
-								// MoverParameters->AccVert += (MoverParameters->Vel*0.1f) *
-								double const headroom = std::clamp(
-								    MoverParameters->Vmax - ( MoverParameters->Vel + MoverParameters->Vmax * 0.32f ),
-								    0.0, MoverParameters->Vmax );
-								double const jolt = headroom * .05f * ( MyTrack->iDamageFlag * 0.25f );
-								if (MyTrack->eType == tt_Normal)
-								{
-									MoverParameters->AccVert += std::clamp( jolt, 0.0, 4.0 );
-								}
-								else if (MyTrack->eType == tt_Switch)
-								{
-									double const accHorizontal = std::clamp( jolt, 0.0, 1.0 ) * ((axleindex % 2) != 0 ? 1 : -1);
-									MoverParameters->AccS += accHorizontal;
-									MoverParameters->AccN += accHorizontal;
-									MoverParameters->AccVert += std::clamp( jolt, 0.0, 2.0 );
-								}
-                            }
+                        if( axle_passed_joint( axle, dDOMoveLen, directioninconsist )
+                         && MoverParameters->Vel > 0.1 ) {
+                            // NOTE: for combined clatter sound we supply 1/100th of actual value, as the sound module converts does the opposite, converting received (typically) 0-1 values to 0-100 range
+                            auto const frequency = true == axle.clatter.is_combined() ? MoverParameters->Vel * 0.01 : 1.0;
+                            axle.clatter
+                                .pitch( frequency )
+                                .gain( volume )
+                                .play();
+							// crude bump simulation, drop down on even axles, move back up on
+							// the odd ones
+							// MoverParameters->AccVert += (MoverParameters->Vel*0.1f) *
+							double const headroom = std::clamp(
+							    MoverParameters->Vmax - ( MoverParameters->Vel + MoverParameters->Vmax * 0.32f ),
+							    0.0, MoverParameters->Vmax );
+							double const jolt = headroom * .05f * ( MyTrack->iDamageFlag * 0.25f );
+							if (MyTrack->eType == tt_Normal)
+							{
+								MoverParameters->AccVert += std::clamp( jolt, 0.0, 4.0 );
+							}
+							else if (MyTrack->eType == tt_Switch)
+							{
+								double const accHorizontal = std::clamp( jolt, 0.0, 1.0 ) * ((axleindex % 2) != 0 ? 1 : -1);
+								MoverParameters->AccS += accHorizontal;
+								MoverParameters->AccN += accHorizontal;
+								MoverParameters->AccVert += std::clamp( jolt, 0.0, 2.0 );
+							}
                         }
                         ++axleindex;
                     }
@@ -8105,12 +8096,12 @@ TDynamicObject::update_shake( double const Timedelta ) {
             shakevector *= 0;
 
         auto const iVel { std::min( GetVelocity(), 150.0 ) };
-        // an uneven track shakes the cab by itself, in place of the sway drawn from the curve and the jolts drawn at random
-        auto const uneven { MyTrack != nullptr && MyTrack->is_uneven() };
+        // an uneven track shakes the cab by itself, in place of the sway drawn from the curve and the jolts drawn at random, as far as it does
+        auto const replaced { track_uneven::replaced_shake( MyTrack != nullptr ? MyTrack->uneven_underway() : track_uneven::amounts {} ) };
         if( iVel > 0.5 ) {
             // acceleration-driven base shake
 			shakevector += glm::dvec3(
-                uneven ? 0.0 : -MoverParameters->AccN * Timedelta * 5.0 * Global.ShakingMultiplierRL, // highlight side sway
+                replaced.sway ? 0.0 : -MoverParameters->AccN * Timedelta * 5.0 * Global.ShakingMultiplierRL, // highlight side sway
                 -MoverParameters->AccVert * Timedelta * Global.ShakingMultiplierUD,
                 -MoverParameters->AccSVBased * Timedelta * 1.5 * Global.ShakingMultiplierBF); // accent acceleration/deceleration
             // unevenness of the track under the outer axles
@@ -8123,7 +8114,7 @@ TDynamicObject::update_shake( double const Timedelta ) {
 
         auto shake { 1.25 * ShakeSpring.ComputateForces( shakevector, ShakeState.offset ) };
 
-        if( false == uneven && LocalRandom( iVel ) > 25.0 ) {
+        if( false == replaced.jolts && LocalRandom( iVel ) > 25.0 ) {
             // extra shake at increased velocity
             shake += ShakeSpring.ComputateForces(
                 glm::dvec3(
@@ -8150,14 +8141,14 @@ TDynamicObject::update_shake( double const Timedelta ) {
 }
 
 bool
-TDynamicObject::axle_passed_joint( axle_sounds &Axle, double const Move, int const Direction ) {
+TDynamicObject::axle_passed_joint( axle_sounds &Axle, double const Move, int const Direction ) const {
 
-    // by the outer axle on its side of the vehicle: the two can be on different tracks
-    auto const &outer { Axle.offset >= 0.0 ? Axle0 : Axle1 };
-    auto const railphase { outer.RailPhase( Axle.offset - std::copysign( 0.5 * fAxleDist, Axle.offset ) ) };
-    if( railphase >= 0.0 ) {
+    // from the follower on its side of the vehicle, as the two can be on different tracks. They stand fAxleDist apart, at the bogie pivots, and
+    // the offset of the axle is the place of its wheel set, so the two of a bogie come out half of ADist to either side of the pivot
+    auto const &follower { Axle.offset >= 0.0 ? Axle0 : Axle1 };
+    if( auto const railphase { follower.RailPhase( Axle.offset - std::copysign( 0.5 * fAxleDist, Axle.offset ) ) }; railphase >= 0.0 ) {
         // the rails under the axle, which aren't always those under the track the vehicle is on
-        auto const passed { Axle.atjoints && std::abs( railphase - Axle.distance ) > 0.5 * outer.GetTrack()->fSoundDistance };
+        auto const passed { Axle.atjoints && std::abs( railphase - Axle.distance ) > 0.5 * follower.GetTrack()->fSoundDistance };
         Axle.distance = railphase;
         Axle.atjoints = true;
         return passed;

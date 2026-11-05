@@ -77,6 +77,9 @@ public:
 	// a scenery begun with no terrain is offered the terrain model as the first track is laid
 	bool terrain_offer() const { return m_terrain_offer; }
 	void terrain_offer(bool Offer) { m_terrain_offer = Offer; }
+	// a track laid and hidden in the ground is told of, with the way to fit the ground to it
+	bool terrain_buried_ask() const { return m_terrain_buried_ask; }
+	void terrain_buried_ask(bool Ask) { m_terrain_buried_ask = Ask; }
 	// the terrain of the terrain model made under the tracks as they're laid, around the cursor from the first point placed
 	bool terrain_while_laying() const { return m_terrain_while_laying; }
 	void terrain_while_laying(bool const Make) { m_terrain_while_laying = Make; }
@@ -100,14 +103,6 @@ public:
 	void top_tracks(int const Tracks) { m_top_tracks = Tracks; }
 	std::uint32_t top_rails() const { return m_top_rails; }
 	void top_rails(std::uint32_t const Colour) { m_top_rails = Colour; }
-	// the radii the laying from point to point eases the bends of the straights with, at the peak of the two transition curves
-	double corner_low() const { return m_corner_low; }
-	double corner_high() const { return m_corner_high; }
-	void corners(double const Low, double const High)
-	{
-		m_corner_low = Low;
-		m_corner_high = High;
-	}
 	// the heights of the tracks laid on the ground: fitted to it as the tracks go onto the terrain, the points clicked on it with
 	// even grades between them, level
 	enum class lay_heights
@@ -131,14 +126,13 @@ private:
 	int m_palette{0};
 	bool m_first_steps{true};
 	bool m_terrain_offer{true};
+	bool m_terrain_buried_ask{true};
 	bool m_track_tools_more{false};
 	bool m_terrain_while_laying{true};
 	terrain_model_settings m_terrain_model;
 	std::map<std::string, std::pair<double, bool>> m_terrain_model_offsets;
 	int m_top_tracks{0}; // the railway in the top view: whole, without the ballast, the rails alone
 	std::uint32_t m_top_rails{0xffff6e28}; // colour of the rails alone, as ImGui keeps it: ABGR
-	double m_corner_low{3000.0};
-	double m_corner_high{6000.0};
 	lay_heights m_heights{lay_heights::points};
 };
 

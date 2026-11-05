@@ -145,6 +145,8 @@ bool editorSettings::load()
 			m_first_steps = (value == "1");
 		else if (key == "terrain_offer")
 			m_terrain_offer = (value == "1");
+		else if (key == "terrain_buried_ask")
+			m_terrain_buried_ask = (value == "1");
 		else if (key == "track_tools_all")
 			m_track_tools_more = (value == "1");
 		else if (key == "terrain_while_laying")
@@ -163,18 +165,6 @@ bool editorSettings::load()
 			m_top_tracks = std::clamp(std::atoi(value.c_str()), 0, 2);
 		else if (key == "top_rails")
 			m_top_rails = static_cast<std::uint32_t>(std::strtoul(value.c_str(), nullptr, 16)) | 0xff000000u;
-		else if (key == "corner_radii")
-		{
-			// low;high
-			double low{0.0}, high{0.0};
-			if (auto const separator{value.find(';')}; separator != std::string::npos)
-			{
-				parse(value.substr(0, separator), low);
-				parse(value.substr(separator + 1), high);
-				if (low >= 10.0 && high >= low)
-					corners(low, high);
-			}
-		}
 		// under a key of its own since the laying goes from point to point unless told otherwise: the fitted heights chosen
 		// before, when they were the default, are left behind
 		else if (key == "laying_heights")
@@ -261,6 +251,7 @@ bool editorSettings::save()
 	stream << "colours " << m_palette << "\n";
 	stream << "first_steps " << (m_first_steps ? 1 : 0) << "\n";
 	stream << "terrain_offer " << (m_terrain_offer ? 1 : 0) << "\n";
+	stream << "terrain_buried_ask " << (m_terrain_buried_ask ? 1 : 0) << "\n";
 	stream << "track_tools_all " << (m_track_tools_more ? 1 : 0) << "\n";
 	stream << "terrain_while_laying " << (m_terrain_while_laying ? 1 : 0) << "\n";
 	stream << "nmt_band " << m_terrain_model.band << "\n";
@@ -269,7 +260,6 @@ bool editorSettings::save()
 	stream << "nmt_follow " << (m_terrain_model.follow ? 1 : 0) << "\n";
 	stream << "top_tracks " << m_top_tracks << "\n";
 	stream << "top_rails " << std::hex << (m_top_rails & 0xffffffu) << std::dec << "\n";
-	stream << "corner_radii " << m_corner_low << ";" << m_corner_high << "\n";
 	stream << "laying_heights " << (m_heights == lay_heights::points ? "points" : m_heights == lay_heights::level ? "level" : "fitted") << "\n";
 	for (auto const &layer : m_wms_layers)
 		stream << "wms_layer " << (layer.visible ? 1 : 0) << ";" << layer.opacity << ";" << encoded(layer.url) << ";" << encoded(layer.layers) << ";" << encoded(layer.title) << ";" << encoded(layer.terms) << "\n";
