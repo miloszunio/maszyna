@@ -1239,9 +1239,8 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 			}
 		if (finer)
 		{
-			// as after Point spacing: the tiles and shapes of the ground made from the old grid
-			ground_tiles.clear();
-			forget_ground_shapes();
+			// as after Point spacing: the tiles of the ground made from the old grid
+			forget_ground_in(heightmap::chunk_corner(first), heightmap::chunk_corner(last) + glm::dvec2{heightmap::chunk_size});
 		}
 	}
 	return m_streamer.reshape(low, high, [&](double const X, double const Z, float &Height) {
