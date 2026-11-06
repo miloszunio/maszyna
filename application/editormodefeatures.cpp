@@ -1045,7 +1045,8 @@ void editor_mode::render_waves_options()
 	}
 	ImGui::SetNextItemWidth(120.0f);
 	ImGui::SliderFloat(STR_C("Roughness##waves"), &waves.roughness, 0.0f, 1.0f, "%.2f");
-	item_tooltip("Small bumps of about a metre over the whole surface, a few centimetres high: the clods of a ploughed field, a trodden pasture");
+	item_tooltip("Clods and hummocks of about 3 m over the whole surface, up to 20 cm high: a ploughed field, a trodden pasture.\n"
+	             "The terrain under the surface gets a point every metre for them (and for waves shorter than 15 m), the files grow");
 	ImGui::SetNextItemWidth(120.0f);
 	ImGui::SliderFloat(STR_C("Differences between them##waves"), &waves.variation, 0.0f, 1.0f, "%.2f");
 	item_tooltip("0: every wave alike, as drawn; 1: waves of quite different heights and places, as nature has them");
@@ -1057,7 +1058,7 @@ void editor_mode::render_waves_options()
 
 bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 {
-	if (Outline.size() < 3 || std::abs(m_waves.height) < 0.001f)
+	if (Outline.size() < 3 || (std::abs(m_waves.height) < 0.001f && m_waves.roughness < 0.001f))
 		return false;
 	auto const waves{m_waves};
 	glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
@@ -1214,6 +1215,35 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 		return value;
 	};
 	auto const half{static_cast<double>(waves.height) * 0.5};
+	// a grid point every 5 m can't carry waves of 3 m or clods: the chunks under the surface made as fine as they have to be
+	// (the shortest wave three points, a clod of 3 m every metre), never coarser than they are
+	{
+		auto finest{5.0};
+		if (waves.kind != terrain_waves::hollow && std::abs(waves.height) >= 0.001f)
+			finest = std::min(finest, length / 3.0);
+		if (rough > 0.0)
+			finest = std::min(finest, 1.0);
+		float target{heightmap::spacings.front()};
+		for (auto const spacing : heightmap::spacings)
+			if (spacing <= finest + 1e-6)
+				target = spacing;
+		auto const first{heightmap::chunk_at(low.x, low.y)}, last{heightmap::chunk_at(high.x, high.y)};
+		bool finer{false};
+		for (int cx = std::min(first.first, last.first); cx <= std::max(first.first, last.first); ++cx)
+			for (int cz = std::min(first.second, last.second); cz <= std::max(first.second, last.second); ++cz)
+			{
+				auto const centre{heightmap::chunk_corner({cx, cz}) + glm::dvec2{heightmap::chunk_size * 0.5}};
+				auto const *chunk{m_streamer.terrain_at(centre.x, centre.y)};
+				if (chunk != nullptr && chunk->data().spacing() > target + 1e-3 && m_streamer.spacing(cx, cz, target))
+					finer = true;
+			}
+		if (finer)
+		{
+			// as after Point spacing: the tiles and shapes of the ground made from the old grid
+			ground_tiles.clear();
+			forget_ground_shapes();
+		}
+	}
 	return m_streamer.reshape(low, high, [&](double const X, double const Z, float &Height) {
 		glm::dvec2 const point{X, Z};
 		double distance;
@@ -1232,9 +1262,9 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 		}
 		else
 			offset = shaped(point) * half * fade;
-		// clods: a few centimetres of bumps about a metre across, whatever the waves
+		// clods and hummocks of about 3 m, up to 20 cm, whatever the waves (the grid made a point a metre for them)
 		if (rough > 0.0)
-			offset += (wave_fractal(X / 1.3 + 17.0, Z / 1.3 - 5.0, 2) * 2.0 - 1.0) * 0.06 * rough * fade;
+			offset += (wave_fractal(X / 3.0 + 17.0, Z / 3.0 - 5.0, 3) * 2.0 - 1.0) * 0.2 * rough * fade;
 		if (std::abs(offset) < 1e-4)
 			return false;
 		Height += static_cast<float>(offset);

@@ -25,7 +25,8 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
   Ustawiasz wysokość, długość fali, kierunek (przycisk „jak tekstura”), zróżnicowanie i narastanie od krawędzi. Ctrl+Z cofa razem z powierzchnią.
   Nowe wzory: kratka garbów i pasy pól (każdy pas na swojej wysokości, z miedzami).
   **Profil fali**: zaokrąglony, ostre grzbiety, ostre doliny, tarasy (z liczbą stopni) i płaskie wierzchy, z suwakiem ostrości, żeby pola nie były obłe.
-  **Chropowatość**: drobne grudy na całej powierzchni.
+  **Chropowatość**: grudy i kępy ok. 3 m, do 20 cm, na całej powierzchni.
+  Pod wycinaną powierzchnią siatka terenu zagęszcza się sama (do 1 m przy chropowatości, do 1/3 długości fali), bo przy punkcie co 5 m drobne fale i grudy znikały.
 - **Teren bez prześwietlenia**: shader terenu bierze siłę odblasków (`param_specular`) z materiału warstwy, tak jak model z tym samym materiałem.
   Trawa (`grass`, specular 0.01) jest teraz matowa jak na nasypach, a nie lśniąca w słońcu.
 - **Bez mgły w rzucie z góry:** widok z góry pokazuje prawdziwe kolory terenu, bo wcześniej kamera patrzyła przez ponad kilometr powietrza z mgłą.
