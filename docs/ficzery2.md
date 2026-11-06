@@ -23,6 +23,11 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 - **Falowanie terenu przy wycinaniu powierzchni** (Ficzery > Wytnij powierzchnię > „Falowanie terenu”).
   Rodzaje: łagodne pagórki, bruzdy na polu, garby i kretowiska, długie fale, niecka albo kopiec.
   Ustawiasz wysokość, długość fali, kierunek (przycisk „jak tekstura”), zróżnicowanie i narastanie od krawędzi. Ctrl+Z cofa razem z powierzchnią.
+  Nowe wzory: kratka garbów i pasy pól (każdy pas na swojej wysokości, z miedzami).
+  **Profil fali**: zaokrąglony, ostre grzbiety, ostre doliny, tarasy (z liczbą stopni) i płaskie wierzchy, z suwakiem ostrości, żeby pola nie były obłe.
+  **Chropowatość**: drobne grudy na całej powierzchni.
+- **Teren bez prześwietlenia**: shader terenu bierze siłę odblasków (`param_specular`) z materiału warstwy, tak jak model z tym samym materiałem.
+  Trawa (`grass`, specular 0.01) jest teraz matowa jak na nasypach, a nie lśniąca w słońcu.
 - **Bez mgły w rzucie z góry:** widok z góry pokazuje prawdziwe kolory terenu, bo wcześniej kamera patrzyła przez ponad kilometr powietrza z mgłą.
   W Widok > „Prędkość kamery i przesuwanie” jest też przełącznik „Bez mgły w edytorze” dla perspektywy.
 - **Tory z IRT jako warstwy `.scm`:** konwerter zapisuje `irt_tory.scm`, który dołącza `irt_tory_rozjazdy.scm` i osobny plik na każdą linię.

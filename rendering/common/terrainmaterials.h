@@ -52,6 +52,8 @@ class terrain_materials
 		bool normalmap{false};
 		bool specgloss{false};
 		float reflection{0.f};
+		// param_specular of the material: how strong its highlights are (grass 0.01, wet stone near 1)
+		float specular{1.f};
 		bool copied{false};
 		int attempts{0};
 	};

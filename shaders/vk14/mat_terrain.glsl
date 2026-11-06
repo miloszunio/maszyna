@@ -19,7 +19,7 @@ layout(location = 1) out vec4 out_motion;
 // heightmap terrain: up to 8 materials (layers) painted over a chunk, blended by their weights.
 // the textures of all layers of the terrain are kept in texture arrays; the table of the chunk tells which layers it has:
 //   row 0, per layer: index in the arrays, 1 / metres the textures repeat at, has normal map, has specular/gloss map
-//   row 1, per layer: reflection, cosine and sine of the angle the textures are turned by
+//   row 1, per layer: reflection, cosine and sine of the angle the textures are turned by, param_specular of its material
 // f_coord holds metres from the corner of the pack of chunks, along x and -z
 
 #pragma param(color, 0, 0, 4, diffuse)
@@ -110,14 +110,15 @@ void main()
 		if (info.w > 0.5)
 		{
 			vec4 specgloss = textureGrad(layerspecgloss, coord, dx, dy);
-			specularity += specgloss.r * weight;
+			specularity += specgloss.r * extra.w * weight;
 			gloss += specgloss.g * weight;
 			metal += specgloss.b * weight;
 		}
 		else
 		{
 			// a layer without a specgloss map: a dielectric of the glossiness: of the material (a blinn-phong exponent)
-			specularity += 0.5 * weight;
+			// as strong as the material of the layer has its highlights: the terrain looks as the same material on a model
+			specularity += 0.5 * extra.w * weight;
 			gloss += (1.0 - phong_roughness(abs(param[1].w))) * weight;
 		}
 		reflectivity += layerreflection * weight;

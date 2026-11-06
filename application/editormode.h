@@ -732,7 +732,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the ground under a surface cut out made wavy: rolling hills, furrows of a field, bumps, long waves, a hollow or a mound
 	struct terrain_waves
 	{
-		enum kind { hills, furrows, bumps, waves, hollow, count };
+		enum kind { hills, furrows, bumps, waves, hollow, grid, strips, count };
+		// the profile of a wave: rounded as a sine, sharp ridges, sharp valleys, terraces, flat tops; how sharp it goes
+		enum profile { smooth, ridges, valleys, terraces, plateaus, profiles };
 		bool on{false};
 		int kind{hills};
 		float height{0.4f}; // metres, from the lowest to the highest point of a wave; negative for the hollow, upside down
@@ -740,6 +742,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float angle{0.0f}; // degrees the furrows and the waves run at, counterclockwise from x
 		float edge{6.0f}; // metres inside the outline over which the waves fade in from nothing
 		float variation{0.35f}; // 0..1, how much the waves differ from one another
+		int shape{smooth};
+		float sharpness{0.5f}; // 0..1: 0 the profile still rounded, 1 its corners and edges as sharp as it gets
+		int steps{4}; // of the terraces, from the bottom of a wave to its top
+		float roughness{0.0f}; // 0..1, small bumps over the whole surface, as clods of a field
 	};
 	terrain_waves m_waves;
 	void render_waves_options();

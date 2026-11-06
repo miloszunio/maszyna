@@ -85,6 +85,7 @@ void terrain_materials::read_material(layer &Layer)
 	Layer.normalmap = (material.shader && material.shader->texture_conf.count("normalmap") > 0);
 	Layer.specgloss = (material.shader && material.shader->texture_conf.count("specgloss") > 0);
 	Layer.reflection = (std::isfinite(material.params[1].z) ? material.params[1].z : 0.f);
+	Layer.specular = (std::isfinite(material.params[1].y) ? std::max(0.f, material.params[1].y) : 1.f);
 }
 
 int terrain_materials::layer_index(gfx::terrain_layer const &Layer)
@@ -247,7 +248,7 @@ material_handle terrain_materials::make(material_handle const Reuse, std::vector
 
 void terrain_materials::write_table(slot const &Slot)
 {
-	// what the layers are: index in the arrays, repeat, which maps they have, reflection
+	// what the layers are: index in the arrays, repeat, which maps they have; reflection, turn, specular
 	std::array<float, max_layers * 2 * 4> table{};
 	for (std::size_t i = 0; i < Slot.count; ++i)
 	{
@@ -261,6 +262,7 @@ void terrain_materials::write_table(slot const &Slot)
 		auto const angle{glm::radians(static_cast<double>(Slot.rotations[i]))};
 		table[(max_layers + i) * 4 + 1] = static_cast<float>(std::cos(angle));
 		table[(max_layers + i) * 4 + 2] = static_cast<float>(std::sin(angle));
+		table[(max_layers + i) * 4 + 3] = layer.specular;
 	}
 	gpu_table(Slot.table, table.data());
 	gpu_changed();

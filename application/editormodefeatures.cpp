@@ -964,10 +964,13 @@ void editor_mode::render_waves_options()
 	item_tooltip("The heights of the terrain within the outline get the waves chosen below, fading in from the edge: a field ploughed into furrows, a meadow of gentle hills, a hollow. Ctrl+Z takes them back with the surface");
 	if (false == waves.on)
 		return;
-	char const *const kinds[]{STR_C("Rolling hills"), STR_C("Furrows of a field"), STR_C("Bumps and molehills"), STR_C("Long waves"), STR_C("A hollow or a mound")};
+	char const *const kinds[]{STR_C("Rolling hills"), STR_C("Furrows of a field"), STR_C("Bumps and molehills"), STR_C("Long waves"), STR_C("A hollow or a mound"),
+	                          STR_C("A grid of hummocks"), STR_C("Strips of fields")};
 	char const *const tips[]{STR_C("Gentle hills of all sizes, as a meadow or a pasture has them"), STR_C("Ridges and furrows side by side, along the angle below, as a ploughed field or the beds of a garden"),
 	                         STR_C("Small mounds scattered about, as molehills or tussocks"), STR_C("Long even waves across the angle below, as a field rolling over a hill or dunes"),
-	                         STR_C("The middle lowered (a negative height raises it): a hollow by a pond, a dip in a field, or a mound")};
+	                         STR_C("The middle lowered (a negative height raises it): a hollow by a pond, a dip in a field, or a mound"),
+	                         STR_C("Waves along the angle and across it at once: hummocks in rows, as a drained meadow or an orchard on ridges"),
+	                         STR_C("Long strips along the angle, each a little higher or lower than the next, with banks between them: the fields of a village cut up between farms")};
 	ImGui::SetNextItemWidth(180.0f);
 	if (ImGui::BeginCombo(STR_C("Kind##waves"), kinds[std::clamp(waves.kind, 0, static_cast<int>(terrain_waves::count) - 1)]))
 	{
@@ -977,8 +980,8 @@ void editor_mode::render_waves_options()
 			{
 				waves.kind = i;
 				// the sizes a kind usually has
-				static float const heights[]{0.6f, 0.25f, 0.2f, 1.0f, -0.8f};
-				static float const lengths[]{40.0f, 1.5f, 3.0f, 60.0f, 0.0f};
+				static float const heights[]{0.6f, 0.25f, 0.2f, 1.0f, -0.8f, 0.3f, 0.6f};
+				static float const lengths[]{40.0f, 1.5f, 3.0f, 60.0f, 0.0f, 6.0f, 25.0f};
 				waves.height = heights[i];
 				if (lengths[i] > 0.0f)
 					waves.length = lengths[i];
@@ -998,7 +1001,7 @@ void editor_mode::render_waves_options()
 		waves.length = std::clamp(waves.length, 0.5f, 300.0f);
 		item_tooltip("From one top to the next: furrows 0.7-2 m, the beds of a garden 1.5-3 m, hills 20-100 m");
 	}
-	if (waves.kind == terrain_waves::furrows || waves.kind == terrain_waves::waves)
+	if (waves.kind == terrain_waves::furrows || waves.kind == terrain_waves::waves || waves.kind == terrain_waves::grid || waves.kind == terrain_waves::strips)
 	{
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::SliderFloat(STR_C("Direction (deg)##waves"), &waves.angle, -180.0f, 180.0f, "%.0f");
@@ -1007,6 +1010,42 @@ void editor_mode::render_waves_options()
 		if (ImGui::SmallButton(STR_C("as the texture")))
 			waves.angle = m_paint_rotation;
 	}
+	if (waves.kind != terrain_waves::hollow)
+	{
+		char const *const shapes[]{STR_C("Rounded"), STR_C("Sharp ridges"), STR_C("Sharp valleys"), STR_C("Terraces"), STR_C("Flat tops")};
+		char const *const shape_tips[]{STR_C("Every wave a gentle curve, as before"), STR_C("Tops pointed, sides straight: ploughed ridges, a dune crest, a bank between fields"),
+		                               STR_C("Bottoms pointed: drainage ditches, gullies cut by water, the furrow left by a plough"),
+		                               STR_C("The slopes broken into flat steps: terraced fields on a hillside, a quarry, the shelves of a vineyard"),
+		                               STR_C("Tops and bottoms cut flat with steep sides between: beds of a garden, fields on raised strips, plateaus")};
+		ImGui::SetNextItemWidth(180.0f);
+		if (ImGui::BeginCombo(STR_C("Profile##waves"), shapes[std::clamp(waves.shape, 0, static_cast<int>(terrain_waves::profiles) - 1)]))
+		{
+			for (int i = 0; i < terrain_waves::profiles; ++i)
+			{
+				if (ImGui::Selectable(shapes[i], i == waves.shape))
+					waves.shape = i;
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s", shape_tips[i]);
+			}
+			ImGui::EndCombo();
+		}
+		item_tooltip("The cross-section of a wave; the rounded one makes the fields look soft, the others give them edges");
+		if (waves.shape != terrain_waves::smooth)
+		{
+			ImGui::SetNextItemWidth(120.0f);
+			ImGui::SliderFloat(STR_C("Sharpness##waves"), &waves.sharpness, 0.0f, 1.0f, "%.2f");
+			item_tooltip("0: the profile barely changed from the rounded one; 1: its edges and corners as sharp as they get");
+		}
+		if (waves.shape == terrain_waves::terraces)
+		{
+			ImGui::SetNextItemWidth(120.0f);
+			ImGui::SliderInt(STR_C("Steps##waves"), &waves.steps, 2, 12);
+			item_tooltip("How many flat steps a slope is broken into, from the bottom of a wave to its top");
+		}
+	}
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::SliderFloat(STR_C("Roughness##waves"), &waves.roughness, 0.0f, 1.0f, "%.2f");
+	item_tooltip("Small bumps of about a metre over the whole surface, a few centimetres high: the clods of a ploughed field, a trodden pasture");
 	ImGui::SetNextItemWidth(120.0f);
 	ImGui::SliderFloat(STR_C("Differences between them##waves"), &waves.variation, 0.0f, 1.0f, "%.2f");
 	item_tooltip("0: every wave alike, as drawn; 1: waves of quite different heights and places, as nature has them");
@@ -1089,9 +1128,90 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 			auto const size{1.0 - variation * 0.6 * wave_noise(u / (length * 2.0), v / (length * 2.0) + 5.7)};
 			return std::sin(glm::two_pi<double>() * (u + shift) / length) * size;
 		}
+		case terrain_waves::grid:
+		{
+			auto const shift{(wave_noise(u / (length * 4.0), v / (length * 4.0) + 1.3) - 0.5) * length * variation};
+			auto const a{std::sin(glm::two_pi<double>() * (u + shift) / length)};
+			auto const b{std::sin(glm::two_pi<double>() * (v - shift) / length)};
+			return a * b;
+		}
+		case terrain_waves::strips:
+		{
+			// strips of about the length across, each of its own height, the banks between them as steep as the sharpness
+			auto const width{length * (1.0 + variation * 0.6 * (wave_noise(v / (length * 10.0), 2.9) - 0.5))};
+			auto const place{u / width};
+			auto const strip{std::floor(place)};
+			auto const in{place - strip};
+			auto const level = [&](double const S) { return wave_noise(S * 0.731 + 0.17, 4.4) * 2.0 - 1.0; };
+			auto const bank{0.5 * (0.35 - 0.3 * static_cast<double>(waves.sharpness))}; // share of the strip each side of the edge
+			auto const here{level(strip)};
+			if (in < bank)
+			{
+				auto t{(in + bank) / (2.0 * bank)};
+				t = t * t * (3.0 - 2.0 * t);
+				return level(strip - 1.0) + (here - level(strip - 1.0)) * t;
+			}
+			if (in > 1.0 - bank)
+			{
+				auto t{(in - (1.0 - bank)) / (2.0 * bank)};
+				t = t * t * (3.0 - 2.0 * t);
+				return here + (level(strip + 1.0) - here) * t;
+			}
+			return here;
+		}
 		default:
 			return 0.0;
 		}
+	};
+	// the cross-section of a wave: the value -1..1 of the shape bent to the profile chosen
+	auto const sharp{std::clamp(static_cast<double>(waves.sharpness), 0.0, 1.0)};
+	auto const steps{static_cast<double>(std::clamp(waves.steps, 2, 12))};
+	auto const profile = [&](double S) -> double {
+		S = std::clamp(S, -1.0, 1.0);
+		switch (waves.shape)
+		{
+		case terrain_waves::ridges:
+		case terrain_waves::valleys:
+		{
+			// the sine straightened into a triangle (straight sides, corners at the top and the bottom) as far as it's sharp,
+			// then the valleys widened under pointed ridges, or the other way round
+			auto const triangle{std::asin(S) * 2.0 / glm::pi<double>()};
+			auto const t{(S + (triangle - S) * sharp) * 0.5 + 0.5};
+			auto const power{1.0 + 2.0 * sharp};
+			auto const bent{waves.shape == terrain_waves::ridges ? std::pow(t, power) : 1.0 - std::pow(1.0 - t, power)};
+			return bent * 2.0 - 1.0;
+		}
+		case terrain_waves::terraces:
+		{
+			auto const q{(S * 0.5 + 0.5) * steps};
+			auto const step{std::floor(q)};
+			auto const in{q - step};
+			// the ramp between the flat steps narrows with the sharpness
+			auto const ramp{std::max(0.04, 1.0 - sharp * 0.92)};
+			auto t{std::clamp((in - (1.0 - ramp)) / ramp, 0.0, 1.0)};
+			t = t * t * (3.0 - 2.0 * t);
+			return std::clamp((step + t) / steps, 0.0, 1.0) * 2.0 - 1.0;
+		}
+		case terrain_waves::plateaus:
+		{
+			// cut flat above and below: the sides steeper the sharper
+			auto const gain{1.0 + sharp * 6.0};
+			return std::tanh(S * gain) / std::tanh(gain);
+		}
+		default:
+			return S;
+		}
+	};
+	auto const rough{std::clamp(static_cast<double>(waves.roughness), 0.0, 1.0)};
+	auto const shaped = [&](glm::dvec2 const &Point) -> double {
+		double value;
+		if (waves.kind == terrain_waves::bumps)
+			value = profile(shape(Point) - 1.0) + 1.0; // the bumps stand on untouched ground: shaped from -1 up
+		else if (waves.kind == terrain_waves::strips)
+			value = shape(Point); // the strips have their own banks
+		else
+			value = profile(shape(Point));
+		return value;
 	};
 	auto const half{static_cast<double>(waves.height) * 0.5};
 	return m_streamer.reshape(low, high, [&](double const X, double const Z, float &Height) {
@@ -1111,7 +1231,10 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 			offset = -static_cast<double>(waves.height) * t * uneven;
 		}
 		else
-			offset = shape(point) * half * fade;
+			offset = shaped(point) * half * fade;
+		// clods: a few centimetres of bumps about a metre across, whatever the waves
+		if (rough > 0.0)
+			offset += (wave_fractal(X / 1.3 + 17.0, Z / 1.3 - 5.0, 2) * 2.0 - 1.0) * 0.06 * rough * fade;
 		if (std::abs(offset) < 1e-4)
 			return false;
 		Height += static_cast<float>(offset);
