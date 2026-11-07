@@ -786,12 +786,13 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		char route[260]{"filmy/wroclaw.trasa"};
 		char dry[96]{"grasbrown2"};
 		char undergrowth[96]{"grassdarkgreen5"};
-		char gravel[96]{"gravel02"};
+		char gravel[96]{""}; // the ballast the film sees further off is mostly the next track: not painted unless asked
 		char trees[64]{"Duze drzewka"};
 		char bushes[64]{"Krzaki"};
 		float forest{350.0f}; // trees a hectare where the film saw a wood all over
 		float shrubs{250.0f};
 		float nearest{5.5f}; // m from the axis: the clearance and the poles
+		float shift{4.0f}; // m the trees and bushes are moved off the track: the film sees their crowns, which stand nearer than their trunks
 		float bed{3.2f}; // m from the axis, the track bed of the scenery: not painted
 		float shortest{25.0f};
 		float feather{3.0f};

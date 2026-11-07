@@ -490,7 +490,7 @@ void editor_mode::lay_out_film()
 					for (int n = 0; n < count; ++n)
 					{
 						auto const km{km_of(i) + uniform(0.0, meta.step)};
-						auto const lateral{uniform(inner, s.to)};
+						auto const lateral{uniform(inner, s.to) + settings.shift};
 						auto const yaw{uniform(0.0, 360.0)};
 						auto const height{forest ? uniform(0.8, 1.25) : uniform(0.8, 1.2)};
 						auto const width{height * uniform(0.82, 1.18)};
@@ -587,6 +587,10 @@ void editor_mode::render_film_ui()
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::DragFloat(STR_C("Nearest to the axis (m)##film"), &settings.nearest, 0.1f, 2.0f, 20.0f, "%.1f");
 		item_tooltip("Nothing nearer: the clearance and the poles of the catenary");
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::DragFloat(STR_C("Moved off the track (m)##film"), &settings.shift, 0.1f, -5.0f, 30.0f, "%.1f");
+		item_tooltip("The film takes a crown hanging over the ground for the ground under it: the trees come out nearer the track than they stand. "
+		             "This many metres they're moved outwards");
 	}
 	ImGui::Spacing();
 	if (main_button(STR_C("Lay out along the route##film"), ImVec2(-FLT_MIN, tall_button_height())))

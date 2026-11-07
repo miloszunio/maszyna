@@ -16329,3 +16329,9 @@ msgstr "Punkty obrysu bliżej prostej niż tyle są usuwane"
 
 msgid "A tree in a field, a car on a road: whatever lies inside the area picked is taken with it"
 msgstr "Drzewo na polu, auto na drodze: to, co leży w środku zaznaczenia, wchodzi do niego"
+
+msgid "Moved off the track (m)##film"
+msgstr "Odsunięcie od toru (m)##film"
+
+msgid "The film takes a crown hanging over the ground for the ground under it: the trees come out nearer the track than they stand. This many metres they're moved outwards"
+msgstr "Film bierze koronę wiszącą nad ziemią za ziemię pod nią, więc drzewa wychodzą bliżej toru, niż stoją. O tyle metrów są odsuwane na zewnątrz"
