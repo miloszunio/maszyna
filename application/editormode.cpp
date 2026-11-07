@@ -2933,6 +2933,12 @@ void editor_mode::handle_terrain_click(bool const Shift)
                 m_paint_outline.pop_back();
             return;
         }
+        // the magic wand: the area of the colour clicked makes the whole outline
+        if (m_wand.on)
+        {
+            wand_select(world);
+            break;
+        }
         add_outline_point(world);
         break;
     }

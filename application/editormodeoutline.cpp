@@ -502,6 +502,7 @@ bool editor_mode::restore_outline(std::string const &Controls)
 
 void editor_mode::render_outline_options()
 {
+	render_wand_options();
 	auto &shape{m_outline_shape};
 	bool changed{false};
 	changed |= ImGui::Checkbox(STR_C("Rounded corners##outline"), &shape.round);

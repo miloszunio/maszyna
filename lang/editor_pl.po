@@ -16173,3 +16173,159 @@ msgid ""
 msgstr ""
 "Grudy i kępy wielkości około 3 m na całej powierzchni, do 20 cm wysokości: zaorane pole, wydeptane pastwisko.\n"
 "Teren pod powierzchnią dostaje dla nich punkt co metr (także dla fal krótszych niż 15 m), pliki rosną"
+
+msgid ": it reached the edge of the square read, raise the reach"
+msgstr ": doszło do krawędzi czytanego kwadratu, zwiększ zasięg"
+
+msgid "Bushes a hectare##film"
+msgstr "Krzaków na hektar##film"
+
+msgid "Can't read the metadata %s"
+msgstr "Nie da się odczytać metadanych %s"
+
+msgid "Can't read the route %s"
+msgstr "Nie da się odczytać trasy %s"
+
+msgid "Detail (m)##wand"
+msgstr "Dokładność (m)##wand"
+
+msgid "Fill the holes##wand"
+msgstr "Wypełnij dziury##wand"
+
+msgid "From a cab-view film"
+msgstr "Z filmu z kabiny"
+
+msgid "Laid out from the film: %zu surfaces painted into the terrain (Ctrl+Z takes them back) and %zu trees and bushes"
+msgstr "Rozmieszczone z filmu: %zu powierzchni wmalowanych w teren (Ctrl+Z je cofa) i %zu drzew i krzaków"
+
+msgid "Lay out along the route##film"
+msgstr "Rozmieść wzdłuż trasy##film"
+
+msgid "Magic wand on the orthophoto##wand"
+msgstr "Magiczna różdżka na ortofoto##wand"
+
+msgid "Materials##film"
+msgstr "Materiały##film"
+
+msgid "Nearest to the axis (m)##film"
+msgstr "Najbliżej osi toru (m)##film"
+
+msgid "No group %s in the node bank: no trees laid out"
+msgstr "W banku obiektów nie ma grupy %s: drzew nie rozmieszczono"
+
+msgid "No orthophoto in the cache here yet: wait until it shows, or download the area"
+msgstr "Tu nie ma jeszcze ortofoto w pamięci podręcznej: poczekaj, aż się pokaże, albo pobierz obszar"
+
+msgid "No orthophoto in the cache under the click"
+msgstr "Pod kliknięciem nie ma ortofoto w pamięci podręcznej"
+
+msgid "Noise of the edge (m)##film"
+msgstr "Szum krawędzi (m)##film"
+
+msgid "Nothing of that colour around the click: raise the tolerance"
+msgstr "Wokół kliknięcia nie ma nic w tym kolorze: zwiększ tolerancję"
+
+msgid "Picked %.0f m2, %zu points of the outline%s"
+msgstr "Zaznaczone %.0f m2, %zu punktów obrysu%s"
+
+msgid "Reach (m)##wand"
+msgstr "Zasięg (m)##wand"
+
+msgid "Shortest piece (m)##film"
+msgstr "Najkrótszy odcinek (m)##film"
+
+msgid "Straightening (m)##wand"
+msgstr "Prostowanie (m)##wand"
+
+msgid "Surfaces##film"
+msgstr "Powierzchnie##film"
+
+msgid "Take away what was laid out from the film##film"
+msgstr "Usuń to, co rozmieszczono z filmu##film"
+
+msgid "Taken away: %zu surfaces and %zu trees and bushes laid out from the film"
+msgstr "Usunięte: %zu powierzchni i %zu drzew i krzaków rozmieszczonych z filmu"
+
+msgid "The area picked is too small: lower the detail or raise the tolerance"
+msgstr "Zaznaczony obszar jest za mały: zmniejsz dokładność albo zwiększ tolerancję"
+
+msgid "The magic wand reads the orthophoto: turn it on"
+msgstr "Magiczna różdżka czyta ortofoto: włącz je"
+
+msgid "Tolerance##wand"
+msgstr "Tolerancja##wand"
+
+msgid "Track bed up to (m)##film"
+msgstr "Torowisko do (m)##film"
+
+msgid "Transition (m)##film"
+msgstr "Przejście (m)##film"
+
+msgid "Trees a hectare##film"
+msgstr "Drzew na hektar##film"
+
+msgid "Trees and bushes##film"
+msgstr "Drzewa i krzaki##film"
+
+msgid "Waves of the noise (m)##film"
+msgstr "Fale szumu (m)##film"
+
+msgid "bushes: group of the node bank##film"
+msgstr "krzaki: grupa banku obiektów##film"
+
+msgid "dry grass##film"
+msgstr "sucha trawa##film"
+
+msgid "from the palette"
+msgstr "z palety"
+
+msgid "gravel of the verge##film"
+msgstr "żwir pobocza##film"
+
+msgid "metadata (.meta)"
+msgstr "metadane (.meta)"
+
+msgid "route (.trasa)"
+msgstr "trasa (.trasa)"
+
+msgid "trees: group of the node bank##film"
+msgstr "drzewa: grupa banku obiektów##film"
+
+msgid "undergrowth of the bushes##film"
+msgstr "podszyt pod krzakami##film"
+
+msgid "What kabina_meta.py saw beside the track in a film from the cab (.meta), laid along the route of the film over the tracks of the scenery (.trasa): the dry grass, the undergrowth and the gravel of the verge as surfaces painted into the terrain, the trees and the bushes as models of the node bank"
+msgstr "To, co kabina_meta.py zobaczyła obok toru na filmie z kabiny (.meta), rozmieszczone wzdłuż trasy filmu po torach scenerii (.trasa): sucha trawa, podszyt i żwir pobocza jako powierzchnie wmalowane w teren, drzewa i krzaki jako modele z banku obiektów"
+
+msgid "Empty: that class isn't painted. The green grass stays the grass of the terrain, the track bed (up to the distance below) is left alone"
+msgstr "Puste: tej klasy się nie maluje. Zielona trawa zostaje trawą terenu, torowiska (do odległości niżej) się nie rusza"
+
+msgid "Pieces shorter than this the one before takes: no tiles every 5 m"
+msgstr "Odcinki krótsze niż tyle wchłania poprzedni: bez kafelków co 5 m"
+
+msgid "Every group of the name; the grasses in it left out. The trees from 8 m off the axis where the film saw bushes, the bushes nearer"
+msgstr "Każda grupa o tej nazwie, bez traw. Drzewa od 8 m od osi tam, gdzie film pokazał krzaki, bliżej krzaki"
+
+msgid "Nothing nearer: the clearance and the poles of the catenary"
+msgstr "Bliżej nic: skrajnia i słupy sieci trakcyjnej"
+
+msgid "What was laid out from a film before is taken away first. Over a whole line it takes a while: the editor doesn't answer meanwhile.\nThe surfaces go back with Ctrl+Z, the trees with the button below"
+msgstr "Najpierw usuwa to, co wcześniej rozmieszczono z filmu. Na całą linię chwilę to trwa: edytor w tym czasie nie odpowiada.\nPowierzchnie cofa Ctrl+Z, drzewa przycisk niżej"
+
+msgid "LMB on the orthophoto picks the area of about the colour clicked around it and makes it the outline, instead of a point: a field, a meadow, a wood, a road. Best looked at from above (the top view)"
+msgstr "LPM na ortofoto zaznacza wokół kliknięcia obszar o podobnym kolorze i robi z niego obrys, zamiast stawiać punkt: pole, łąkę, las, drogę. Najlepiej z widoku z góry"
+
+msgid "How much the colour may differ from the one clicked: low - only the very same, high - also the shades around it"
+msgstr "Na ile kolor może się różnić od klikniętego: mało - tylko ten sam, dużo - także odcienie obok"
+
+msgid "The half side of the square around the click the photo is read in; an area larger than it is cut at its edge"
+msgstr "Połowa boku kwadratu wokół kliknięcia, w którym czyta się zdjęcie; większy obszar zostanie ucięty na jego krawędzi"
+
+msgid "A pixel of the photo read every that many metres: smaller - finer outline, slower over a large reach"
+msgstr "Piksel zdjęcia co tyle metrów: mniej - dokładniejszy obrys, wolniej przy dużym zasięgu"
+
+msgid "Points of the outline closer than that to a straight side are dropped"
+msgstr "Punkty obrysu bliżej prostej niż tyle są usuwane"
+
+msgid "A tree in a field, a car on a road: whatever lies inside the area picked is taken with it"
+msgstr "Drzewo na polu, auto na drodze: to, co leży w środku zaznaczenia, wchodzi do niego"

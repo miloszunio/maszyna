@@ -16,6 +16,7 @@ http://mozilla.org/MPL/2.0/.
 #include <deque>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
@@ -164,6 +165,10 @@ class editor_orthophoto
 	void retry_failed();
 
 	statistics stats() const;
+	// the colours of the orthophoto kept in the disk cache over a rectangle of the world (x, z), a pixel every Step metres: RGBA,
+	// rows from Min.y up (growing z), alpha 0 where no tile of it is cached. Reads the files, for a tool (the magic wand), not for
+	// every frame. returns: false if no pixel of it is cached
+	bool sample(glm::dvec2 const &Min, glm::dvec2 const &Max, double Step, int &Width, int &Height, std::vector<std::uint8_t> &Rgba) const;
 	// false when the build has no http client; cached tiles are still shown
 	static bool can_download();
 	// what a WMS tells of itself in its capabilities: its title, its fees and access constraints, its layers with a name and whether it
@@ -244,6 +249,16 @@ class editor_orthophoto
 		bool scene_dirty{true};                 // the shape needs to be rebuilt
 	};
 
+	// tiles of the disk cache decoded for sample(), the last few of them
+	struct sampled_tile
+	{
+		int width{0};
+		int height{0};
+		std::vector<std::uint8_t> rgba; // first row = north edge
+	};
+	mutable std::map<tile_key, std::shared_ptr<sampled_tile>> m_sampled;
+	mutable std::deque<tile_key> m_sampled_order;
+	std::shared_ptr<sampled_tile> sampled(tile_key const &Key) const;
 	static int level_for(int Distance, bool Hires);
 	tile_key camera_tile(glm::dvec3 const &Camera) const;
 	glm::dvec2 tile_corner(tile_key const &Key) const; // world (x,z) of the north-west corner

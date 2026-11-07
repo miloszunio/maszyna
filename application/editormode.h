@@ -777,6 +777,48 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the slopes, the surfaces drawn by hand over both), so the transitions are made again; the Cleared outlines painted first
 	// with the first material of the palette, as the ground was
 	void repaint_patches(std::vector<heightmap::surface_patch> All, std::vector<std::size_t> const &Changed, std::vector<heightmap::surface_patch> const &Cleared = {});
+	// what a cab-view film saw beside the track (editormodefilm.cpp): the .meta of kabina_meta.py laid along the route of the film over
+	// the tracks of the scenery (.trasa), the dry grass, the undergrowth and the gravel as surfaces painted into the terrain, the
+	// trees and the bushes as models of the node bank; named "kabina ..." and "kabina_<n>", so they're found and taken away again
+	struct film_settings
+	{
+		char meta[260]{"filmy/wroclaw.meta"};
+		char route[260]{"filmy/wroclaw.trasa"};
+		char dry[96]{"grasbrown2"};
+		char undergrowth[96]{"forest02"};
+		char gravel[96]{"gravel02"};
+		char trees[64]{"Duze drzewka"};
+		char bushes[64]{"Krzaki"};
+		float forest{350.0f}; // trees a hectare where the film saw a wood all over
+		float shrubs{250.0f};
+		float nearest{5.5f}; // m from the axis: the clearance and the poles
+		float bed{3.2f}; // m from the axis, the track bed of the scenery: not painted
+		float shortest{25.0f};
+		float feather{3.0f};
+		float noise{1.5f};
+		float noise_scale{8.0f};
+		bool surfaces{true};
+		bool plants{true};
+	};
+	film_settings m_film;
+	std::string m_film_status;
+	void render_film_ui();
+	void lay_out_film();
+	void remove_film();
+	// the magic wand: a click on the orthophoto picks the area of about the colour clicked, which becomes the outline
+	struct wand_settings
+	{
+		bool on{false};
+		float tolerance{18.0f}; // 0..100 of the difference of the colours
+		float radius{200.0f}; // m, half the side of the square read around the click
+		float detail{0.5f}; // m a pixel
+		float simplify{0.75f}; // m, points nearer a straight side dropped
+		bool holes{true};
+	};
+	wand_settings m_wand;
+	std::string m_wand_status;
+	bool wand_select(glm::dvec3 const &World);
+	void render_wand_options();
 	// the surfaces with a mesh and a hole of their own (made before the painting came) painted into the terrain instead
 	void convert_patches_to_paint();
 	// the Go to tool: the map with the camera, the search of the towns and the places of the camera kept with the scenery

@@ -490,6 +490,7 @@ void editor_mode::render_features_ui()
 		}
 		render_patches_ui();
 	}
+	render_film_ui();
 	if (false == m_terrain_status.empty())
 		ImGui::TextWrapped("%s", m_terrain_status.c_str());
 }

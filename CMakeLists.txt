@@ -246,6 +246,7 @@ set(SOURCES
 "application/editormodeswitchplace.cpp"
 "application/editormodeswitchmagic.cpp"
 "application/editormodefeatures.cpp"
+"application/editormodefilm.cpp"
 "application/editormodehat.cpp"
 "application/editormodeoutline.cpp"
 "application/editormodetrackgizmo.cpp"

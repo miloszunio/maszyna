@@ -1952,3 +1952,72 @@ void editor_orthophoto::draw(glm::mat4 const &ViewProjection, glm::dvec3 const &
 		drawlist->PopTextureID();
 	}
 }
+
+std::shared_ptr<editor_orthophoto::sampled_tile> editor_orthophoto::sampled(tile_key const &Key) const
+{
+	if (auto const found{m_sampled.find(Key)}; found != m_sampled.end())
+		return found->second;
+	tile_request request;
+	request.ix = Key.first;
+	request.iy = Key.second;
+	request.year = m_config.year;
+	// the sharpest kept: the 4K imagery, then the standard one
+	std::vector<std::pair<bool, std::string>> const files{{true, std::to_string(hires_pixels) + ".png"}, {true, std::to_string(hires_pixels) + ".jpg"},
+	                                                      {false, std::to_string(standard_pixels) + ".jpg"}};
+	std::shared_ptr<sampled_tile> result;
+	for (auto const &file : files)
+	{
+		std::vector<std::uint8_t> data;
+		image picture;
+		std::string error;
+		if (false == read_file(cache_file(request, file.first, file.second), data) || false == is_image(data) || false == decode(data, picture, error))
+			continue;
+		result = std::make_shared<sampled_tile>();
+		result->width = picture.width;
+		result->height = picture.height;
+		result->rgba = std::move(picture.rgba);
+		break;
+	}
+	// a tile with nothing cached is remembered too, as nothing, so it isn't looked for again pixel by pixel
+	m_sampled[Key] = result;
+	m_sampled_order.push_back(Key);
+	while (m_sampled_order.size() > 24)
+	{
+		m_sampled.erase(m_sampled_order.front());
+		m_sampled_order.pop_front();
+	}
+	return result;
+}
+
+bool editor_orthophoto::sample(glm::dvec2 const &Min, glm::dvec2 const &Max, double const Step, int &Width, int &Height, std::vector<std::uint8_t> &Rgba) const
+{
+	Width = std::max(1, static_cast<int>(std::ceil((Max.x - Min.x) / Step)));
+	Height = std::max(1, static_cast<int>(std::ceil((Max.y - Min.y) / Step)));
+	Rgba.assign(static_cast<std::size_t>(Width) * Height * 4, 0);
+	// a WMS of the user's isn't kept on the disk
+	if (false == m_config.service.empty())
+		return false;
+	bool any{false};
+	for (int row = 0; row < Height; ++row)
+		for (int column = 0; column < Width; ++column)
+		{
+			glm::dvec2 const world{Min.x + (column + 0.5) * Step, Min.y + (row + 0.5) * Step};
+			auto const puwg{to_puwg(world)}; // easting, northing
+			tile_key const key{static_cast<int>(std::floor(puwg.x / tile_size)), static_cast<int>(std::floor(puwg.y / tile_size))};
+			auto const picture{sampled(key)};
+			if (picture == nullptr || picture->width <= 0 || picture->height <= 0)
+				continue;
+			auto const u{(puwg.x - key.first * tile_size) / tile_size};
+			auto const v{((key.second + 1) * tile_size - puwg.y) / tile_size}; // first row north
+			auto const x{std::clamp(static_cast<int>(u * picture->width), 0, picture->width - 1)};
+			auto const y{std::clamp(static_cast<int>(v * picture->height), 0, picture->height - 1)};
+			auto const *from{&picture->rgba[(static_cast<std::size_t>(y) * picture->width + x) * 4]};
+			auto *to{&Rgba[(static_cast<std::size_t>(row) * Width + column) * 4]};
+			to[0] = from[0];
+			to[1] = from[1];
+			to[2] = from[2];
+			to[3] = 255;
+			any = true;
+		}
+	return any;
+}
