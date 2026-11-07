@@ -823,15 +823,15 @@ bool editor_mode::wand_select(glm::dvec3 const &World)
 		}
 	};
 	// a closed loop: split at the point farthest from the first
-	std::size_t far{0};
+	std::size_t farthest{0};
 	for (std::size_t i = 1; i < points.size(); ++i)
-		if (glm::distance(points[i], points[0]) > glm::distance(points[far], points[0]))
-			far = i;
-	keep[0] = keep[far] = 1;
-	simplify(0, far);
+		if (glm::distance(points[i], points[0]) > glm::distance(points[farthest], points[0]))
+			farthest = i;
+	keep[0] = keep[farthest] = 1;
+	simplify(0, farthest);
 	points.push_back(points[0]);
 	keep.push_back(0);
-	simplify(far, points.size() - 1);
+	simplify(farthest, points.size() - 1);
 	points.pop_back();
 	keep.pop_back();
 	std::vector<glm::dvec2> outline;
