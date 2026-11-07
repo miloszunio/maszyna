@@ -164,3 +164,10 @@ Każdy build ma kolejny numer, np. `ficzery nr 18`. Numer jest widoczny:
 - w tytule wydania na GitHubie.
 
 Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiskiem `-dom`.
+
+- **Z filmu z kabiny** (Ficzery, na dole panelu): wczytuje metadane z `kabina_meta.py` (`filmy\wroclaw.meta`) i trasę filmu po torach scenerii (`filmy\wroclaw.trasa`).
+  Suchą trawę, podszyt pod krzakami i żwir pobocza maluje w teren jako powierzchnie „kabina …” (z przejściem i szumem krawędzi, Ctrl+Z cofa),
+  a drzewa i krzaki stawia z grup banku obiektów („Duze drzewka”, „Krzaki”) z losowym obrotem i proporcjami. Torowiska nie rusza.
+  Przycisk „Usuń to, co rozmieszczono z filmu” zdejmuje wszystko naraz; ponowne rozmieszczenie najpierw usuwa poprzednie.
+- **Magiczna różdżka na ortofoto** (opcje obrysu: wycinanie powierzchni i wypełnianie terenu): LPM na ortofoto zaznacza obszar o kolorze
+  zbliżonym do klikniętego (tolerancja, zasięg, dokładność, prostowanie, wypełnianie dziur) i robi z niego cały obrys.
