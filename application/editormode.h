@@ -785,7 +785,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		char meta[260]{"filmy/wroclaw.meta"};
 		char route[260]{"filmy/wroclaw.trasa"};
 		char dry[96]{"grasbrown2"};
-		char undergrowth[96]{"forest02"};
+		char undergrowth[96]{"grassdarkgreen5"};
 		char gravel[96]{"gravel02"};
 		char trees[64]{"Duze drzewka"};
 		char bushes[64]{"Krzaki"};

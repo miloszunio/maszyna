@@ -498,7 +498,11 @@ void editor_mode::lay_out_film()
 						glm::dvec2 point;
 						if (false == route.place(km, lateral, s.right, point))
 							continue;
-						auto const location{placement_on_ground({point.x, 0.0, point.y})};
+						// the height from the terrain itself, its chunk loaded if it isn't: along a whole line most of them aren't
+						double ground{0.0};
+						if (false == m_streamer.height_at(point.x, point.y, ground, true))
+							continue;
+						glm::dvec3 const location{point.x, ground, point.y};
 						if (false == simulation::Region->point_inside(location))
 							continue;
 						auto const &pool{forest ? trees : bushes_templates};
