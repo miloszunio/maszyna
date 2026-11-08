@@ -16614,3 +16614,9 @@ msgstr "Profil pionowy zaznaczonej drogi w osobnym oknie: wyrównanie, dociągan
 
 msgid "Select a road (Roads, Select, LMB on a piece) and its profile shows here"
 msgstr "Zaznacz drogę (Drogi → Zaznaczanie → LPM na odcinku), a jej profil pojawi się tutaj"
+
+msgid "All of them are painted into the terrain already, none with a hole"
+msgstr "Wszystkie są już przemalowane w teren, żadna nie ma dziury"
+
+msgid "Nothing to paint over: no surface here is cut out with a hole and a mesh of its own"
+msgstr "Nie ma czego przemalować: żadna powierzchnia nie jest wycięta z dziurą i własną siatką"

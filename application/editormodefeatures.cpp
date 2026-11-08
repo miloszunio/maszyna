@@ -762,17 +762,23 @@ void editor_mode::render_features_ui()
 		if (patches.empty())
 			ImGui::TextDisabled("%s", STR_C("None yet"));
 		auto const meshes{static_cast<std::size_t>(std::count_if(patches.begin(), patches.end(), [](heightmap::surface_patch const &Patch) { return false == Patch.paint; }))};
+		// the button always there: with nothing to paint over it's greyed out and says why
 		if (meshes > 0)
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.75f, 0.3f, 1.0f));
 			ImGui::TextWrapped(STR_C("%zu of them are cut out with a hole and a mesh of their own (the seam shows): paint them into the terrain"), meshes);
 			ImGui::PopStyleColor();
-			render_scope("convert");
-			if (ImGui::Button(STR_C("Paint them into the terrain##convert")))
-				convert_patches_to_paint();
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", STR_C("Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back"));
 		}
+		else if (false == patches.empty())
+			ImGui::TextDisabled("%s", STR_C("All of them are painted into the terrain already, none with a hole"));
+		render_scope("convert");
+		ImGui::BeginDisabled(meshes == 0);
+		if (ImGui::Button(STR_C("Paint them into the terrain##convert")))
+			convert_patches_to_paint();
+		ImGui::EndDisabled();
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+			ImGui::SetTooltip("%s", meshes > 0 ? STR_C("Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back")
+			                                   : STR_C("Nothing to paint over: no surface here is cut out with a hole and a mesh of its own"));
 		render_patches_ui();
 	}
 	render_film_ui();
