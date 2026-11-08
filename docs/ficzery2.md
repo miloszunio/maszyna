@@ -195,3 +195,14 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
 - **Obrót modeli wokół osi pionowej**: brany z przyrostu w tej klatce, a nie z rozkładu macierzy na kąty (który za 90° przeskakiwał na 180° − kąt), więc model nie skacze w lewo i w prawo.
 - **Klepsydra**: ciężkie funkcje (torowisko i skarpy, naturalne skarpy, przemalowanie, wycinanie powierzchni, zamiana w obrysie, różdżka, film, teren do drogi, tunele) najpierw zamrażają ekran z klepsydrą i nazwą zadania. Postęp w procentach na pasku tytułu, Esc przerywa tam, gdzie się da, okno nie łapie „Nie odpowiada”.
 - **Żółte**: przyciski wprowadzające zmiany i podpowiedzi w widoku.
+
+## Build 48: obiekty pod torami zamiast tunelu z progu
+
+- **Usunięty „Wytnij tunel”** z progiem wysokości. Robił kilka kawałków tunelu na łuku drogi, dziury bez dna i konstrukcję z odwróconymi osiami (model miał x i wysokość w osiach scenerii, a modele MaSzyny mają x odwrotnie i wysokość jako trzecią oś; stąd trójkąty w powietrzu).
+  Przy stawianiu nowych obiektów stare modele „tunel” tej drogi znikają, a dziury wzdłuż niej są zamykane.
+- **Obiekt pod torem** (okno profilu drogi): łuk sklepiony, wiadukt ramowy albo przepust skrzynkowy, na każdym skrzyżowaniu drogi z nasypem toru (modyfikatorem terenu).
+  Czoła równoległe do toru (skos jak w rzeczywistości), skrzydła wzdłuż skarp do miejsca, gdzie teren schodzi do drogi, gzyms na czołach, podłoga przy drodze.
+  Teren wycinany tylko przed czołami, między skrzydłami; nad obiektem nasyp i tor zostają. Brzegi dziur chowają się w ścianach.
+  Skrajnia, szerokość w świetle, jedna tekstura z listy (wyszukiwanej w `textures/`). Modele i obrysy dziur w `models/kabina_obiekty/`.
+- **Poradnik** (`docs/poradnik.md`) dołączany do opisu każdej wersji.
+- Poprawka obrotu modeli wysłana do maj00ra jako gałąź `fix/gizmo-yaw-rotation` (na bazie `feat/switch-blades`).

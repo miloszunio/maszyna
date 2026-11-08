@@ -3551,9 +3551,12 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float crest{1500.0f}; // m
 		float sag{800.0f}; // m
 		bool every_road{false}; // the terrain led to all the roads of the scenery, not only to the selected one
-		float tunnel_cover{2.0f}; // m of ground over the surface of the road from which it goes under it
-		bool tunnel_structure{true}; // walls, the deck or the vault and the wing walls built with the tunnel
-		std::string tunnel_material{"beton001"}; // what they're made of
+		// the structures where the road runs under the formation of a track
+		int structure_type{0}; // 0 an arch, 1 a frame viaduct, 2 a box culvert
+		float structure_clearance{4.7f}; // m over the road to the soffit or the crown
+		float structure_width{0.0f}; // m between the walls, 0: as the road
+		std::string structure_material{"beton001"}; // the one texture of the whole structure
+		std::vector<std::string> structure_textures; // found under textures/ to choose from
 		bool varied{false}; // the selected piece is shown with lanes of its own for its end
 		bool chain{false}; // the point to build from is set
 		glm::dvec3 point{0.0}; // where the next piece starts
@@ -3642,14 +3645,15 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the terrain shaped to the road with a modifier, the way the formation of a track does: under the roadway and its shoulders
 	// flat at the surface, with slopes 1:n to the ground beside; of the selected road or of all of them
 	void road_terrain(bool Remove);
-	// along the selected road, where the ground is over it by tunnel_cover or more (an embankment, a hill), a hole cut as wide as
-	// the road; the terrain led to the road leaves those stretches alone. Close: the holes closed again
-	void road_tunnel(bool Close);
-	// the walls, the deck (or the vault and the ground over it) and the wing walls of a tunnel under the road from sample First
-	// to Last of Steps along the piece, written as a model of its own and placed, named "tunel <road> <n>"
-	void road_tunnel_structure(road_node const &Road, int First, int Last, int Steps, double Beside, std::size_t Number);
+	// at every crossing of the selected road with the formation of a track (a modifier of the terrain along it), where the road
+	// runs under it: an arch, a frame viaduct or a box culvert with its faces along the track and the wing walls along the slopes,
+	// the ground before the faces cut away; written as models of their own with the outlines of their holes beside them.
+	// Remove: the ones of the road taken away and their holes closed
+	void road_structures(bool Remove);
+	// the textures of walls under textures/, to choose the one of the structures from
+	void structure_textures_search();
 	// the vertical profile of the selected road in a window of its own (P, or the button of the road panel): the ground and the
-	// road along it, and what evens it out, leads the terrain to it and cuts the tunnels
+	// road along it, and what evens it out, leads the terrain to it and builds the structures under the tracks
 	struct road_profile_view
 	{
 		bool open{false};

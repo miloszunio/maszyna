@@ -339,6 +339,10 @@ jobs:
           if description="$(gh api -H "Accept: application/vnd.github.raw" "repos/$GH_REPO/contents/docs/$slug.md?ref=$SHA" 2>/dev/null)" && [ -n "$description" ]; then
             notes="$(printf '%s\n\n---\n\n%s' "$notes" "$description")"
           fi
+          # the guide to our features of the editor, under the description, with every version
+          if guide="$(gh api -H "Accept: application/vnd.github.raw" "repos/$GH_REPO/contents/docs/poradnik.md?ref=$SHA" 2>/dev/null)" && [ -n "$guide" ]; then
+            notes="$(printf '%s\n\n---\n\n%s' "$notes" "$guide")"
+          fi
 
           gh release delete "$tag" --yes --cleanup-tag || true
           gh release create "$tag" \

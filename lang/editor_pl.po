@@ -16872,3 +16872,87 @@ msgstr "Droga ekspresowa (S)"
 
 msgid "Motorway (A)"
 msgstr "Autostrada (A)"
+
+msgid "Structure under the track##roadprofile"
+msgstr "Obiekt pod torem##roadprofile"
+
+msgid "Arch (stone, brick)"
+msgstr "Łuk sklepiony (kamień, cegła)"
+
+msgid "Frame viaduct (concrete)"
+msgstr "Wiadukt ramowy (beton)"
+
+msgid "Box culvert"
+msgstr "Przepust skrzynkowy"
+
+msgid "Kind##structure"
+msgstr "Rodzaj##structure"
+
+msgid "Where the road crosses the formation of a track (its modifier of the terrain): an arch on abutments, a frame of walls and a deck,\nor a box culvert; faces along the track, wing walls along the slopes, the ground before the faces cut away down to the road"
+msgstr "Tam, gdzie droga przecina nasyp toru (jego modyfikator terenu): łuk na przyczółkach, rama ze ścian i płyty\nalbo przepust skrzynkowy; czoła wzdłuż toru, skrzydła wzdłuż skarp, teren przed czołami wycięty do poziomu drogi"
+
+msgid "Clearance over the road (m)##structure"
+msgstr "Skrajnia nad drogą (m)##structure"
+
+msgid "Width of the opening (m)##structure"
+msgstr "Szerokość w świetle (m)##structure"
+
+msgid "as the road"
+msgstr "jak droga"
+
+msgid "Between the walls; 0: the road with its shoulders and kerbs, half a metre more"
+msgstr "Między ścianami; 0: droga z poboczami i krawężnikami, plus pół metra"
+
+msgid "Texture##structure"
+msgstr "Tekstura##structure"
+
+msgid "Look for them first"
+msgstr "Najpierw je wyszukaj"
+
+msgid "Look for textures##structure"
+msgstr "Szukaj tekstur##structure"
+
+msgid "Looking for the textures of walls"
+msgstr "Szukanie tekstur ścian"
+
+msgid "Textures under textures/ with concrete, brick, stone or wall in the name; one texture covers the whole structure"
+msgstr "Tekstury z textures/ z betonem, cegłą, kamieniem albo murem w nazwie; jedna tekstura pokrywa cały obiekt"
+
+msgid "Build the structures under the tracks"
+msgstr "Postaw obiekty pod torami"
+
+msgid "Building the structures under the tracks"
+msgstr "Stawianie obiektów pod torami"
+
+msgid "At every crossing of this road with the formation of a track, where the road runs under it at the height set in the profile.\nThe structures of the road built before are taken away first. Ctrl+Z brings the terrain back, the button beside takes the models away"
+msgstr "Na każdym skrzyżowaniu tej drogi z nasypem toru, tam gdzie droga biegnie pod nim na wysokości z profilu.\nObiekty tej drogi postawione wcześniej najpierw znikają. Ctrl+Z przywraca teren, przycisk obok usuwa modele"
+
+msgid "Take them away##structure"
+msgstr "Usuń je##structure"
+
+msgid "Taking the structures away"
+msgstr "Usuwanie obiektów"
+
+msgid "The structures of this road taken away and the holes before their faces closed"
+msgstr "Obiekty tej drogi usunięte, dziury przed ich czołami zamknięte"
+
+msgid "Structures under the tracks taken away: %zu, their holes closed. Ctrl+Z brings the terrain back"
+msgstr "Obiekty pod torami usunięte: %zu, dziury zamknięte. Ctrl+Z przywraca teren"
+
+msgid "%s: the road runs along the track there (under 20 degrees)"
+msgstr "%s: droga biegnie tam wzdłuż toru (pod kątem mniejszym niż 20°)"
+
+msgid "%s: the formation is %.1f m over the road, the structure needs %.1f m: lower the road by %.1f m or the clearance"
+msgstr "%s: nasyp jest %.1f m nad drogą, a obiekt potrzebuje %.1f m: obniż drogę o %.1f m albo zmniejsz skrajnię"
+
+msgid "%s: the model couldn't be written in %s"
+msgstr "%s: nie udało się zapisać modelu w %s"
+
+msgid "The road crosses no formation of a track (no modifier of the terrain along a track under it)"
+msgstr "Droga nie przecina żadnego nasypu toru (pod nią nie ma modyfikatora terenu wzdłuż toru)"
+
+msgid "Structures under the tracks: %zu built of %zu crossings. Ctrl+Z brings the terrain back, \"Take them away\" the models too"
+msgstr "Obiekty pod torami: postawione %zu z %zu skrzyżowań. Ctrl+Z przywraca teren, „Usuń je” usuwa też modele"
+
+msgid "Textures of walls found: %zu"
+msgstr "Znalezione tekstury ścian: %zu"
