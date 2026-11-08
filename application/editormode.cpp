@@ -3687,6 +3687,48 @@ bool editor_mode::cursor_on_ground(glm::dvec3 &World)
     return true;
 }
 
+void editor_mode::orthophoto_hurry()
+{
+    if (false == m_orthophoto.enabled())
+        m_orthophoto.enabled(true);
+    // what the camera sees of the ground: rays through a grid over the screen to the terrain, or as far as the reach of the
+    // orthophoto along the ground where they don't meet it (the sky, the edge of the loaded terrain)
+    ImGuiIO const &io = ImGui::GetIO();
+    if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f)
+        return;
+    auto const inverse = glm::inverse(editor_mode::projection_matrix(io.DisplaySize.x / io.DisplaySize.y) * GfxRenderer->Camera_View_Matrix());
+    auto const camera{GfxRenderer->Camera_Position()};
+    double constexpr reach{2500.0};
+    glm::dvec2 low{camera.x, camera.z}, high{camera.x, camera.z};
+    for (int j = 0; j <= 6; ++j)
+        for (int i = 0; i <= 6; ++i)
+        {
+            glm::vec2 const ndc{i / 3.0f - 1.0f, j / 3.0f - 1.0f};
+            auto const point = [&](float const Depth) {
+                auto const clip = inverse * glm::vec4(ndc, Depth, 1.0f);
+                return glm::dvec3{glm::vec3{clip} / clip.w};
+            };
+            auto direction = point(0.5f) - point(0.0f);
+            if (glm::length(direction) < 1e-9)
+                continue;
+            direction = glm::normalize(direction);
+            glm::dvec3 hit;
+            if (false == m_streamer.raycast(camera + point(0.0f), direction, reach, hit))
+            {
+                glm::dvec2 flat{direction.x, direction.z};
+                if (glm::length(flat) < 1e-6)
+                    continue;
+                flat = glm::normalize(flat) * reach;
+                hit = {camera.x + flat.x, 0.0, camera.z + flat.y};
+            }
+            low = glm::min(low, glm::dvec2{hit.x, hit.z});
+            high = glm::max(high, glm::dvec2{hit.x, hit.z});
+        }
+    auto const count{m_orthophoto.hurry(low, high)};
+    ui()->set_status(count > 0 ? format(STR_C("Orthophoto: %zu tiles of the view downloaded first (Ctrl+Tab)"), count)
+                           : std::string{STR("Orthophoto: the view is all shown already (Ctrl+Tab)")});
+}
+
 bool editor_mode::terrain_cursor(glm::dvec3 &World) const
 {
     // along the ray through the cursor as it is in this frame: the depth read back lags a frame behind
@@ -7408,7 +7450,24 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         }
         // laying: the bends of straights or a curve traced, for the points clicked from now on
         if (is_press(Action) && false == anyModifier && ui()->mode() == nodebank_panel::TRACK && m_lay.active && false == ImGui::GetIO().WantTextInput)
+        {
             lay_switch_mode();
+            break;
+        }
+        if (false == is_press(Action) || ImGui::GetIO().WantTextInput)
+            break;
+        // Ctrl+Tab: the orthophoto of what the camera sees downloaded before anything else
+        if (Mods & GLFW_MOD_CONTROL)
+        {
+            orthophoto_hurry();
+            break;
+        }
+        // Tab, where nothing else takes it: the orthophoto shown or hidden
+        if (false == anyModifier)
+        {
+            m_orthophoto.enabled(false == m_orthophoto.enabled());
+            ui()->set_status(m_orthophoto.enabled() ? STR("Orthophoto on (Tab)") : STR("Orthophoto off (Tab)"));
+        }
         break;
 
     case GLFW_KEY_BACKSPACE:

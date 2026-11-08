@@ -2158,6 +2158,35 @@ bool editor_mode::render_road_layout(road_node::state &State)
 			             "and sets the banks to reach it with the slope given above: down where the road is over the ground, up where it's cut into it.\n"
 			             "Done for the selected piece, or for every piece of the road if the changes go to the whole road");
 		}
+		if (tool.selected != nullptr && ImGui::CollapsingHeader(STR_C("Vertical profile and terrain##road")))
+		{
+			ImGui::SetNextItemWidth(120.0f);
+			ImGui::DragFloat(STR_C("Steepest grade (%)##road"), &tool.maxgrade, 0.1f, 0.5f, 20.0f, "%.1f");
+			item_tooltip("A road in the country 6-8 %, a main road 4-5 %, a motorway 4 %");
+			ImGui::SetNextItemWidth(120.0f);
+			ImGui::DragFloat(STR_C("Crest radius (m)##road"), &tool.crest, 50.0f, 50.0f, 50000.0f, "%.0f");
+			item_tooltip("The smallest radius of the vertical curve over a hilltop: the larger, the farther a driver sees over it");
+			ImGui::SetNextItemWidth(120.0f);
+			ImGui::DragFloat(STR_C("Dip radius (m)##road"), &tool.sag, 50.0f, 50.0f, 50000.0f, "%.0f");
+			item_tooltip("The smallest radius of the vertical curve in a dip");
+			if (ImGui::Button(STR_C("Even out the profile of the road")))
+			{
+				road_profile_smooth();
+				return false;
+			}
+			item_tooltip("The heights of all the pieces of the road: grades no steeper and curves no sharper than set, as near the heights it had as that lets;\n"
+			             "its two ends stay where they are, so it keeps meeting the junctions. Ctrl+Z takes it back");
+			ImGui::Separator();
+			ImGui::Checkbox(STR_C("All the roads of the scenery##roadterrain"), &tool.every_road);
+			if (ImGui::Button(STR_C("Lead the terrain to the road")))
+				road_terrain(false);
+			item_tooltip("The terrain made flat under the roadway and its sides, with slopes of the grade set for the banks (1:n) down or up to the ground around,\n"
+			             "rough as the natural slopes of the track bed are set. It follows the road when it's led again. Ctrl+Z takes it back");
+			ImGui::SameLine();
+			if (ImGui::Button(STR_C("Let go##roadterrain")))
+				road_terrain(true);
+			item_tooltip("The terrain no longer shaped by the road (of the selected one, or of all of them)");
+		}
 	}
 
 	// the two directions kept apart

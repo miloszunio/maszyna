@@ -16335,3 +16335,75 @@ msgstr "Odsunięcie od toru (m)##film"
 
 msgid "The film takes a crown hanging over the ground for the ground under it: the trees come out nearer the track than they stand. This many metres they're moved outwards"
 msgstr "Film bierze koronę wiszącą nad ziemią za ziemię pod nią, więc drzewa wychodzą bliżej toru, niż stoją. O tyle metrów są odsuwane na zewnątrz"
+
+msgid "Orthophoto on (Tab)"
+msgstr "Ortofoto włączone (Tab)"
+
+msgid "Orthophoto off (Tab)"
+msgstr "Ortofoto wyłączone (Tab)"
+
+msgid "The road is too short to even out"
+msgstr "Droga jest za krótka, żeby wyrównać profil"
+
+msgid "Profile evened out over %.0f m, pieces: %zu; steepest %.1f %%, moved by up to %.2f m. Ctrl+Z takes it back"
+msgstr "Profil wyrównany na %.0f m, odcinków: %zu; najstromiej %.1f %%, przesunięte o najwyżej %.2f m. Ctrl+Z cofa"
+
+msgid "Let go##roadterrain"
+msgstr "Puść teren##roadterrain"
+
+msgid "Select a road, or tick all the roads"
+msgstr "Zaznacz drogę albo zaznacz wszystkie drogi"
+
+msgid "Crest radius (m)##road"
+msgstr "Promień łuku wypukłego (m)##road"
+
+msgid "Lead the terrain to the road"
+msgstr "Dociągnij teren do drogi"
+
+msgid "Steepest grade (%)##road"
+msgstr "Największe pochylenie (%)##road"
+
+msgid "The heights of all the pieces of the road: grades no steeper and curves no sharper than set, as near the heights it had as that lets;\nits two ends stay where they are, so it keeps meeting the junctions. Ctrl+Z takes it back"
+msgstr "Wysokości wszystkich odcinków drogi: pochylenia nie większe i łuki nie ostrzejsze niż ustawione, możliwie blisko poprzednich wysokości;\noba końce zostają na miejscu, więc droga dalej trafia w skrzyżowania. Ctrl+Z cofa"
+
+msgid "Even out the profile of the road"
+msgstr "Wyrównaj profil drogi"
+
+msgid "The road forks: only the run from its end to the fork was evened out"
+msgstr "Droga się rozwidla: wyrównany tylko odcinek od jej końca do rozwidlenia"
+
+msgid "All the roads of the scenery##roadterrain"
+msgstr "Wszystkie drogi scenerii##roadterrain"
+
+msgid "Vertical profile and terrain##road"
+msgstr "Profil pionowy i teren##road"
+
+msgid "Orthophoto: the view is all shown already (Ctrl+Tab)"
+msgstr "Ortofoto: cały widok jest już pokazany (Ctrl+Tab)"
+
+msgid "The terrain shaped to the roads, pieces: %zu, slopes 1:%.2f. Ctrl+Z takes it back"
+msgstr "Teren dociągnięty do dróg, odcinków: %zu, skarpy 1:%.2f. Ctrl+Z cofa"
+
+msgid "The terrain made flat under the roadway and its sides, with slopes of the grade set for the banks (1:n) down or up to the ground around,\nrough as the natural slopes of the track bed are set. It follows the road when it's led again. Ctrl+Z takes it back"
+msgstr "Teren wyrównany pod jezdnią i poboczami, ze skarpami o nachyleniu ustawionym dla skarp drogi (1:n) w dół albo w górę do terenu obok,\nnierównymi jak naturalne skarpy torowiska. Ponowne dociągnięcie idzie za drogą. Ctrl+Z cofa"
+
+msgid "Dip radius (m)##road"
+msgstr "Promień łuku wklęsłego (m)##road"
+
+msgid "The terrain no longer shaped by the road (of the selected one, or of all of them)"
+msgstr "Teren przestaje się dopasowywać do drogi (zaznaczonej albo wszystkich)"
+
+msgid "The smallest radius of the vertical curve over a hilltop: the larger, the farther a driver sees over it"
+msgstr "Najmniejszy promień łuku pionowego na wzniesieniu: im większy, tym dalej kierowca widzi za szczyt"
+
+msgid "Orthophoto: %zu tiles of the view downloaded first (Ctrl+Tab)"
+msgstr "Ortofoto: %zu kafli widoku pobieranych w pierwszej kolejności (Ctrl+Tab)"
+
+msgid "The terrain let go of the roads: %zu modifiers taken away. Ctrl+Z takes it back"
+msgstr "Teren puścił drogi: usunięto %zu modyfikatorów. Ctrl+Z cofa"
+
+msgid "The smallest radius of the vertical curve in a dip"
+msgstr "Najmniejszy promień łuku pionowego w zagłębieniu"
+
+msgid "A road in the country 6-8 %, a main road 4-5 %, a motorway 4 %"
+msgstr "Droga lokalna 6-8 %, główna 4-5 %, autostrada 4 %"

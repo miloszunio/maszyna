@@ -169,6 +169,9 @@ class editor_orthophoto
 	// rows from Min.y up (growing z), alpha 0 where no tile of it is cached. Reads the files, for a tool (the magic wand), not for
 	// every frame. returns: false if no pixel of it is cached
 	bool sample(glm::dvec2 const &Min, glm::dvec2 const &Max, double Step, int &Width, int &Height, std::vector<std::uint8_t> &Rgba) const;
+	// the tiles over a rectangle of the world (x, z; what the camera sees), within the reach around the camera, asked for before anything
+	// else, the ones which failed tried again at once. returns: how many were put at the front of the queue
+	std::size_t hurry(glm::dvec2 const &Min, glm::dvec2 const &Max);
 	// false when the build has no http client; cached tiles are still shown
 	static bool can_download();
 	// what a WMS tells of itself in its capabilities: its title, its fees and access constraints, its layers with a name and whether it
@@ -305,6 +308,7 @@ class editor_orthophoto
 	std::deque<job> m_queue;
 	std::deque<result> m_done;
 	tile_key m_focus{0, 0}; // workers pick the queued tile closest to it
+	std::set<tile_key> m_urgent; // asked for by hurry(): workers take these first; guarded by m_mutex
 	std::set<tile_key> m_running; // tiles a worker is on: another job of one waits till that one is done
 	std::size_t m_running_hires{0}; // of them, the ones of a 4K image
 	// the download of the area in the background: the tiles nearest to the camera first, taken when no tile around the camera waits

@@ -819,6 +819,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	wand_settings m_wand;
 	std::string m_wand_status;
 	bool wand_select(glm::dvec3 const &World);
+	// Ctrl+Tab: the tiles of the orthophoto the camera sees asked for before any other
+	void orthophoto_hurry();
 	void render_wand_options();
 	// the surfaces with a mesh and a hole of their own (made before the painting came) painted into the terrain instead
 	void convert_patches_to_paint();
@@ -3541,6 +3543,11 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::vector<glm::dvec3> points; // selected points where the pieces meet or end
 		road_node::state settings; // layout shown in the window: of the selected piece, or of the pieces about to be built
 		bool whole{true}; // layout changes go to every piece of the road the selected one belongs to
+		// the vertical profile: the steepest grade, the smallest radius of a vertical curve over a crest and in a dip
+		float maxgrade{6.0f}; // %
+		float crest{1500.0f}; // m
+		float sag{800.0f}; // m
+		bool every_road{false}; // the terrain led to all the roads of the scenery, not only to the selected one
 		bool varied{false}; // the selected piece is shown with lanes of its own for its end
 		bool chain{false}; // the point to build from is set
 		glm::dvec3 point{0.0}; // where the next piece starts
@@ -3611,6 +3618,12 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void road_roundabout(glm::dvec3 const &Ground);
 	// leads the banks of the selected piece, or of the whole road, to the ground beside it
 	void road_bank_to_ground();
+	// the heights of the selected road (all its pieces) evened out: grades no steeper than set, crests and dips rounded with
+	// the radii set, the ends where it meets other roads kept where they are
+	void road_profile_smooth();
+	// the terrain shaped to the road with a modifier, the way the formation of a track does: under the roadway and its shoulders
+	// flat at the surface, with slopes 1:n to the ground beside; of the selected road or of all of them
+	void road_terrain(bool Remove);
 	// level crossings and traffic points
 	void roadpoint_select(roadpoint_node *Point);
 	// works out the point a click of the place tool would make. Fresh: even if the cursor is where it was the last time

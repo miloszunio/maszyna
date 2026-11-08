@@ -171,3 +171,8 @@ Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiski
   Przycisk „Usuń to, co rozmieszczono z filmu” zdejmuje wszystko naraz; ponowne rozmieszczenie najpierw usuwa poprzednie.
 - **Magiczna różdżka na ortofoto** (opcje obrysu: wycinanie powierzchni i wypełnianie terenu): LPM na ortofoto zaznacza obszar o kolorze
   zbliżonym do klikniętego (tolerancja, zasięg, dokładność, prostowanie, wypełnianie dziur) i robi z niego cały obrys.
+
+- **Tab** pokazuje i chowa ortofoto (tam, gdzie Tab nie ma innej roli), **Ctrl+Tab** pobiera w pierwszej kolejności kafle ortofoto widoczne w kamerze i od razu ponawia te, które się nie udały.
+- **Drogi: profil pionowy i teren** (zaznaczona droga, sekcja „Profil pionowy i teren”): wyrównanie wysokości całej drogi z największym pochyleniem
+  i promieniami łuków wypukłych i wklęsłych (końce zostają na miejscu), oraz dociągnięcie terenu do drogi modyfikatorem jak przy torowisku:
+  płasko pod jezdnią i poboczami, skarpy 1:n z naturalną nierównością; dla zaznaczonej drogi albo wszystkich dróg scenerii, z możliwością puszczenia terenu.
