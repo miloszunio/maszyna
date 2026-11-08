@@ -628,11 +628,6 @@ void editor_mode::render_features_ui()
 		render_go_to_ui();
 		return;
 	}
-	if (m_feature_tool == feature_tool::hat)
-	{
-		render_hat_ui();
-		return;
-	}
 	if (false == m_streamer.active())
 	{
 		ImGui::TextWrapped("%s", STR_C("The scenery has no terrain yet. It's made in the Terrain field of work"));

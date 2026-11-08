@@ -248,7 +248,6 @@ set(SOURCES
 "application/editormodefeatures.cpp"
 "application/editormodefilm.cpp"
 "application/editormoderoadprofile.cpp"
-"application/editormodehat.cpp"
 "application/editormodeoutline.cpp"
 "application/editormodetrackgizmo.cpp"
 "application/editormoderecords.cpp"

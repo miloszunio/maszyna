@@ -705,26 +705,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	{
 		cut_out, // an outline drawn as with Fill, painted into the terrain as a surface of its own
 		track_bed, // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
-		go_to, // the map with the camera on it, a search of towns and the places of the camera kept
-		hat // Kapelusz: a rectangle over the track, the smallest switch which fits laid in it (editormodehat.cpp)
+		go_to // the map with the camera on it, a search of towns and the places of the camera kept
 	};
-	struct hat_plan
-	{
-		bool valid{false};
-		std::string report;
-		TTrack *main{nullptr};
-		editor_track::straight line;
-		editor_track::switch_template shape;
-		double along{0.0};
-		int forward{1};
-		int side{1};
-		std::vector<segment_data> paths;
-		std::vector<glm::dvec3> box; // the rectangle along the track, its corners
-	};
-	hat_plan plan_hat() const;
-	void lay_hat();
-	void render_hat_ui();
-	std::vector<glm::dvec3> m_hat_box;
 	// the transition the surfaces cut out blend over, and the noise their edge is shifted by
 	float m_cut_feather{1.0f};
 	float m_cut_noise{0.3f};

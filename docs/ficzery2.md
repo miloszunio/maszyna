@@ -81,15 +81,6 @@ Powierzchnia pamięta kliknięte punkty i opcje, więc „Obrysuj ponownie” pr
 - Ustawienia zapisują się przy modyfikatorach w `terrain.yaml` (`natural: {...}`).
 - Do łagodzenia skarp edytor potrzebuje terenu sprzed nasypów, czyli wycinka `HBAS`. Konwerter robi go opcją `--terrain-base`, a skarpy naturalne od razu opcją `--natural-slopes`. Ten sam szum jest w silniku i w konwerterze co do bitu, więc teren z konwertera i z edytora wychodzi taki sam.
 
-**Kapelusz.**
-- Kliknij dwa rogi prostokąta nad torem, po przekątnej. Najwygodniej robić to w rzucie z góry.
-- Prostokąt sam układa się wzdłuż toru. Algorytm sprawdza tor pod nim i wybiera najmniejszy rozjazd z katalogu (dla szyny tego toru), który mieści się w prostokącie. Tor zwrotny idzie w tę stronę, w którą prostokąt sięga dalej.
-- „Wstaw rozjazd” wstawia go na środku prostej w prostokącie. Tor jest przycinany i dowiązywany, a Ctrl+Z cofa całość.
-- Gdy miejsca jest za mało, Kapelusz mówi, ile brakuje wzdłuż albo w poprzek toru i dlaczego:
-  - prosta kończy się łukiem R … albo krzywą przejściową,
-  - prosta kończy się na innym rozjeździe,
-  - pod prostokątem jest łuk albo przechyłka.
-
 **Idź do.**
 - Mapa jak w narzędziu NMT maj00ra, z kamerą zaznaczoną strzałką w kierunku patrzenia. Może podążać za kamerą. Klik na mapie i „Idź do klikniętego punktu” przenosi tam kamerę.
 - Wyszukiwarka miast i wsi z obszaru sieci IRT. Polskie znaki są obojętne. Przycisk „Idź do wyszukanego” albo dwuklik na liście przenosi tam kamerę.
@@ -190,3 +181,8 @@ Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiski
   **Alt+LPM** pipeta, **1–9** pierwsze dziewięć kafelków.
 - **Zamień w obrysie** (narzędzie Wypełnij): materiał A na zaznaczony tylko w obrysie (np. z różdżki), reszta scenerii bez zmian.
 - **Wyczyść malowanie całego terenu** (pod paletą): każdy kawałek z więcej niż jednym materiałem dostaje sam pierwszy; najpierw kopia `terrain\<nazwa>_przed_czyszczeniem`.
+
+
+## Usunięty Kapelusz
+
+Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu Ficzery jako zbędne.
