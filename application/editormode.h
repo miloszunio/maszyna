@@ -823,6 +823,18 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void orthophoto_hurry();
 	// around the camera or the whole scenery, beside every button which works over an area
 	void render_scope(char const *Id);
+	// the paint of the whole terrain taken away, pack by pack over the frames (each chunk covered with the first material of the
+	// palette alone), after a copy of the terrain files is taken
+	struct paint_clearing
+	{
+		std::vector<std::pair<int, int>> packs; // still to do
+		std::size_t total{0};
+		std::size_t chunks{0}; // with more than one material, cleared
+		std::string backup;
+	};
+	paint_clearing m_paint_clearing;
+	void clear_paint_start();
+	void clear_paint_step();
 	void render_wand_options();
 	// the surfaces with a mesh and a hole of their own (made before the painting came) painted into the terrain instead
 	void convert_patches_to_paint();
@@ -853,7 +865,14 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	track_bed_settings m_track_bed;
 	void render_features_ui();
 	void render_material_palette();
-	void render_palette_entries(); // the entries of the palette of the terrain: picked, moved up and down, taken off
+	void render_palette_entries();
+	// the palette as tiles in groups: the group of an entry, and setting it (kept beside the terrain)
+	std::string palette_group(std::size_t Layer);
+	void palette_group(std::size_t Layer, std::string const &Group);
+	std::map<int, std::string> m_palette_groups;
+	std::string m_palette_groups_dir;
+	int m_paint_mode{0}; // the brush: 0 mixes the material in, 1 covers with it fully, 2 takes the paint back to the first material
+	bool paint_at_cursor(std::vector<std::pair<std::uint16_t, int>> &Weights, std::size_t &Used) const; // the entries of the palette of the terrain: picked, moved up and down, taken off
 	void cut_track_bed();
 	// the slopes of the formation modifiers around the camera (or of all) made natural, the terrain shaped anew
 	heightmap::modifier::natural_shape m_natural{0.8, 15.0, 0.15, 0.3, 0.08};

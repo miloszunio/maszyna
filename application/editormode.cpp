@@ -1642,6 +1642,7 @@ bool editor_mode::update()
         }
         render_track_context();
         render_road_profile_window();
+        clear_paint_step();
         steps.step("context");
         update_build_tools();
         steps.step("laying");
@@ -2025,6 +2026,37 @@ void editor_mode::render_terrain_ui()
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", STR_C("The area gets the material turned by this angle: an entry of the palette with the material at that angle\n"
                                     "is used, or added. Ctrl+click to type it"));
+        // in the outline only: one material of the palette for another, the rest of the scenery as it was
+        if (false == layers.empty())
+        {
+            static int from{0};
+            auto const order{m_streamer.layer_order()};
+            from = std::clamp(from, 0, static_cast<int>(layers.size()) - 1);
+            ImGui::SetNextItemWidth(170.0f);
+            if (ImGui::BeginCombo(STR_C("Replace in the outline##replace"), layers[from].material.c_str()))
+            {
+                for (auto const i : order)
+                    if (ImGui::Selectable(layers[i].material.c_str(), static_cast<int>(i) == from))
+                        from = i;
+                ImGui::EndCombo();
+            }
+            ImGui::SameLine();
+            ImGui::BeginDisabled(m_paint_outline.size() < 3 || from == m_terrain_layer);
+            if (ImGui::Button(STR_C("with the chosen one##replace")))
+            {
+                terrain_history_step();
+                auto const done{m_streamer.replace_in_area(shaped_outline(), static_cast<std::uint16_t>(from), static_cast<std::uint16_t>(m_terrain_layer))};
+                terrain_history_step();
+                m_terrain_status = format(STR_C("Replaced in %zu chunks%s"), done.first,
+                                          done.second > 0 ? format(STR_C("; %zu had no room for another material"), done.second).c_str() : "");
+                if (done.first > 0)
+                    m_paint_outline.clear();
+            }
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("%s", STR_C("Within the outline, what's painted with the material picked here gets the one chosen in the palette;\n"
+                                              "elsewhere it stays. The magic wand makes the outline of a field in a click. Ctrl+Z takes it back"));
+        }
         ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
         if (ImGui::Button(STR_C("Fill the area")))
             fill_terrain_area();
@@ -3636,7 +3668,12 @@ void editor_mode::handle_terrain_brush(double Deltatime)
         break;
     }
     case terrain_tool::paint:
-        m_streamer.paint(world.x, world.z, m_terrain_brush_radius, std::min(1.0, rate * 0.25), Global.shiftState ? std::uint16_t{0} : static_cast<std::uint16_t>(m_terrain_layer));
+        // Alt+LMB picks the material in the palette instead (the palette sees to it)
+        if (Global.altState)
+            break;
+        // the brush: mixes the material in, covers with it at once, or takes the paint back to the first material
+        m_streamer.paint(world.x, world.z, m_terrain_brush_radius, m_paint_mode == 1 ? 1.0 : std::min(1.0, rate * 0.25),
+                         (Global.shiftState || m_paint_mode == 2) ? std::uint16_t{0} : static_cast<std::uint16_t>(m_terrain_layer));
         break;
     case terrain_tool::restore:
         shaped = m_streamer.restore_stitching(world.x, world.z, m_terrain_brush_radius, std::min(1.0, rate * 0.5));

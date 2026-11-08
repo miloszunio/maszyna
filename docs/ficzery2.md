@@ -184,3 +184,9 @@ Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiski
 - **Zakres „Wokół kamery / Cała sceneria”** jest teraz przy każdym przycisku, który działa na obszar (wycinanie torowiska, naturalne skarpy, przemalowanie w teren).
 - **Skrzyżowania**: asfalt dróg i skrzyżowań mapowany z góry w jednej skali, bez szwów na styku wlotów.
 - **Widok > Kursor rysowany w obrazie (stream)**: wskaźnik widoczny w streamie i nagraniu okna.
+- **Nowa paleta tekstur**: kafelki z podglądem w grupach (zgadywanych z nazw, przeciąganie na nazwę grupy przenosi), przesuwanie przeciąganiem,
+  PPM na kafelku: skala, obrót, zmiana materiału wszędzie naraz (bez nowego wpisu), grupa, zdjęcie z palety.
+  Pędzel: **Mieszaj / Kryj / Zmazuj**; pod paletą: co leży pod kursorem (w %) i ile z 8 materiałów ma kawałek (na czerwono, gdy brak miejsca);
+  **Alt+LPM** pipeta, **1–9** pierwsze dziewięć kafelków.
+- **Zamień w obrysie** (narzędzie Wypełnij): materiał A na zaznaczony tylko w obrysie (np. z różdżki), reszta scenerii bez zmian.
+- **Wyczyść malowanie całego terenu** (pod paletą): każdy kawałek z więcej niż jednym materiałem dostaje sam pierwszy; najpierw kopia `terrain\<nazwa>_przed_czyszczeniem`.

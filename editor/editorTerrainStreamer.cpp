@@ -8,6 +8,7 @@ http://mozilla.org/MPL/2.0/.
 */
 
 #include "stdafx.h"
+#include <cstdio>
 #include "editor/editorTerrainStreamer.hpp"
 
 #include "model/vertex.h"
@@ -2788,4 +2789,126 @@ void terrain_streamer::build_water()
 		entry.section = &section;
 		m_watershapes.push_back(entry);
 	}
+}
+
+std::vector<heightmap::pack_key> terrain_streamer::pack_keys() const
+{
+	std::vector<heightmap::pack_key> result;
+	std::error_code ec;
+	for (auto const &entry : std::filesystem::directory_iterator(m_directory, ec))
+	{
+		if (entry.path().extension() != ".tch")
+			continue;
+		int x{0}, z{0};
+		if (std::sscanf(entry.path().stem().string().c_str(), "%d_%d", &x, &z) == 2)
+			result.push_back({x, z});
+	}
+	return result;
+}
+
+std::size_t terrain_streamer::clear_paint(heightmap::pack_key const &Pack, std::uint16_t const Layer)
+{
+	std::vector<chunk_key> keys;
+	{
+		heightmap::pack_file file;
+		std::lock_guard<std::mutex> lock{m_filemutex};
+		if (file.open(pack_path(Pack)))
+			keys = file.chunks();
+	}
+	for (auto const &entry : m_chunks)
+		if (heightmap::pack_of(entry.first) == Pack && std::find(keys.begin(), keys.end(), entry.first) == keys.end())
+			keys.push_back(entry.first);
+	std::size_t cleared{0};
+	for (auto const &key : keys)
+	{
+		auto *chunk{m_chunks.count(key) > 0 ? m_chunks.at(key).get() : load_now(key)};
+		if (chunk == nullptr)
+			continue;
+		auto const &current{chunk->data()};
+		if (current.paint <= 0 && current.layers[0] == Layer)
+			continue;
+		auto data{std::make_shared<heightmap::chunk_data>(current)};
+		if (data->paint > 0 && data->layer_count() > 1)
+			++cleared;
+		data->paint = 0;
+		data->weights.clear();
+		data->layers.fill(heightmap::no_layer);
+		data->layers[0] = Layer;
+		chunk->replace(std::move(data), false, true);
+	}
+	return cleared;
+}
+
+std::pair<std::size_t, std::size_t> terrain_streamer::replace_in_area(std::vector<glm::dvec2> const &Outline, std::uint16_t const From, std::uint16_t const To)
+{
+	std::pair<std::size_t, std::size_t> result{0, 0};
+	if (Outline.size() < 3 || From == To)
+		return result;
+	glm::dvec2 low{Outline.front()}, high{Outline.front()};
+	for (auto const &point : Outline)
+	{
+		low = glm::min(low, point);
+		high = glm::max(high, point);
+	}
+	for (auto *chunk : chunks_in(low, high, true))
+	{
+		auto const &current{chunk->data()};
+		auto const from{current.slot_of(From)};
+		if (from < 0)
+			continue;
+		auto const corner{current.corner()};
+		auto const whole{inside_outline(Outline, corner.x, corner.y) && inside_outline(Outline, corner.x + heightmap::chunk_size, corner.y) &&
+		                 inside_outline(Outline, corner.x, corner.y + heightmap::chunk_size) && inside_outline(Outline, corner.x + heightmap::chunk_size, corner.y + heightmap::chunk_size)};
+		auto data{std::make_shared<heightmap::chunk_data>(current)};
+		auto to{data->slot_of(To)};
+		if (to < 0 && whole)
+		{
+			// all of the chunk: the entry itself swapped, no room needed
+			data->layers[from] = To;
+			remember(*chunk);
+			chunk->replace(std::move(data), false, true);
+			++result.first;
+			continue;
+		}
+		data->ensure_paint();
+		if (to < 0)
+		{
+			data->compact_layers();
+			data->ensure_paint();
+			if (data->layer_count() >= heightmap::max_chunk_layers)
+			{
+				++result.second;
+				continue;
+			}
+			to = static_cast<int>(data->layer_count());
+			data->layers[to] = To;
+			data->weights.resize(data->weights.size() + static_cast<std::size_t>(data->paint + 1) * (data->paint + 1), 0);
+		}
+		auto const slot_from{data->slot_of(From)};
+		auto const samples{data->paint};
+		auto const plane{static_cast<std::size_t>(samples + 1) * (samples + 1)};
+		auto const step{heightmap::chunk_size / samples};
+		bool changed{false};
+		for (int iz = 0; iz <= samples; ++iz)
+			for (int ix = 0; ix <= samples; ++ix)
+			{
+				if (false == inside_outline(Outline, corner.x + ix * step, corner.y + iz * step))
+					continue;
+				auto const sample{static_cast<std::size_t>(iz) * (samples + 1) + ix};
+				auto &a{data->weights[slot_from * plane + sample]};
+				if (a == 0)
+					continue;
+				auto &b{data->weights[static_cast<std::size_t>(to) * plane + sample]};
+				b = static_cast<std::uint8_t>(std::min(255, b + a));
+				a = 0;
+				changed = true;
+			}
+		if (false == changed)
+			continue;
+		data->compact_layers();
+		remember(*chunk);
+		chunk->replace(std::move(data), false, true);
+		++result.first;
+	}
+	return result;
 }

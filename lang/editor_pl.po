@@ -16494,3 +16494,117 @@ msgstr "W zakresie ustawionym tuż wyżej. Dziury są zamykane, a powierzchnie w
 
 msgid "m##scope"
 msgstr "m##scope"
+
+msgid "; %zu had no room for another material"
+msgstr "; w %zu zabrakło miejsca na kolejny materiał"
+
+msgid "Asphalt and concrete"
+msgstr "Asfalt i beton"
+
+msgid "Back to the first material of the palette, the one of the new chunks"
+msgstr "Powrót do pierwszego materiału palety, tego z nowych kawałków terenu"
+
+msgid "Brush:"
+msgstr "Pędzel:"
+
+msgid "Change##entry"
+msgstr "Zmień##entry"
+
+msgid "Clear it"
+msgstr "Wyczyść"
+
+msgid "Clear the paint of the whole terrain..."
+msgstr "Wyczyść malowanie całego terenu..."
+
+msgid "Clearing the paint: %zu of %zu files, %zu chunks"
+msgstr "Czyszczenie malowania: %zu z %zu plików, %zu kawałków"
+
+msgid "Cover##brush"
+msgstr "Kryj##brush"
+
+msgid "Covers the new chunks and the ones not painted. Drag to move it; RMB: its settings"
+msgstr "Pokrywa nowe i niemalowane kawałki terenu. Przeciągnij, żeby przesunąć; PPM: ustawienia"
+
+msgid "Drag to move it, onto the name of a group to put it there; RMB: its settings"
+msgstr "Przeciągnij, żeby przesunąć, na nazwę grupy, żeby do niej przenieść; PPM: ustawienia"
+
+msgid "Earth and fields"
+msgstr "Ziemia i pola"
+
+msgid "Erase##brush"
+msgstr "Zmazuj##brush"
+
+msgid "Every chunk of the terrain painted with more than one material gets the first material of the palette alone. The shape of the ground, the holes and the 3D grass stay; what was painted into the terrain goes, the track bed and the slopes too (their surfaces stay listed, to be painted again). A copy of the terrain files is taken first; Ctrl+Z doesn't take it back."
+msgstr "Każdy kawałek terenu malowany więcej niż jednym materiałem dostaje sam pierwszy materiał palety. Kształt terenu, dziury i trawa 3D zostają; znika to, co wmalowano w teren, także torowiska i skarpy (ich powierzchnie zostają na liście do ponownego wmalowania). Najpierw robiona jest kopia plików terenu; Ctrl+Z tego nie cofa."
+
+msgid "Everywhere it's painted, at once: no new entry, no room taken in the chunks"
+msgstr "Od razu wszędzie, gdzie jest namalowany: bez nowego wpisu, bez zajmowania miejsca w kawałkach"
+
+msgid "Forest"
+msgstr "Las"
+
+msgid "Gravel and ballast"
+msgstr "Żwir i tłuczeń"
+
+msgid "Group##entry"
+msgstr "Grupa##entry"
+
+msgid "Left everywhere: %s"
+msgstr "Wszędzie zostanie: %s"
+
+msgid "Material##entry"
+msgstr "Materiał##entry"
+
+msgid "Mix##brush"
+msgstr "Mieszaj##brush"
+
+msgid "Move##entry"
+msgstr "Przenieś##entry"
+
+msgid "Off the palette..."
+msgstr "Zdejmij z palety..."
+
+msgid "Paint cleared: %zu chunks had more than one material, now the first one alone. A copy of before: %s"
+msgstr "Malowanie wyczyszczone: %zu kawałków miało więcej niż jeden materiał, teraz mają tylko pierwszy. Kopia sprzed: %s"
+
+msgid "Repeats every (m)##entry"
+msgstr "Powtarza się co (m)##entry"
+
+msgid "Replace in the outline##replace"
+msgstr "Zamień w obrysie##replace"
+
+msgid "Replaced in %zu chunks%s"
+msgstr "Zamienione w %zu kawałkach%s"
+
+msgid "The copy of the terrain couldn't be made, nothing cleared: %s"
+msgstr "Nie udało się zrobić kopii terenu, nic nie wyczyszczono: %s"
+
+msgid "The material at once, all of it, under the brush: no mixing"
+msgstr "Materiał od razu w całości pod pędzlem, bez mieszania"
+
+msgid "The material blends into what's painted there, the more the longer you hold it"
+msgstr "Materiał miesza się z tym, co tam jest, tym mocniej, im dłużej trzymasz"
+
+msgid "The terrain couldn't be saved before clearing: %s"
+msgstr "Nie udało się zapisać terenu przed czyszczeniem: %s"
+
+msgid "Turned by (deg)##entry"
+msgstr "Obrót (°)##entry"
+
+msgid "Under the cursor: %s"
+msgstr "Pod kursorem: %s"
+
+msgid "Within the outline, what's painted with the material picked here gets the one chosen in the palette;\nelsewhere it stays. The magic wand makes the outline of a field in a click. Ctrl+Z takes it back"
+msgstr "W obrysie to, co jest namalowane wybranym tu materiałem, dostaje materiał zaznaczony w palecie;\npoza obrysem zostaje. Magiczna różdżka zrobi obrys pola jednym kliknięciem. Ctrl+Z cofa"
+
+msgid "as the material says"
+msgstr "jak w materiale"
+
+msgid "with the chosen one##replace"
+msgstr "na zaznaczony##replace"
+
+msgid "| %zu/%zu materials"
+msgstr "| %zu/%zu materiałów"
+
+msgid "| %zu/%zu materials: no room for another here"
+msgstr "| %zu/%zu materiałów: tu nie zmieści się kolejny"

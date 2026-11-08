@@ -11,6 +11,7 @@ http://mozilla.org/MPL/2.0/.
 // of the terrain, and the track bed with its embankments and cuttings cut along the formation modifiers into pieces up to 100 m
 
 #include "stdafx.h"
+#include <filesystem>
 #include "application/editormode.h"
 #include "application/editoruilayer.h"
 #include "editor/editorFormat.hpp"
@@ -229,6 +230,167 @@ void editor_mode::render_material_palette()
 	ImGui::SameLine();
 	if (ImGui::Button(STR_C("Add to the palette")) && m_terrain_material[0] != '\0')
 		m_terrain_layer = m_streamer.layer(m_terrain_material, m_terrain_material_size);
+	// the paint of all of it gone at once: a chunk with more than one material gets the first of the palette alone
+	auto &clearing{m_paint_clearing};
+	if (false == clearing.packs.empty())
+	{
+		ImGui::ProgressBar(1.0f - static_cast<float>(clearing.packs.size()) / std::max<std::size_t>(1, clearing.total), ImVec2(-FLT_MIN, 0.0f),
+		                   format(STR_C("Clearing the paint: %zu of %zu files, %zu chunks"), clearing.total - clearing.packs.size(), clearing.total, clearing.chunks).c_str());
+	}
+	else if (ImGui::Button(STR_C("Clear the paint of the whole terrain...")))
+		ImGui::OpenPopup("##clearpaint");
+	if (ImGui::BeginPopup("##clearpaint"))
+	{
+		auto const &layers{m_streamer.manifest().layers};
+		ImGui::TextWrapped("%s", STR_C("Every chunk of the terrain painted with more than one material gets the first material of the palette alone. "
+		                               "The shape of the ground, the holes and the 3D grass stay; what was painted into the terrain goes, the track bed and the slopes too "
+		                               "(their surfaces stay listed, to be painted again). A copy of the terrain files is taken first; Ctrl+Z doesn't take it back."));
+		if (false == layers.empty())
+			ImGui::TextDisabled(STR_C("Left everywhere: %s"), layers.front().material.c_str());
+		if (main_button(STR_C("Clear it"), ImVec2(160.0f, 0.0f)))
+		{
+			clear_paint_start();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button(STR_C("Cancel")))
+			ImGui::CloseCurrentPopup();
+		ImGui::EndPopup();
+	}
+}
+
+void editor_mode::clear_paint_start()
+{
+	auto &clearing{m_paint_clearing};
+	auto const directory{m_streamer.directory()};
+	if (directory.empty())
+		return;
+	// what's edited and not saved yet goes to the files first, then the copy of them is taken
+	std::string error;
+	if (false == m_streamer.save(&error))
+	{
+		ui()->set_status(format(STR_C("The terrain couldn't be saved before clearing: %s"), error.c_str()));
+		return;
+	}
+	auto folder{directory};
+	while (false == folder.empty() && (folder.back() == '/' || folder.back() == '\\'))
+		folder.pop_back();
+	auto backup{folder + "_przed_czyszczeniem"};
+	std::error_code ec;
+	for (int n = 2; std::filesystem::exists(backup, ec); ++n)
+		backup = folder + "_przed_czyszczeniem" + std::to_string(n);
+	std::filesystem::copy(folder, backup, std::filesystem::copy_options::recursive, ec);
+	if (ec)
+	{
+		ui()->set_status(format(STR_C("The copy of the terrain couldn't be made, nothing cleared: %s"), ec.message().c_str()));
+		return;
+	}
+	clearing.backup = backup;
+	clearing.packs = m_streamer.pack_keys();
+	clearing.total = clearing.packs.size();
+	clearing.chunks = 0;
+}
+
+void editor_mode::clear_paint_step()
+{
+	auto &clearing{m_paint_clearing};
+	if (clearing.packs.empty())
+		return;
+	// a file a frame, written at once, so the chunks read for it can go from memory again
+	auto const pack{clearing.packs.back()};
+	clearing.packs.pop_back();
+	clearing.chunks += m_streamer.clear_paint(pack, 0);
+	std::string error;
+	m_streamer.save(&error);
+	if (clearing.packs.empty())
+	{
+		forget_ground();
+		ui()->set_status(format(STR_C("Paint cleared: %zu chunks had more than one material, now the first one alone. A copy of before: %s"), clearing.chunks,
+		                        clearing.backup.c_str()));
+	}
+}
+
+// the group of a palette entry: set by hand (kept in palette_groups.txt beside the terrain), or guessed from the name of the material
+std::string editor_mode::palette_group(std::size_t const Layer)
+{
+	auto const directory{m_streamer.directory()};
+	if (m_palette_groups_dir != directory)
+	{
+		m_palette_groups_dir = directory;
+		m_palette_groups.clear();
+		std::ifstream file{directory + "palette_groups.txt"};
+		std::string line;
+		while (std::getline(file, line))
+		{
+			auto const tab{line.find('\t')};
+			if (tab != std::string::npos)
+				m_palette_groups[std::atoi(line.substr(0, tab).c_str())] = line.substr(tab + 1);
+		}
+	}
+	if (auto const found{m_palette_groups.find(static_cast<int>(Layer))}; found != m_palette_groups.end() && false == found->second.empty())
+		return found->second;
+	auto const &layers{m_streamer.manifest().layers};
+	if (Layer >= layers.size())
+		return STR("Other");
+	auto name{layers[Layer].material};
+	std::transform(name.begin(), name.end(), name.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
+	auto const has = [&](std::initializer_list<char const *> Words) {
+		return std::any_of(Words.begin(), Words.end(), [&](char const *Word) { return name.find(Word) != std::string::npos; });
+	};
+	if (has({"water", "woda"}))
+		return STR("Water");
+	if (has({"forest", "las", "leaves", "lisc", "mech", "moss", "sciolk"}))
+		return STR("Forest");
+	if (has({"gravel", "zwir", "tlucz", "ballast", "1435mm", "tpbps", "kamien", "stone"}))
+		return STR("Gravel and ballast");
+	if (has({"asphalt", "asfalt", "concrete", "beton", "cobble", "kostka", "bruk", "plyty"}))
+		return STR("Asphalt and concrete");
+	if (has({"dirt", "soil", "ziem", "ground", "mud", "bloto", "field", "pole", "sand", "piach", "piasek", "orka"}))
+		return STR("Earth and fields");
+	if (has({"gras", "traw", "meadow", "laka"}))
+		return STR("Grass");
+	return STR("Other");
+}
+
+void editor_mode::palette_group(std::size_t const Layer, std::string const &Group)
+{
+	palette_group(Layer); // read the file first, if it wasn't
+	m_palette_groups[static_cast<int>(Layer)] = Group;
+	std::ofstream file{m_streamer.directory() + "palette_groups.txt"};
+	for (auto const &entry : m_palette_groups)
+		file << entry.first << '\t' << entry.second << '\n';
+}
+
+// what's painted at the point of the terrain under the cursor: the materials and how much of each, and how many of the 8 a chunk
+// holds it has. returns: false if there's no terrain under it
+bool editor_mode::paint_at_cursor(std::vector<std::pair<std::uint16_t, int>> &Weights, std::size_t &Used) const
+{
+	glm::dvec3 world;
+	if (false == terrain_cursor(world))
+		return false;
+	auto const *chunk{m_streamer.terrain_at(world.x, world.z)};
+	if (chunk == nullptr)
+		return false;
+	auto const &data{chunk->data()};
+	Weights.clear();
+	Used = data.layer_count();
+	if (data.paint <= 0)
+	{
+		Weights.emplace_back(data.layers[0], 100);
+		return true;
+	}
+	auto const low{data.corner()};
+	auto const step{heightmap::chunk_size / data.paint};
+	auto const ix{std::clamp(static_cast<int>(std::lround((world.x - low.x) / step)), 0, data.paint)};
+	auto const iz{std::clamp(static_cast<int>(std::lround((world.z - low.y) / step)), 0, data.paint)};
+	for (std::size_t slot = 0; slot < Used; ++slot)
+	{
+		auto const weight{data.weight(slot, ix, iz)};
+		if (weight > 0)
+			Weights.emplace_back(data.layers[slot], (weight * 100 + 127) / 255);
+	}
+	std::sort(Weights.begin(), Weights.end(), [](auto const &A, auto const &B) { return A.second > B.second; });
+	return true;
 }
 
 void editor_mode::render_palette_entries()
@@ -246,83 +408,216 @@ void editor_mode::render_palette_entries()
 			label += format(STR_C(", turned %.0f°"), layers[I].rotation);
 		return label;
 	};
+	auto &io{ImGui::GetIO()};
+
+	// what the brush does with it: mixes it in, covers with it fully, or takes the paint back to the first material
+	ImGui::TextUnformatted(STR_C("Brush:"));
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("Mix##brush"), &m_paint_mode, 0);
+	item_tooltip("The material blends into what's painted there, the more the longer you hold it");
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("Cover##brush"), &m_paint_mode, 1);
+	item_tooltip("The material at once, all of it, under the brush: no mixing");
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("Erase##brush"), &m_paint_mode, 2);
+	item_tooltip("Back to the first material of the palette, the one of the new chunks");
+
+	// under the cursor: what's painted there, and the room for materials of its chunk
+	{
+		std::vector<std::pair<std::uint16_t, int>> weights;
+		std::size_t used{0};
+		if (paint_at_cursor(weights, used))
+		{
+			std::string text;
+			for (auto const &entry : weights)
+				text += format("%s%s %d%%", text.empty() ? "" : ", ", entry.first < layers.size() ? layers[entry.first].material.c_str() : "?", entry.second);
+			ImGui::TextDisabled(STR_C("Under the cursor: %s"), text.c_str());
+			bool const full{used >= heightmap::max_chunk_layers};
+			ImGui::SameLine();
+			if (full)
+				ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), STR_C("| %zu/%zu materials: no room for another here"), used, heightmap::max_chunk_layers);
+			else
+				ImGui::TextDisabled(STR_C("| %zu/%zu materials"), used, heightmap::max_chunk_layers);
+			// Alt+LMB on the terrain: the material most of it is
+			if (io.KeyAlt && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && false == io.WantCaptureMouse && false == weights.empty())
+				m_terrain_layer = weights.front().first;
+		}
+	}
+	// 1..9: the first nine of the palette as listed
+	if (false == io.WantTextInput && m_terrain_tool == terrain_tool::paint)
+		for (int k = 0; k < 9 && k < static_cast<int>(order.size()); ++k)
+			if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(ImGuiKey_1 + k), false) && false == io.KeyCtrl && false == io.KeyAlt)
+				m_terrain_layer = order[k];
+
 	static int removing{-1};
 	static int into{0};
-	auto const button{ImGui::GetFrameHeight()};
-	for (std::size_t at = 0; at < order.size(); ++at)
+	bool open_remove{false};
+	// the groups in the order their first entry is listed
+	std::vector<std::string> groups;
+	for (auto const i : order)
 	{
-		auto const i{static_cast<std::size_t>(order[at])};
-		ImGui::PushID(static_cast<int>(i));
-		// up, down and off the palette at the end of the row
-		auto const room{ImGui::GetContentRegionAvail().x - 3.0f * (button + ImGui::GetStyle().ItemSpacing.x)};
-		if (ImGui::Selectable(label_of(i).c_str(), static_cast<int>(i) == m_terrain_layer, 0, ImVec2(std::max(60.0f, room), 0.0f)))
-			m_terrain_layer = static_cast<int>(i);
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", i == 0 ? STR_C("Covers the new chunks and the ones not painted. A texture dragged from the browser onto it takes its place")
-			                               : STR_C("A texture dragged from the browser onto an entry of the palette takes its place"));
-		std::string dropped;
-		if (material_drop(dropped))
-			m_streamer.layer_material(static_cast<std::uint16_t>(i), dropped);
-		ImGui::SameLine();
-		ImGui::BeginDisabled(at == 0);
-		if (ImGui::ArrowButton("##up", ImGuiDir_Up))
-			m_streamer.move_layer(static_cast<std::uint16_t>(i), -1);
-		ImGui::EndDisabled();
-		item_tooltip("Higher up the list");
-		ImGui::SameLine();
-		ImGui::BeginDisabled(at + 1 >= order.size());
-		if (ImGui::ArrowButton("##down", ImGuiDir_Down))
-			m_streamer.move_layer(static_cast<std::uint16_t>(i), +1);
-		ImGui::EndDisabled();
-		item_tooltip("Lower down the list");
-		ImGui::SameLine();
-		ImGui::BeginDisabled(i == 0 || order.size() < 2);
-		if (ImGui::Button("X", ImVec2(button, button)))
+		auto const group{palette_group(i)};
+		if (std::find(groups.begin(), groups.end(), group) == groups.end())
+			groups.push_back(group);
+	}
+	float constexpr tile{72.0f};
+	auto const spacing{ImGui::GetStyle().ItemSpacing.x};
+	for (auto const &group : groups)
+	{
+		ImGui::PushID(group.c_str());
+		bool const open{ImGui::CollapsingHeader(group.c_str(), ImGuiTreeNodeFlags_DefaultOpen)};
+		// an entry dropped on the name of a group goes to that group
+		if (ImGui::BeginDragDropTarget())
 		{
-			removing = static_cast<int>(i);
-			into = order.front() == i ? order[1] : order.front();
-			ImGui::OpenPopup("##removelayer");
+			if (auto const *payload{ImGui::AcceptDragDropPayload("PALETTE_ENTRY")})
+				palette_group(static_cast<std::size_t>(*static_cast<int const *>(payload->Data)), group);
+			ImGui::EndDragDropTarget();
 		}
-		ImGui::EndDisabled();
-		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-			ImGui::SetTooltip("%s", i == 0 ? STR_C("The first material stays: it covers the new chunks") : STR_C("Off the palette: what's painted with it gets another material of the palette"));
-		if (ImGui::BeginPopup("##removelayer"))
+		if (open)
 		{
-			if (removing >= 0 && static_cast<std::size_t>(removing) < layers.size())
+			auto const width{ImGui::GetContentRegionAvail().x};
+			float x{0.0f};
+			for (std::size_t at = 0; at < order.size(); ++at)
 			{
-				ImGui::TextUnformatted(format(STR_C("\"%s\" off the palette"), layers[removing].material.c_str()).c_str());
-				ImGui::TextDisabled("%s", STR_C("Where it's painted, the terrain gets instead:"));
-				ImGui::SetNextItemWidth(220.0f);
-				if (ImGui::BeginCombo("##into", label_of(static_cast<std::size_t>(into)).c_str()))
+				auto const i{static_cast<std::size_t>(order[at])};
+				if (palette_group(i) != group)
+					continue;
+				if (x > 0.0f && x + tile > width)
+					x = 0.0f;
+				else if (x > 0.0f)
+					ImGui::SameLine();
+				x += tile + spacing;
+				ImGui::PushID(static_cast<int>(i));
+				ImGui::BeginGroup();
+				auto const corner{ImGui::GetCursorScreenPos()};
+				if (ImGui::InvisibleButton("##tile", ImVec2(tile, tile)))
+					m_terrain_layer = static_cast<int>(i);
+				auto *draw{ImGui::GetWindowDrawList()};
+				texture_browser::item item{layers[i].material, layers[i].material, true};
+				auto const texture{texture_thumbnail(item)};
+				if (texture != 0)
+					draw->AddImage(static_cast<ImTextureID>(texture), corner, ImVec2(corner.x + tile, corner.y + tile), ImVec2(0, 1), ImVec2(1, 0));
+				else
+					draw->AddRectFilled(corner, ImVec2(corner.x + tile, corner.y + tile), IM_COL32(60, 60, 60, 255));
+				bool const chosen{static_cast<int>(i) == m_terrain_layer};
+				draw->AddRect(corner, ImVec2(corner.x + tile, corner.y + tile), chosen ? IM_COL32(255, 200, 40, 255) : IM_COL32(0, 0, 0, 160), 0.0f, 0, chosen ? 4.0f : 1.0f);
+				if (at < 9)
+					draw->AddText(ImVec2(corner.x + 4.0f, corner.y + 2.0f), IM_COL32(255, 255, 255, 230), std::to_string(at + 1).c_str());
+				if (ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s\n%s", label_of(i).c_str(),
+					                  i == 0 ? STR_C("Covers the new chunks and the ones not painted. Drag to move it; RMB: its settings") : STR_C("Drag to move it, onto the name of a group to put it there; RMB: its settings"));
+				// moved by dragging: onto another tile it takes that place, onto the name of a group it goes to that group
+				if (ImGui::BeginDragDropSource())
 				{
-					for (auto const other : order)
-						if (static_cast<int>(other) != removing && ImGui::Selectable(label_of(other).c_str(), static_cast<int>(other) == into))
-							into = other;
-					ImGui::EndCombo();
+					int const dragged{static_cast<int>(i)};
+					ImGui::SetDragDropPayload("PALETTE_ENTRY", &dragged, sizeof(dragged));
+					ImGui::TextUnformatted(layers[i].material.c_str());
+					ImGui::EndDragDropSource();
 				}
-				if (ImGui::Button(STR_C("Take it off")))
+				if (ImGui::BeginDragDropTarget())
 				{
-					if (m_streamer.hide_layer(static_cast<std::uint16_t>(removing), static_cast<std::uint16_t>(into)))
+					if (auto const *payload{ImGui::AcceptDragDropPayload("PALETTE_ENTRY")})
 					{
-						if (m_terrain_layer == removing)
-							m_terrain_layer = into;
-						ui()->set_status(STR_C("The material is off the palette, the terrain painted with it has the other one; Ctrl+S saves it"));
+						auto const dragged{*static_cast<int const *>(payload->Data)};
+						auto const from{std::find(order.begin(), order.end(), static_cast<std::uint16_t>(dragged)) - order.begin()};
+						auto const step{static_cast<int>(static_cast<std::ptrdiff_t>(at) - from)};
+						if (step != 0)
+							m_streamer.move_layer(static_cast<std::uint16_t>(dragged), step);
+						palette_group(static_cast<std::size_t>(dragged), group);
 					}
-					removing = -1;
-					ImGui::CloseCurrentPopup();
+					ImGui::EndDragDropTarget();
 				}
-				ImGui::SameLine();
-				if (ImGui::Button(STR_C("Cancel")))
+				// a texture dragged from the browser takes the place of the material, wherever it's painted
+				std::string dropped;
+				if (material_drop(dropped))
+					m_streamer.layer_material(static_cast<std::uint16_t>(i), dropped);
+				if (ImGui::BeginPopupContextItem("##entry"))
 				{
-					removing = -1;
-					ImGui::CloseCurrentPopup();
+					ImGui::TextUnformatted(label_of(i).c_str());
+					float size{layers[i].size};
+					ImGui::SetNextItemWidth(120.0f);
+					if (ImGui::DragFloat(STR_C("Repeats every (m)##entry"), &size, 0.1f, 0.0f, 100.0f, size > 0.0f ? "%.1f" : STR_C("as the material says")))
+						m_streamer.layer_size(static_cast<std::uint16_t>(i), std::max(0.0f, size));
+					float rotation{layers[i].rotation};
+					ImGui::SetNextItemWidth(120.0f);
+					if (ImGui::SliderFloat(STR_C("Turned by (deg)##entry"), &rotation, -180.0f, 180.0f, "%.0f"))
+						m_streamer.layer_rotation(static_cast<std::uint16_t>(i), rotation);
+					static char material[128]{};
+					if (ImGui::IsWindowAppearing())
+						std::snprintf(material, sizeof(material), "%s", layers[i].material.c_str());
+					ImGui::SetNextItemWidth(180.0f);
+					ImGui::InputText(STR_C("Material##entry"), material, sizeof(material));
+					ImGui::SameLine();
+					if (ImGui::SmallButton(STR_C("Change##entry")) && material[0] != '\0')
+						m_streamer.layer_material(static_cast<std::uint16_t>(i), material);
+					item_tooltip("Everywhere it's painted, at once: no new entry, no room taken in the chunks");
+					static char moved[64]{};
+					if (ImGui::IsWindowAppearing())
+						std::snprintf(moved, sizeof(moved), "%s", group.c_str());
+					ImGui::SetNextItemWidth(180.0f);
+					ImGui::InputText(STR_C("Group##entry"), moved, sizeof(moved));
+					ImGui::SameLine();
+					if (ImGui::SmallButton(STR_C("Move##entry")) && moved[0] != '\0')
+						palette_group(i, moved);
+					ImGui::Separator();
+					ImGui::BeginDisabled(i == 0 || order.size() < 2);
+					if (ImGui::MenuItem(STR_C("Off the palette...")))
+					{
+						removing = static_cast<int>(i);
+						into = order.front() == i ? order[1] : order.front();
+						open_remove = true;
+					}
+					ImGui::EndDisabled();
+					ImGui::EndPopup();
 				}
+				ImGui::SetNextItemWidth(tile);
+				auto short_name{layers[i].material.substr(layers[i].material.find_last_of('/') + 1)};
+				if (short_name.size() > 11)
+					short_name = short_name.substr(0, 10) + "~";
+				ImGui::TextUnformatted(short_name.c_str());
+				ImGui::EndGroup();
+				ImGui::PopID();
 			}
-			else
-				ImGui::CloseCurrentPopup();
-			ImGui::EndPopup();
 		}
 		ImGui::PopID();
+	}
+	if (open_remove)
+		ImGui::OpenPopup("##removelayer");
+	if (ImGui::BeginPopup("##removelayer"))
+	{
+		if (removing >= 0 && static_cast<std::size_t>(removing) < layers.size())
+		{
+			ImGui::TextUnformatted(format(STR_C("\"%s\" off the palette"), layers[removing].material.c_str()).c_str());
+			ImGui::TextDisabled("%s", STR_C("Where it's painted, the terrain gets instead:"));
+			ImGui::SetNextItemWidth(220.0f);
+			if (ImGui::BeginCombo("##into", label_of(static_cast<std::size_t>(into)).c_str()))
+			{
+				for (auto const other : order)
+					if (static_cast<int>(other) != removing && ImGui::Selectable(label_of(other).c_str(), static_cast<int>(other) == into))
+						into = other;
+				ImGui::EndCombo();
+			}
+			if (ImGui::Button(STR_C("Take it off")))
+			{
+				if (m_streamer.hide_layer(static_cast<std::uint16_t>(removing), static_cast<std::uint16_t>(into)))
+				{
+					if (m_terrain_layer == removing)
+						m_terrain_layer = into;
+					ui()->set_status(STR_C("The material is off the palette, the terrain painted with it has the other one; Ctrl+S saves it"));
+				}
+				removing = -1;
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(STR_C("Cancel")))
+			{
+				removing = -1;
+				ImGui::CloseCurrentPopup();
+			}
+		}
+		else
+			ImGui::CloseCurrentPopup();
+		ImGui::EndPopup();
 	}
 }
 

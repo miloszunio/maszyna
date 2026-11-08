@@ -215,6 +215,16 @@ class terrain_streamer
 
 	// writes the description and the changed pack files. returns: true on success, Error describing the failure
 	bool save(std::string *Error = nullptr);
+	// the paint of the chunks of one pack file (and of the ones of it already in memory) taken away: each of them covered with
+	// Layer of the palette alone, as a new chunk is. Not remembered for undoing: done over the whole scenery, pack by pack, with
+	// a copy of the files taken first. returns: how many chunks had more than one material
+	std::size_t clear_paint(heightmap::pack_key const &Pack, std::uint16_t Layer);
+	// the packs of the terrain on the disk
+	std::vector<heightmap::pack_key> pack_keys() const;
+	// within Outline (x, z) what's painted with the palette entry From gets the entry To instead, the rest of the scenery as it
+	// was; a chunk which has no room for To and lies whole within the outline just has its entry swapped. returns: chunks changed,
+	// and how many of them had no room
+	std::pair<std::size_t, std::size_t> replace_in_area(std::vector<glm::dvec2> const &Outline, std::uint16_t From, std::uint16_t To);
 
   private:
 	struct pack_state
