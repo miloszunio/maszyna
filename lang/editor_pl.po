@@ -16608,3 +16608,9 @@ msgstr "| %zu/%zu materiałów"
 
 msgid "| %zu/%zu materials: no room for another here"
 msgstr "| %zu/%zu materiałów: tu nie zmieści się kolejny"
+
+msgid "The vertical profile of the selected road in a window of its own: evening it out, leading the terrain to it, tunnels"
+msgstr "Profil pionowy zaznaczonej drogi w osobnym oknie: wyrównanie, dociąganie terenu, tunele"
+
+msgid "Select a road (Roads, Select, LMB on a piece) and its profile shows here"
+msgstr "Zaznacz drogę (Drogi → Zaznaczanie → LPM na odcinku), a jej profil pojawi się tutaj"

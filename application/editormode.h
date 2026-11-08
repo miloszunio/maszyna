@@ -3666,6 +3666,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	};
 	road_profile_view m_road_profile;
 	void road_profile_window_open();
+	void road_profile_window_toggle();
 	void road_profile_sample();
 	void render_road_profile_window();
 	// level crossings and traffic points

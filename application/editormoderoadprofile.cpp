@@ -579,11 +579,17 @@ void editor_mode::road_tunnel(bool const Close)
 
 void editor_mode::road_profile_window_open()
 {
-	if (m_roadtool.selected == nullptr)
-		return;
 	m_road_profile.open = true;
 	m_road_profile.road = m_roadtool.selected;
 	road_profile_sample();
+}
+
+void editor_mode::road_profile_window_toggle()
+{
+	if (m_road_profile.open)
+		m_road_profile.open = false;
+	else
+		road_profile_window_open();
 }
 
 void editor_mode::road_profile_sample()
@@ -631,14 +637,23 @@ void editor_mode::render_road_profile_window()
 		if (road == view.road)
 			alive = true;
 	if (false == alive)
-	{
-		view = {};
-		return;
-	}
+		view.road = nullptr;
 	auto &tool{m_roadtool};
+	// the window follows the road selected: another piece clicked, the profile of its road read
+	if (tool.selected != nullptr && tool.selected != view.road)
+	{
+		view.road = tool.selected;
+		road_profile_sample();
+	}
 	ImGui::SetNextWindowSize(ImVec2(760.0f, 470.0f), ImGuiCond_FirstUseEver);
 	if (false == ImGui::Begin(STR_C("Vertical profile of the road###roadprofile"), &view.open))
 	{
+		ImGui::End();
+		return;
+	}
+	if (view.road == nullptr)
+	{
+		ImGui::TextWrapped("%s", STR_C("Select a road (Roads, Select, LMB on a piece) and its profile shows here"));
 		ImGui::End();
 		return;
 	}

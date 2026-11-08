@@ -1611,6 +1611,9 @@ bool editor_mode::update()
     if (ui()->mode() == nodebank_panel::TRACK && m_track_tab == track_tab::straights)
         draw_straights_overlay();
     steps.step("track lines");
+    // the road profile window and the clearing of the paint: whatever section is open
+    render_road_profile_window();
+    clear_paint_step();
     if (ui()->mode() == nodebank_panel::TRACK)
     {
         if (m_track_box.active && false == ImGui::GetIO().MouseDown[0])
@@ -1641,8 +1644,6 @@ bool editor_mode::update()
             m_vehicle.draw_overlay();
         }
         render_track_context();
-        render_road_profile_window();
-        clear_paint_step();
         steps.step("context");
         update_build_tools();
         steps.step("laying");
@@ -7486,8 +7487,8 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
 
     case GLFW_KEY_P:
         // the vertical profile of the selected road, in its own window
-        if (is_press(Action) && false == anyModifier && false == ImGui::GetIO().WantTextInput && m_roadtool.window && m_roadtool.selected != nullptr)
-            road_profile_window_open();
+        if (is_press(Action) && false == anyModifier && false == ImGui::GetIO().WantTextInput && current_work_area() == work_area::roads)
+            road_profile_window_toggle();
         break;
 
     case GLFW_KEY_TAB:

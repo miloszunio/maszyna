@@ -2161,14 +2161,6 @@ bool editor_mode::render_road_layout(road_node::state &State)
 
 	}
 
-	// the vertical profile, the terrain and the tunnels: a window of their own, as the profile of a line of tracks
-	if (tool.selected != nullptr)
-	{
-		if (ImGui::Button(STR_C("Vertical profile of the road... (P)")))
-			road_profile_window_open();
-		item_tooltip("The ground and the road along the whole of it: evening the profile out, leading the terrain to the road, cutting tunnels");
-	}
-
 	// the two directions kept apart
 	if (State.forward > 0 && State.backward > 0 && ImGui::CollapsingHeader(STR_C("Between the directions##median")))
 	{
