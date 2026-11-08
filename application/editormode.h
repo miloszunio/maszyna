@@ -3548,6 +3548,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float crest{1500.0f}; // m
 		float sag{800.0f}; // m
 		bool every_road{false}; // the terrain led to all the roads of the scenery, not only to the selected one
+		float tunnel_cover{2.0f}; // m of ground over the surface of the road from which it goes under it
 		bool varied{false}; // the selected piece is shown with lanes of its own for its end
 		bool chain{false}; // the point to build from is set
 		glm::dvec3 point{0.0}; // where the next piece starts
@@ -3624,6 +3625,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the terrain shaped to the road with a modifier, the way the formation of a track does: under the roadway and its shoulders
 	// flat at the surface, with slopes 1:n to the ground beside; of the selected road or of all of them
 	void road_terrain(bool Remove);
+	// along the selected road, where the ground is over it by tunnel_cover or more (an embankment, a hill), a hole cut as wide as
+	// the road; the terrain led to the road leaves those stretches alone. Close: the holes closed again
+	void road_tunnel(bool Close);
 	// level crossings and traffic points
 	void roadpoint_select(roadpoint_node *Point);
 	// works out the point a click of the place tool would make. Fresh: even if the cursor is where it was the last time

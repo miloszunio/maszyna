@@ -16407,3 +16407,33 @@ msgstr "Najmniejszy promień łuku pionowego w zagłębieniu"
 
 msgid "A road in the country 6-8 %, a main road 4-5 %, a motorway 4 %"
 msgstr "Droga lokalna 6-8 %, główna 4-5 %, autostrada 4 %"
+
+msgid "Select a road (the Select tool) for these"
+msgstr "Zaznacz drogę (narzędzie Zaznaczanie), żeby tego użyć"
+
+msgid "Tunnel where the ground is over the road by (m)##road"
+msgstr "Tunel, gdy teren jest nad drogą o (m)##road"
+
+msgid "Where the ground at the axis is this much over the surface of the road, the road goes under it: through an embankment, a hill"
+msgstr "Tam, gdzie teren na osi jest o tyle wyżej niż nawierzchnia, droga idzie pod nim: przez nasyp, wzgórze"
+
+msgid "Cut a tunnel"
+msgstr "Wytnij tunel"
+
+msgid "Along the selected road, where it runs into an embankment or a hill, a hole cut in the ground as wide as the road and its sides:\nthe embankment and the track on it stay over the road, the terrain led to the road stops at the portals. Ctrl+Z takes it back"
+msgstr "Wzdłuż zaznaczonej drogi, tam gdzie wchodzi w nasyp albo wzgórze, w terenie wycinana jest dziura na szerokość drogi z poboczami:\nnasyp i tor na nim zostają nad drogą, teren dociągnięty do drogi kończy się na portalach. Ctrl+Z cofa"
+
+msgid "Close it##tunnel"
+msgstr "Zamknij##tunnel"
+
+msgid "The holes along the selected road closed again"
+msgstr "Dziury wzdłuż zaznaczonej drogi zamknięte z powrotem"
+
+msgid "Holes along the road closed: %zu stretches. Ctrl+Z takes it back"
+msgstr "Zamknięte dziury wzdłuż drogi: %zu odcinków. Ctrl+Z cofa"
+
+msgid "The ground is nowhere %.1f m or more over the road: no tunnel cut"
+msgstr "Nigdzie teren nie jest o %.1f m lub więcej nad drogą: tunelu nie wycięto"
+
+msgid "Tunnels cut: %zu, %.0f m together. The track and the embankment over them stay; Ctrl+Z takes it back"
+msgstr "Wycięte tunele: %zu, razem %.0f m. Tor i nasyp nad nimi zostają; Ctrl+Z cofa"

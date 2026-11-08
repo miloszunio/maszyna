@@ -295,7 +295,12 @@ void editor_mode::road_terrain(bool const Remove)
 	{
 		std::vector<std::string> names;
 		for (auto const *road : pieces)
+		{
 			names.push_back(name_of(road));
+			for (auto const &modifier : m_streamer.modifiers())
+				if (modifier.name.rfind(name_of(road) + " #", 0) == 0)
+					names.push_back(modifier.name);
+		}
 		auto const removed{m_streamer.remove_modifiers(names)};
 		terrain_history_step();
 		forget_ground();
@@ -329,18 +334,156 @@ void editor_mode::road_terrain(bool const Remove)
 			previous = point;
 		}
 		auto const steps{std::clamp(static_cast<int>(std::ceil(length / 2.0)), 2, 2000)};
+		// a stretch in a tunnel (a hole in the ground over the road) is left alone: the modifier is cut in two there, the
+		// embankment over the road stays; each part ends square at the portal
+		int part{0};
+		auto const flush = [&](bool const Into) {
+			if (modifier.points.size() >= 2)
+			{
+				auto piece{modifier};
+				piece.name = part == 0 ? modifier.name : modifier.name + " #" + std::to_string(part);
+				piece.open_end = Into;
+				modifiers.push_back(std::move(piece));
+				++part;
+			}
+			modifier.points.clear();
+			modifier.open_start = Into;
+		};
 		for (int i = 0; i <= steps; ++i)
 		{
 			auto const t{i / static_cast<double>(steps)};
 			auto const point{state.point(t)};
+			auto const *chunk{m_streamer.terrain_at(point.x, point.z)};
+			if (chunk != nullptr && chunk->data().hole_at(point.x, point.z))
+			{
+				flush(true);
+				continue;
+			}
 			// just under the surface, so the ground doesn't show through the road
 			modifier.points.push_back({{point.x, point.z}, point.y - 0.05, 0.5 * state.span(t) + beside});
 		}
-		modifiers.push_back(std::move(modifier));
+		flush(false);
+	}
+	{
+		// the parts of before go first: the tunnels may be elsewhere now
+		std::vector<std::string> old;
+		for (auto const *road : pieces)
+			for (auto const &modifier : m_streamer.modifiers())
+				if (modifier.name == name_of(road) || modifier.name.rfind(name_of(road) + " #", 0) == 0)
+					old.push_back(modifier.name);
+		if (false == old.empty())
+			m_streamer.remove_modifiers(old);
 	}
 	auto const count{modifiers.size()};
 	m_streamer.modifiers(std::move(modifiers));
 	terrain_history_step();
 	forget_ground();
 	tool.status = format(STR_C("The terrain shaped to the roads, pieces: %zu, slopes 1:%.2f. Ctrl+Z takes it back"), count, static_cast<double>(tool.bankgrade));
+}
+
+void editor_mode::road_tunnel(bool const Close)
+{
+	auto &tool{m_roadtool};
+	if (tool.selected == nullptr)
+		return;
+	auto const pieces{editor_road::chain(*tool.selected)};
+	auto const name_of = [](road_node const *Road) { return "road " + (Road->name().empty() ? std::to_string(reinterpret_cast<std::uintptr_t>(Road)) : Road->name()); };
+	// the terrain led to these roads goes first, so the ground over them is the embankment or the hill and not the cutting the
+	// modifier made through it; it's led again after, around the tunnels
+	bool led{false};
+	{
+		std::vector<std::string> old;
+		for (auto const *road : pieces)
+			for (auto const &modifier : m_streamer.modifiers())
+				if (modifier.name == name_of(road) || modifier.name.rfind(name_of(road) + " #", 0) == 0)
+					old.push_back(modifier.name);
+		terrain_history_step();
+		if (false == old.empty())
+		{
+			m_streamer.remove_modifiers(old);
+			led = true;
+		}
+	}
+	auto const cover{std::max(0.2, static_cast<double>(tool.tunnel_cover))};
+	std::size_t tunnels{0};
+	double total{0.0};
+	for (auto const *road : pieces)
+	{
+		auto const &state{road->definition()};
+		double beside{0.5};
+		for (int side = 0; side < 2; ++side)
+		{
+			auto const &data{state.sides[side]};
+			auto const extra{(state.kerbs[side] ? state.kerbwidth : 0.f) + (data.type != road_node::side_type::none ? data.width : 0.f)};
+			beside = std::max(beside, 0.5 + static_cast<double>(extra));
+		}
+		glm::dvec3 previous{state.point(0.0)};
+		double length{0.0};
+		for (int i = 1; i <= 32; ++i)
+		{
+			auto const point{state.point(i / 32.0)};
+			length += glm::length(glm::dvec2{point.x - previous.x, point.z - previous.z});
+			previous = point;
+		}
+		auto const steps{std::clamp(static_cast<int>(std::ceil(length)), 2, 20000)};
+		// the stretches under the ground: [first, last] samples, a metre apart
+		std::vector<std::pair<int, int>> runs;
+		for (int i = 0; i <= steps; ++i)
+		{
+			auto const point{state.point(i / static_cast<double>(steps))};
+			double ground{0.0};
+			bool const under{m_streamer.height_at(point.x, point.z, ground, true) && ground > point.y + cover};
+			if (under)
+			{
+				if (false == runs.empty() && runs.back().second == i - 1)
+					runs.back().second = i;
+				else
+					runs.emplace_back(i, i);
+			}
+		}
+		for (auto const &run : runs)
+		{
+			// a metre and a half more at both ends, so the portal opens onto the slope
+			auto const extend{static_cast<int>(std::ceil(1.5 * steps / std::max(1.0, length)))};
+			auto const first{std::max(0, run.first - extend)}, last{std::min(steps, run.second + extend)};
+			if (last - first < 2)
+				continue;
+			std::vector<glm::dvec2> leftside, rightside;
+			for (int i = first; i <= last; ++i)
+			{
+				auto const t{i / static_cast<double>(steps)};
+				auto const point{state.point(t)};
+				auto const tangent{state.tangent(t)};
+				glm::dvec2 across{tangent.z, -tangent.x};
+				if (glm::length(across) < 1e-9)
+					continue;
+				across = glm::normalize(across) * (0.5 * state.span(t) + beside);
+				leftside.push_back(glm::dvec2{point.x, point.z} + across);
+				rightside.push_back(glm::dvec2{point.x, point.z} - across);
+			}
+			if (leftside.size() < 2)
+				continue;
+			std::vector<glm::dvec2> outline{leftside};
+			outline.insert(outline.end(), rightside.rbegin(), rightside.rend());
+			m_streamer.cut(outline, false == Close);
+			++tunnels;
+			total += (last - first) * length / steps;
+		}
+	}
+	terrain_history_step();
+	forget_ground();
+	if (led)
+	{
+		// only this road led again, whatever the tick for all of them says
+		auto const every{tool.every_road};
+		tool.every_road = false;
+		road_terrain(false);
+		tool.every_road = every;
+	}
+	if (Close)
+		tool.status = format(STR_C("Holes along the road closed: %zu stretches. Ctrl+Z takes it back"), tunnels);
+	else if (tunnels == 0)
+		tool.status = format(STR_C("The ground is nowhere %.1f m or more over the road: no tunnel cut"), cover);
+	else
+		tool.status = format(STR_C("Tunnels cut: %zu, %.0f m together. The track and the embankment over them stay; Ctrl+Z takes it back"), tunnels, total);
 }

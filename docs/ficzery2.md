@@ -176,3 +176,5 @@ Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiski
 - **Drogi: profil pionowy i teren** (zaznaczona droga, sekcja „Profil pionowy i teren”): wyrównanie wysokości całej drogi z największym pochyleniem
   i promieniami łuków wypukłych i wklęsłych (końce zostają na miejscu), oraz dociągnięcie terenu do drogi modyfikatorem jak przy torowisku:
   płasko pod jezdnią i poboczami, skarpy 1:n z naturalną nierównością; dla zaznaczonej drogi albo wszystkich dróg scenerii, z możliwością puszczenia terenu.
+- **Drogi: tunel** („Wytnij tunel” w sekcji „Profil pionowy i teren”): tam, gdzie zaznaczona droga wchodzi w nasyp albo wzgórze (teren o ustawioną wysokość nad nawierzchnią),
+  w terenie wycinana jest dziura na szerokość drogi z poboczami; nasyp i tor zostają nad drogą, a teren dociągnięty do drogi kończy się na portalach. Sekcja jest zawsze widoczna.
