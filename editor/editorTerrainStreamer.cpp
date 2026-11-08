@@ -23,6 +23,10 @@ http://mozilla.org/MPL/2.0/.
 #include <cmath>
 #include <filesystem>
 
+// how far the heavy work of the editor got, shown while the screen is frozen with an hourglass (application/editormode.cpp);
+// below 0 only keeps the window answering. False once Esc was pressed
+bool editor_busy_progress(double Fraction);
+
 terrain_streamer EditorTerrain;
 
 namespace
@@ -1145,6 +1149,7 @@ std::vector<editor_terrain *> terrain_streamer::chunks_in(glm::dvec2 const &Min,
 				result.push_back(lookup->second.get());
 			else if (Load)
 			{
+				editor_busy_progress(-1.0);
 				if (auto *chunk{load_now({cx, cz})})
 					result.push_back(chunk);
 			}
@@ -1245,6 +1250,7 @@ bool terrain_streamer::reshape(glm::dvec2 const &Min, glm::dvec2 const &Max, std
 	bool changed{false};
 	for (auto *chunk : chunks_in(Min, Max, true))
 	{
+		editor_busy_progress(-1.0);
 		auto const &current{chunk->data()};
 		auto const low{current.corner()};
 		auto const step{current.spacing()};
@@ -1527,6 +1533,7 @@ bool terrain_streamer::paint_area(glm::dvec2 const &Min, glm::dvec2 const &Max, 
 	bool changed{false};
 	for (auto *chunk : chunks_in(Min, Max, Load))
 	{
+		editor_busy_progress(-1.0);
 		auto const &current{chunk->data()};
 		auto const samples{current.paint > 0 ? current.paint : heightmap::default_paint_samples};
 		auto const step{heightmap::chunk_size / samples};
@@ -1644,6 +1651,7 @@ bool terrain_streamer::cut_area(glm::dvec2 const &Min, glm::dvec2 const &Max, bo
 	bool changed{false};
 	for (auto *chunk : chunks_in(Min, Max, Load))
 	{
+		editor_busy_progress(-1.0);
 		auto const &current{chunk->data()};
 		if (false == Cut && false == current.has_holes())
 			continue; // nothing to close
@@ -1700,6 +1708,7 @@ bool terrain_streamer::grass_area(glm::dvec2 const &Min, glm::dvec2 const &Max, 
 	bool changed{false};
 	for (auto *chunk : chunks_in(Min, Max, Load))
 	{
+		editor_busy_progress(-1.0);
 		auto const &current{chunk->data()};
 		if (Erase && current.grass_count() == 0)
 			continue; // nothing to take away
@@ -2061,8 +2070,12 @@ void terrain_streamer::apply_modifiers(editor_terrain &Chunk, glm::dvec2 const &
 void terrain_streamer::apply_modifiers(glm::dvec2 const &Min, glm::dvec2 const &Max)
 {
 	auto const bounds{modifier_bounds()};
-	for (auto *chunk : chunks_in(Min, Max, true))
-		apply_modifiers(*chunk, Min, Max, bounds);
+	auto const chunks{chunks_in(Min, Max, true)};
+	for (std::size_t i = 0; i < chunks.size(); ++i)
+	{
+		editor_busy_progress(static_cast<double>(i) / static_cast<double>(chunks.size()));
+		apply_modifiers(*chunks[i], Min, Max, bounds);
+	}
 }
 
 void terrain_streamer::modifiers(std::vector<heightmap::modifier> Modifiers)
@@ -2095,10 +2108,11 @@ void terrain_streamer::modifiers(std::vector<heightmap::modifier> Modifiers)
 	std::sort(chunks.begin(), chunks.end());
 	chunks.erase(std::unique(chunks.begin(), chunks.end()), chunks.end());
 	auto const bounds{modifier_bounds()};
-	for (auto *chunk : chunks)
+	for (std::size_t i = 0; i < chunks.size(); ++i)
 	{
-		auto const low{chunk->data().corner()};
-		apply_modifiers(*chunk, low, low + glm::dvec2{heightmap::chunk_size}, bounds);
+		editor_busy_progress(static_cast<double>(i) / static_cast<double>(chunks.size()));
+		auto const low{chunks[i]->data().corner()};
+		apply_modifiers(*chunks[i], low, low + glm::dvec2{heightmap::chunk_size}, bounds);
 	}
 }
 
@@ -2191,6 +2205,7 @@ bool terrain_streamer::bake_modifier(std::string const &Name)
 	// the ground under the modifiers takes the shape this one gives it; the other modifiers and the touch-ups go on top
 	for (auto *chunk : chunks_in(bounds.first, bounds.second, true))
 	{
+		editor_busy_progress(-1.0);
 		auto const &current{chunk->data()};
 		if (current.base.empty())
 			continue;
@@ -2852,6 +2867,7 @@ std::pair<std::size_t, std::size_t> terrain_streamer::replace_in_area(std::vecto
 	}
 	for (auto *chunk : chunks_in(low, high, true))
 	{
+		editor_busy_progress(-1.0);
 		auto const &current{chunk->data()};
 		auto const from{current.slot_of(From)};
 		if (from < 0)

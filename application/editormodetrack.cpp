@@ -2333,7 +2333,7 @@ void editor_mode::draw_track_hints()
 			x += gesture_draw(*drawlist, ImVec2(x, std::round(y + (height - picture) * 0.5f)), picture, pictures[i], fade(IM_COL32(255, 255, 255, 230))) + 5.0f;
 		if (hints[i].raw == nullptr || false == gesture_keys_only(hints[i].raw))
 			x += chip(ImVec2(x, y), hints[i].key, fade(IM_COL32(255, 210, 60, 220)), fade(IM_COL32(20, 20, 20, 255))) + 5.0f;
-		drawlist->AddText(ImVec2(x, y), fade(IM_COL32(255, 255, 255, 230)), hints[i].action.c_str());
+		drawlist->AddText(ImVec2(x, y), fade(IM_COL32(255, 210, 60, 235)), hints[i].action.c_str());
 		x += ImGui::CalcTextSize(hints[i].action.c_str()).x;
 	}
 

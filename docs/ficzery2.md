@@ -186,3 +186,12 @@ Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiski
 ## Usunięty Kapelusz
 
 Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu Ficzery jako zbędne.
+
+## Build 47: profil drogi na węzłach, łapanie punktów pod terenem, klepsydra
+
+- **Pasy w niebo**: wyrównanie profilu traktowało wektory kontrolne łuków jak punkty i wpisywało w nie wysokość bezwzględną. Teraz wysokości i pochylenia trafiają do wektorów poprawnie. Drogę popsutą starym wyrównaniem naprawia „Zaznacz wszystkie” → „Po terenie” (albo Ctrl+Z).
+- **Punkty pod terenem**: punkty drogi łapane po odległości na ekranie (12 px), więc także te schowane pod terenem. **Alt+LPM** na punkcie i ciągnięcie w pionie zmienia wysokość zaznaczonych punktów (Ctrl: dokładniej), ustawia się po puszczeniu.
+- **Okno profilu (P)**: węzły drogi jako kropki; LPM zaznacza, Shift dodaje, ramka zaznacza odcinek, przeciąganie węzła zmienia wysokość. Zaznaczenie widać też w widoku. Na zaznaczonych: Poziomo, Stałe pochylenie, Łuk pionowy (promień), Po terenie (+ przesunięcie), W górę/w dół o, Wygładź. Klasy dróg (polna … autostrada) ustawiają pochylenie i promienie. Przewyższenie wykresu 1:1 … 1:50 z siatką w metrach.
+- **Obrót modeli wokół osi pionowej**: brany z przyrostu w tej klatce, a nie z rozkładu macierzy na kąty (który za 90° przeskakiwał na 180° − kąt), więc model nie skacze w lewo i w prawo.
+- **Klepsydra**: ciężkie funkcje (torowisko i skarpy, naturalne skarpy, przemalowanie, wycinanie powierzchni, zamiana w obrysie, różdżka, film, teren do drogi, tunele) najpierw zamrażają ekran z klepsydrą i nazwą zadania. Postęp w procentach na pasku tytułu, Esc przerywa tam, gdzie się da, okno nie łapie „Nie odpowiada”.
+- **Żółte**: przyciski wprowadzające zmiany i podpowiedzi w widoku.

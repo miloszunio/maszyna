@@ -43,13 +43,28 @@ inline float tall_button_height()
 	return std::round(ImGui::GetFrameHeight() * 1.3f);
 }
 
-inline bool main_button(char const *Label, ImVec2 const &Size)
+// a button which changes the scenery: yellow, the same in every tool of the editor, so what does something stands out from
+// what only shows or sets
+inline bool main_button(char const *Label, ImVec2 const &Size = ImVec2(0.0f, 0.0f))
 {
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.55f, 0.25f, 1.0f));
-	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.65f, 0.3f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.86f, 0.68f, 0.12f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.96f, 0.79f, 0.24f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.74f, 0.56f, 0.06f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.08f, 0.07f, 0.04f, 1.0f));
 	auto const pressed{ImGui::Button(Label, Size)};
-	ImGui::PopStyleColor(2);
+	ImGui::PopStyleColor(4);
 	return pressed;
+}
+// the heavy work of a tool done on the main thread (run_busy() of the editor shows the screen frozen with an hourglass
+// meanwhile): how far it got, 0 to 1, shown in the title of the window. False once Esc was pressed, for the work which can
+// stop half way; it stops and leaves what it did (Ctrl+Z takes it back)
+bool editor_busy_progress(double Fraction);
+// Esc was pressed during the work
+bool editor_busy_cancelled();
+
+inline bool change_button(char const *Label, ImVec2 const &Size = ImVec2(0.0f, 0.0f))
+{
+	return main_button(Label, Size);
 }
 
 inline void item_tooltip(char const *Text)

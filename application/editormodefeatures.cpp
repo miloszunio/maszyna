@@ -237,7 +237,7 @@ void editor_mode::render_material_palette()
 		ImGui::ProgressBar(1.0f - static_cast<float>(clearing.packs.size()) / std::max<std::size_t>(1, clearing.total), ImVec2(-FLT_MIN, 0.0f),
 		                   format(STR_C("Clearing the paint: %zu of %zu files, %zu chunks"), clearing.total - clearing.packs.size(), clearing.total, clearing.chunks).c_str());
 	}
-	else if (ImGui::Button(STR_C("Clear the paint of the whole terrain...")))
+	else if (change_button(STR_C("Clear the paint of the whole terrain...")))
 		ImGui::OpenPopup("##clearpaint");
 	if (ImGui::BeginPopup("##clearpaint"))
 	{
@@ -597,7 +597,7 @@ void editor_mode::render_palette_entries()
 						into = other;
 				ImGui::EndCombo();
 			}
-			if (ImGui::Button(STR_C("Take it off")))
+			if (change_button(STR_C("Take it off")))
 			{
 				if (m_streamer.hide_layer(static_cast<std::uint16_t>(removing), static_cast<std::uint16_t>(into)))
 				{
@@ -670,7 +670,7 @@ void editor_mode::render_features_ui()
 			ImGui::Spacing();
 			ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
 			if (main_button(STR_C("Cut out as a separate surface"), ImVec2(-FLT_MIN, tall_button_height())))
-				cut_out_surface();
+				run_busy(STR_C("Cutting out the surface"), [this]() { cut_out_surface(); });
 			ImGui::EndDisabled();
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 				ImGui::SetTooltip("%s", STR_C("The area within the outline gets the material chosen in the palette, turned by the angle above, with the transition\n"
@@ -719,7 +719,7 @@ void editor_mode::render_features_ui()
 			render_scope("bed");
 			ImGui::BeginDisabled(m_streamer.modifiers().empty());
 			if (main_button(STR_C("Cut the track bed and the slopes"), ImVec2(-FLT_MIN, tall_button_height())))
-				cut_track_bed();
+				run_busy(STR_C("Cutting the track bed and the slopes"), [this]() { cut_track_bed(); });
 			ImGui::EndDisabled();
 			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 				ImGui::SetTooltip("%s", STR_C("The pieces cut before along the same modifiers are made anew. Ctrl+Z takes it back"));
@@ -747,13 +747,13 @@ void editor_mode::render_features_ui()
 		render_scope("natural");
 		ImGui::BeginDisabled(m_streamer.modifiers().empty());
 		if (main_button(STR_C("Make the slopes natural"), ImVec2(-FLT_MIN, tall_button_height())))
-			naturalise_slopes(true);
+			run_busy(STR_C("Making the slopes natural"), [this]() { naturalise_slopes(true); });
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 			ImGui::SetTooltip("%s", STR_C("Around the camera as far as set above, or in the whole scenery when that's ticked; the terrain is shaped anew. Ctrl+Z takes it back.\n"
 			                              "The ground under the slopes comes from the heights before the modifiers (HBAS) the terrain keeps; a terrain without them has its slopes\n"
 			                              "only pushed out and roughened, not made gentler. Paint the track bed and the slopes again after it"));
-		if (ImGui::Button(STR_C("Back to the slopes as designed"), ImVec2(-FLT_MIN, 0.0f)))
-			naturalise_slopes(false);
+		if (change_button(STR_C("Back to the slopes as designed"), ImVec2(-FLT_MIN, 0.0f)))
+			run_busy(STR_C("Bringing back the slopes as designed"), [this]() { naturalise_slopes(false); });
 		ImGui::EndDisabled();
 	}
 	if (ImGui::CollapsingHeader(STR_C("Surfaces cut out of the terrain"), ImGuiTreeNodeFlags_DefaultOpen))
@@ -773,8 +773,8 @@ void editor_mode::render_features_ui()
 			ImGui::TextDisabled("%s", STR_C("All of them are painted into the terrain already, none with a hole"));
 		render_scope("convert");
 		ImGui::BeginDisabled(meshes == 0);
-		if (ImGui::Button(STR_C("Paint them into the terrain##convert")))
-			convert_patches_to_paint();
+		if (change_button(STR_C("Paint them into the terrain##convert")))
+			run_busy(STR_C("Painting the surfaces into the terrain"), [this]() { convert_patches_to_paint(); });
 		ImGui::EndDisabled();
 		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
 			ImGui::SetTooltip("%s", meshes > 0 ? STR_C("Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back")
@@ -862,8 +862,12 @@ void editor_mode::cut_track_bed()
 	std::size_t embankment{0};
 	std::size_t cutting{0};
 	std::vector<std::string> bases;
+	std::size_t done_modifiers{0};
 	for (auto const index : chosen_modifiers)
 	{
+		// Esc: the pieces cut so far are kept
+		if (false == editor_busy_progress(0.5 * static_cast<double>(done_modifiers++) / static_cast<double>(chosen_modifiers.size())))
+			break;
 		auto const &modifier{modifiers[index]};
 		auto const line{resample(modifier, step)};
 		auto const count{line.points.size()};
@@ -1701,6 +1705,8 @@ void editor_mode::convert_patches_to_paint()
 	std::vector<std::size_t> converted;
 	for (std::size_t i = 0; i < patches.size(); ++i)
 	{
+		if (false == editor_busy_progress(0.5 * static_cast<double>(i) / static_cast<double>(patches.size())))
+			break;
 		auto &patch{patches[i]};
 		if (patch.paint)
 			continue;

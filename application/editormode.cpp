@@ -1388,8 +1388,109 @@ void editor_mode::redo_one()
     ui()->set_node(m_node);
 }
 
+namespace
+{
+std::string g_busy_task; // of the work going on, empty when there's none
+std::chrono::steady_clock::time_point g_busy_shown;
+bool g_busy_cancelled{false};
+} // namespace
+
+bool editor_busy_cancelled()
+{
+    return g_busy_cancelled;
+}
+
+bool editor_busy_progress(double const Fraction)
+{
+    if (g_busy_task.empty())
+        return true;
+    auto const now{std::chrono::steady_clock::now()};
+    if (now - g_busy_shown < std::chrono::milliseconds(150))
+        return false == g_busy_cancelled;
+    g_busy_shown = now;
+#ifdef _WIN32
+    // a look at the queue of the window keeps Windows from taking it for hung (Not responding), without handling anything
+    MSG message;
+    ::PeekMessageW(&message, nullptr, 0, 0, PM_NOREMOVE);
+    // Esc, while the simulator is the window in front
+    DWORD process{0};
+    ::GetWindowThreadProcessId(::GetForegroundWindow(), &process);
+    if (process == ::GetCurrentProcessId() && (::GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0)
+        g_busy_cancelled = true;
+#endif
+    // below 0: no news of how far, only the window kept answering
+    if (Fraction >= 0.0)
+    {
+        auto const percent{static_cast<int>(std::clamp(Fraction, 0.0, 1.0) * 100.0)};
+        Application.set_title(format("%s  %s %d%%  (%s)", Global.AppName.c_str(), g_busy_task.c_str(), percent, STR_C("Esc stops it")));
+    }
+    return false == g_busy_cancelled;
+}
+
+void editor_mode::run_busy(std::string Task, std::function<void()> Work)
+{
+    if (m_busy.pending)
+        return; // one at a time
+    m_busy.pending = true;
+    m_busy.shown = 0;
+    m_busy.task = std::move(Task);
+    m_busy.work = std::move(Work);
+}
+
+void editor_mode::busy_run_pending()
+{
+    if (false == m_busy.pending || m_busy.shown < 1)
+        return;
+    auto work{std::move(m_busy.work)};
+    m_busy.pending = false;
+    g_busy_task = m_busy.task;
+    g_busy_cancelled = false;
+    g_busy_shown = std::chrono::steady_clock::now();
+    Application.set_title(format("%s  %s  (%s)", Global.AppName.c_str(), g_busy_task.c_str(), STR_C("Esc stops it")));
+    auto const start{std::chrono::steady_clock::now()};
+    if (work)
+        work();
+    auto const seconds{std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()};
+    WriteLog(format("Editor: %s took %.1f s%s", g_busy_task.c_str(), seconds, g_busy_cancelled ? " (stopped with Esc)" : ""));
+    if (g_busy_cancelled)
+        ui()->set_status(format(STR_C("%s stopped with Esc after %.0f s: what was done stays, Ctrl+Z takes it back"), g_busy_task.c_str(), seconds), false);
+    g_busy_task.clear();
+    g_busy_cancelled = false;
+    Application.set_title(Global.AppName);
+}
+
+void editor_mode::draw_busy_overlay()
+{
+    if (false == m_busy.pending)
+        return;
+    ++m_busy.shown;
+    auto *drawlist{ImGui::GetForegroundDrawList(ImGui::GetMainViewport())};
+    auto const &io{ImGui::GetIO()};
+    drawlist->AddRectFilled(ImVec2(0.0f, 0.0f), io.DisplaySize, IM_COL32(0, 0, 0, 140));
+    ImVec2 const centre{io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f};
+    // the hourglass: two triangles in a frame, the sand in the lower one
+    ImU32 const yellow{IM_COL32(255, 210, 60, 255)};
+    float const h{46.0f}, w{30.0f};
+    ImVec2 const top{centre.x, centre.y - 40.0f};
+    drawlist->AddLine(ImVec2(top.x - w, top.y - h), ImVec2(top.x + w, top.y - h), yellow, 4.0f);
+    drawlist->AddLine(ImVec2(top.x - w, top.y + h), ImVec2(top.x + w, top.y + h), yellow, 4.0f);
+    drawlist->AddTriangle(ImVec2(top.x - w + 5.0f, top.y - h + 3.0f), ImVec2(top.x + w - 5.0f, top.y - h + 3.0f), top, yellow, 3.0f);
+    drawlist->AddTriangle(ImVec2(top.x - w + 5.0f, top.y + h - 3.0f), ImVec2(top.x + w - 5.0f, top.y + h - 3.0f), top, yellow, 3.0f);
+    drawlist->AddTriangleFilled(ImVec2(top.x - w + 12.0f, top.y + h - 6.0f), ImVec2(top.x + w - 12.0f, top.y + h - 6.0f), ImVec2(top.x, top.y + 16.0f), yellow);
+    auto const title{m_busy.task + "..."};
+    auto const note{std::string{STR_C("Working, the screen stays as it is until it's done. Esc stops it where the work allows; the title of the window shows how far it got")}};
+    auto const size{ImGui::CalcTextSize(title.c_str())};
+    auto const notesize{ImGui::CalcTextSize(note.c_str())};
+    auto const y{top.y + h + 22.0f};
+    auto const width{std::max(size.x * 1.4f, notesize.x) + 40.0f};
+    drawlist->AddRectFilled(ImVec2(centre.x - width * 0.5f, y - 10.0f), ImVec2(centre.x + width * 0.5f, y + size.y * 1.4f + notesize.y + 24.0f), IM_COL32(20, 22, 26, 235), 6.0f);
+    drawlist->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.4f, ImVec2(centre.x - size.x * 0.7f, y), yellow, title.c_str());
+    drawlist->AddText(ImVec2(centre.x - notesize.x * 0.5f, y + size.y * 1.4f + 10.0f), IM_COL32(230, 230, 230, 230), note.c_str());
+}
+
 bool editor_mode::update()
 {
+    busy_run_pending();
     frame_steps steps;
     // the catenary doesn't need the far tracks drawn (50 km of them cost a lot in a big scenery)
     Global.editor_tracks = (current_work_area() == work_area::tracks);
@@ -1613,6 +1714,7 @@ bool editor_mode::update()
     steps.step("track lines");
     // the road profile window and the clearing of the paint: whatever section is open
     render_road_profile_window();
+    draw_busy_overlay();
     clear_paint_step();
     if (ui()->mode() == nodebank_panel::TRACK)
     {
@@ -2043,15 +2145,17 @@ void editor_mode::render_terrain_ui()
             }
             ImGui::SameLine();
             ImGui::BeginDisabled(m_paint_outline.size() < 3 || from == m_terrain_layer);
-            if (ImGui::Button(STR_C("with the chosen one##replace")))
+            if (change_button(STR_C("with the chosen one##replace")))
             {
-                terrain_history_step();
-                auto const done{m_streamer.replace_in_area(shaped_outline(), static_cast<std::uint16_t>(from), static_cast<std::uint16_t>(m_terrain_layer))};
-                terrain_history_step();
-                m_terrain_status = format(STR_C("Replaced in %zu chunks%s"), done.first,
-                                          done.second > 0 ? format(STR_C("; %zu had no room for another material"), done.second).c_str() : "");
-                if (done.first > 0)
-                    m_paint_outline.clear();
+                run_busy(STR_C("Replacing the material within the outline"), [this, from = static_cast<std::uint16_t>(from)]() {
+                    terrain_history_step();
+                    auto const done{m_streamer.replace_in_area(shaped_outline(), from, static_cast<std::uint16_t>(m_terrain_layer))};
+                    terrain_history_step();
+                    m_terrain_status = format(STR_C("Replaced in %zu chunks%s"), done.first,
+                                              done.second > 0 ? format(STR_C("; %zu had no room for another material"), done.second).c_str() : "");
+                    if (done.first > 0)
+                        m_paint_outline.clear();
+                });
             }
             ImGui::EndDisabled();
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
@@ -2059,7 +2163,7 @@ void editor_mode::render_terrain_ui()
                                               "elsewhere it stays. The magic wand makes the outline of a field in a click. Ctrl+Z takes it back"));
         }
         ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
-        if (ImGui::Button(STR_C("Fill the area")))
+        if (change_button(STR_C("Fill the area")))
             fill_terrain_area();
         ImGui::EndDisabled();
         ImGui::SameLine();
@@ -2967,7 +3071,7 @@ void editor_mode::handle_terrain_click(bool const Shift)
         // the magic wand: the area of the colour clicked makes the whole outline
         if (m_wand.on)
         {
-            wand_select(world);
+            run_busy(STR_C("The magic wand looking for the area"), [this, world]() { wand_select(world); });
             break;
         }
         add_outline_point(world);
@@ -6694,8 +6798,12 @@ void editor_mode::render_gizmo()
         snapvalue = glm::vec3(0.1f);
     float const *snap = Global.ctrlState && snapvalue.x > 0.0f ? glm::value_ptr(snapvalue) : nullptr;
 
+    // the change of this frame alone: a turn is taken from it, not from the angles the whole matrix decomposes into,
+    // which can't tell a turn of more than 90 degrees about the vertical axis (it came out as 180 - angle with the
+    // other two axes flipped, and the model turned back and forth while dragged one way)
+    glm::mat4 delta(1.0f);
     ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection),
-                         operation, mode, glm::value_ptr(matrix), nullptr, snap);
+                         operation, mode, glm::value_ptr(matrix), glm::value_ptr(delta), snap);
 
     if (ImGuizmo::IsUsing())
     {
@@ -6712,9 +6820,11 @@ void editor_mode::render_gizmo()
 
         if (operation == ImGuizmo::ROTATE && model)
         {
-            // apply the rotation delta relative to the model's current orientation
-            glm::vec3 const newangles(newrotation[0], newrotation[1], newrotation[2]);
-            auto const turned{newangles - model->Angles()};
+            // the turn of this frame, small, so its angles decompose with no ambiguity
+            float deltatranslation[3], deltarotation[3], deltascale[3];
+            ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(delta), deltatranslation, deltarotation, deltascale);
+            auto const wrapped = [](float Angle) { return Angle - 360.0f * std::floor((Angle + 180.0f) / 360.0f); };
+            glm::vec3 const turned{wrapped(deltarotation[0]), wrapped(deltarotation[1]), wrapped(deltarotation[2])};
             m_editor.rotate(model, turned, 0.0f);
             selection_follow(glm::dvec3(0.0), turned, model->location());
         }
@@ -7672,6 +7782,18 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     // with the road window open the left button works its tools, whichever edit mode is on but the track one
     if (m_roadtool.window && Button == GLFW_MOUSE_BUTTON_LEFT && ui()->mode() != nodebank_panel::TRACK)
     {
+        // Alt+LMB on a point: its height (and the other selected ones') dragged up or down
+        if (is_press(Action) && Global.altState && false == ImGui::GetIO().WantCaptureMouse && road_lift_start())
+        {
+            m_input.mouse.button(Button, Action);
+            return;
+        }
+        if (false == is_press(Action) && m_roadtool.lifting)
+        {
+            road_lift_finish();
+            m_input.mouse.button(Button, Action);
+            return;
+        }
         if (is_press(Action))
         {
             // NOTE: the pick is resolved a few frames later, by then it's known whether the press was meant for the UI

@@ -3571,6 +3571,11 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool follow{true}; // built roads are led over the ground between the clicked points
 		float crossingspeed{30.f}; // speed limit on the junctions being made
 		float heightstep{0.1f}; // how much the selected points are raised or lowered at a time
+		// Alt+LMB on a point dragged up or down: the heights of the selected points changed by the drag, applied when let go
+		bool lifting{false};
+		float lift_mouse{0.0f}; // where on the screen the drag began, pixels down
+		double lift_scale{0.0}; // metres for a pixel at the point picked
+		std::vector<double> lift_from; // the heights of the selected points when the drag began
 		bool ring{false}; // the build tool makes roundabouts
 		float ringradius{15.f}; // of the middle of the road going around
 		std::string island{"none"}; // what the middle of a roundabout is covered with
@@ -3608,6 +3613,13 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void draw_road_overlay() const;
 	void update_road_tool();
 	void road_click();
+	// the point where pieces meet or end nearest to the cursor on the screen, within a few pixels; it's found under the
+	// terrain too, where the click on the ground doesn't get near it
+	bool road_joint_on_screen(glm::dvec3 &Joint) const;
+	// Alt+LMB: the drag of the heights of the selected points begun on a point, and finished
+	bool road_lift_start();
+	void road_lift_finish();
+	double road_lift_offset() const;
 	void road_select(road_node *Road);
 	void junction_select(junction_node *Junction);
 	void road_apply();
@@ -3644,12 +3656,40 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		road_node *road{nullptr}; // the profile shown is of the road this piece belongs to
 		std::vector<float> runs; // m from the start of the road, seen from above
 		std::vector<float> heights; // of the road
+		std::vector<float> ground_runs; // where the ground was looked up
 		std::vector<float> ground; // under it, NaN where there's none
+		// the nodes: the points where the bezier parts of the road meet or end, in order along it
+		std::vector<float> node_runs;
+		std::vector<float> node_heights;
+		std::vector<glm::dvec3> node_positions;
+		std::vector<char> selected; // of the nodes
+		std::vector<glm::dvec3> synced; // the points of the road tool as they were last matched to the nodes
+		std::size_t history{0}; // length of the undo history the profile was read at
+		int exaggeration{4}; // index of the stretch of the heights: fit, 1, 2, 5, 10, 20, 50
+		bool dragging{false}; // nodes dragged up or down in the graph
+		float drag_mouse{0.0f};
+		float drag_scale{0.0f}; // metres for a pixel of the graph
+		bool boxing{false}; // a stretch being boxed in the graph
+		ImVec2 box_from{0.0f, 0.0f};
+		// what's made of the selected nodes: 0 level, 1 one grade, 2 a vertical curve, 3 over the ground, 4 up or down by, 5 evened out
+		int op{0};
+		float level{0.0f}; // m
+		float grade{2.0f}; // %
+		bool grade_ends{true}; // the grade from the first selected node to the last, not the one typed in
+		float radius{2000.0f}; // m, of the vertical curve
+		float offset{0.3f}; // m over the ground
+		float shift{-0.5f}; // m up or down
+		int road_class{2};
 	};
 	road_profile_view m_road_profile;
 	void road_profile_window_open();
 	void road_profile_window_toggle();
 	void road_profile_sample();
+	void road_profile_select_points();
+	// the heights and the grades of the nodes of the road written into its pieces, as one step of the history
+	bool road_profile_commit(road_node *Road, std::vector<double> const &Heights, std::vector<double> const &Grades);
+	// what's chosen in the window done to the selected nodes
+	void road_profile_operation();
 	void render_road_profile_window();
 	// level crossings and traffic points
 	void roadpoint_select(roadpoint_node *Point);
@@ -3669,4 +3709,19 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void push_road_snapshot(editor_road::record Record);
 	void restore_road_snapshot(EditorSnapshot const &Snapshot, std::vector<EditorSnapshot> &Opposite, bool const Undo);
 	road_tool m_roadtool;
+	// the heavy work of a tool: the screen frozen with an hourglass and the name of it over the view first, then the work
+	// done at the start of the next frame, so the hourglass is what's seen until it's over
+	struct busy_state
+	{
+		bool pending{false};
+		int shown{0}; // frames the hourglass was drawn in
+		std::string task;
+		std::function<void()> work;
+	};
+	busy_state m_busy;
+public:
+	void run_busy(std::string Task, std::function<void()> Work);
+private:
+	void busy_run_pending();
+	void draw_busy_overlay();
 };

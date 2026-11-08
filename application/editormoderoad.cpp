@@ -825,7 +825,7 @@ void editor_mode::render_junction_layout(junction_node &Junction)
 		if (ImGui::InputFloat(STR_C("Bank slope 1:n"), &tool.bankgrade, 0.25f, 0.5f, "%.2f"))
 			tool.bankgrade = std::clamp(tool.bankgrade, 0.25f, 10.0f);
 		item_tooltip("n: metres across for a metre of height; 1.5 is a usual embankment");
-		if (ImGui::Button(STR_C("Lead the banks to the ground")))
+		if (change_button(STR_C("Lead the banks to the ground")))
 		{
 			if (changed)
 				junction_apply(Junction, state);
@@ -840,7 +840,7 @@ void editor_mode::render_junction_layout(junction_node &Junction)
 		if (banked)
 		{
 			ImGui::SameLine();
-			if (ImGui::Button(STR_C("Remove the banks")))
+			if (change_button(STR_C("Remove the banks")))
 			{
 				for (auto &arm : state.arms)
 					arm.bank = road_node::bank_data{};
@@ -1146,6 +1146,86 @@ void editor_mode::road_profile(std::vector<segment_data> &Pieces, double const *
 	}
 }
 
+bool editor_mode::road_joint_on_screen(glm::dvec3 &Joint) const
+{
+	screen_projection const projection;
+	auto const mouse{ImGui::GetIO().MousePos};
+	float best{12.0f * 12.0f};
+	bool found{false};
+	glm::dvec3 const camera{Global.pCamera.Pos};
+	double nearest{std::numeric_limits<double>::max()};
+	for (auto const &joint : editor_road::joints())
+	{
+		ImVec2 screen;
+		if (false == projection.project(joint, screen))
+			continue;
+		auto const dx{screen.x - mouse.x}, dy{screen.y - mouse.y};
+		auto const distance{dx * dx + dy * dy};
+		auto const range{glm::distance(joint, camera)};
+		// of the points about as near the cursor the one nearer to the camera
+		if (distance < best - 9.0f || (distance <= best + 9.0f && range < nearest))
+		{
+			best = std::min(best, distance);
+			nearest = range;
+			Joint = joint;
+			found = true;
+		}
+	}
+	return found;
+}
+
+bool editor_mode::road_lift_start()
+{
+	auto &tool{m_roadtool};
+	glm::dvec3 joint;
+	if (tool.tool != 0 || false == road_joint_on_screen(joint))
+		return false;
+	auto const listed{std::find_if(tool.points.begin(), tool.points.end(), [&joint](glm::dvec3 const &Point) { return glm::distance(Point, joint) < 0.25; })};
+	if (listed == tool.points.end())
+		tool.points.assign(1, joint);
+	tool.selected = nullptr;
+	tool.junction = nullptr;
+	tool.marker = nullptr;
+	auto const &io{ImGui::GetIO()};
+	auto const height{std::max(1.0f, io.DisplaySize.y)};
+	if (Global.EditorOrtho)
+		tool.lift_scale = 2.0 * static_cast<double>(Global.EditorOrthoExtent) / height;
+	else
+		tool.lift_scale = glm::distance(joint, glm::dvec3{Global.pCamera.Pos}) * 2.0 * std::tan(glm::radians(Global.FieldOfView / Global.ZoomFactor) * 0.5) / height;
+	tool.lift_mouse = io.MousePos.y;
+	tool.lift_from.clear();
+	for (auto const &point : tool.points)
+		tool.lift_from.push_back(point.y);
+	tool.lifting = true;
+	tool.status = STR_C("Drag up or down, let go to set the heights. Ctrl while dragging: by centimetres");
+	return true;
+}
+
+double editor_mode::road_lift_offset() const
+{
+	auto const &tool{m_roadtool};
+	auto offset{(tool.lift_mouse - ImGui::GetIO().MousePos.y) * tool.lift_scale};
+	// with Ctrl it's slower, for the fine part
+	if (Global.ctrlState)
+		offset *= 0.1;
+	return std::round(offset * 100.0) / 100.0;
+}
+
+void editor_mode::road_lift_finish()
+{
+	auto &tool{m_roadtool};
+	if (false == tool.lifting)
+		return;
+	tool.lifting = false;
+	auto const offset{road_lift_offset()};
+	if (std::abs(offset) < 0.005 || tool.lift_from.size() != tool.points.size())
+		return;
+	std::vector<double> heights;
+	for (auto const height : tool.lift_from)
+		heights.push_back(height + offset);
+	road_point_heights(heights);
+}
+
 void editor_mode::road_click()
 {
 	auto &tool{m_roadtool};
@@ -1175,7 +1255,8 @@ void editor_mode::road_click()
 		}
 		tool.marker = nullptr;
 		glm::dvec3 joint;
-		if (editor_road::nearest_joint(ground, kPointRadius, joint))
+		// by the cursor on the screen first: a point under the terrain can't be got near by the ground clicked
+		if (road_joint_on_screen(joint) || editor_road::nearest_joint(ground, kPointRadius, joint))
 		{
 			// a point where pieces meet or end. with Shift it's added to the selected ones, or taken out of them
 			auto const listed{std::find_if(tool.points.begin(), tool.points.end(), [&joint](glm::dvec3 const &Point) { return glm::distance(Point, joint) < 0.25; })};
@@ -2148,7 +2229,7 @@ bool editor_mode::render_road_layout(road_node::state &State)
 			if (ImGui::InputFloat(STR_C("Bank slope 1:n"), &tool.bankgrade, 0.25f, 0.5f, "%.2f"))
 				tool.bankgrade = std::clamp(tool.bankgrade, 0.25f, 10.0f);
 			item_tooltip("n: metres across for a metre of height; 1.5 is a usual embankment");
-			if (ImGui::Button(STR_C("Lead the banks to the ground")))
+			if (change_button(STR_C("Lead the banks to the ground")))
 			{
 				road_bank_to_ground();
 				// the layout shown was replaced with what the road is like now
@@ -2427,9 +2508,9 @@ void editor_mode::render_road_selection()
 			std::vector<double> heights;
 			for (auto const &point : tool.points)
 				heights.emplace_back(point.y);
-			auto const moved{ImGui::Button(STR_C("Lower")) ? -1.0 : 0.0};
+			auto const moved{change_button(STR_C("Lower")) ? -1.0 : 0.0};
 			ImGui::SameLine();
-			auto const raised{ImGui::Button(STR_C("Raise")) ? 1.0 : 0.0};
+			auto const raised{change_button(STR_C("Raise")) ? 1.0 : 0.0};
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(80.0f);
 			if (ImGui::InputFloat(STR_C("by [m]##heightstep"), &tool.heightstep, 0.0f, 0.0f, "%.2f"))
@@ -2441,7 +2522,7 @@ void editor_mode::render_road_selection()
 					entry += (moved + raised) * tool.heightstep;
 				road_point_heights(heights);
 			}
-			if (ImGui::Button(STR_C("Put on the ground")))
+			if (change_button(STR_C("Put on the ground")))
 			{
 				// a point with nothing under it comes back with the height it has, and is left where it is
 				auto const ground{ground_heights(tool.points, true)};
@@ -2834,8 +2915,24 @@ void editor_mode::draw_road_overlay() const
 			drawpoint(point, kSelectedColor, 6.0f, true);
 			drawpoint(point, kSelectedColor, 11.0f, false);
 		}
-		hint = tool.marker != nullptr       ? STR_C("LMB: select a piece, a junction, a point or a marker   Del: delete   Ctrl+Z: undo") :
-		       false == tool.points.empty() ? STR_C("LMB: select a point   Shift+LMB: add a point or take it out   Del: delete the points   Ctrl+Z: undo") :
+		if (tool.lifting)
+		{
+			// where the points go: a line up or down to each, and the change by the cursor
+			auto const offset{road_lift_offset()};
+			for (auto const &point : tool.points)
+			{
+				auto const target{glm::dvec3{point.x, point.y + offset, point.z}};
+				projection.line(drawlist, point, target, IM_COL32(255, 210, 60, 255), 2.0f);
+				drawpoint(target, IM_COL32(255, 210, 60, 255), 6.0f, true);
+			}
+			auto const mouse{ImGui::GetIO().MousePos};
+			auto const label{format(STR_C("%+.2f m, to %.2f m"), offset, tool.points.empty() ? 0.0 : tool.points.front().y + offset)};
+			drawlist->AddRectFilled(ImVec2(mouse.x + 14.0f, mouse.y - 4.0f), ImVec2(mouse.x + 22.0f + ImGui::CalcTextSize(label.c_str()).x, mouse.y + 18.0f), IM_COL32(0, 0, 0, 170), 3.0f);
+			drawlist->AddText(ImVec2(mouse.x + 18.0f, mouse.y - 2.0f), IM_COL32(255, 210, 60, 255), label.c_str());
+		}
+		hint = tool.lifting                 ? STR_C("Drag up or down: the height of the selected points   Ctrl: finer   let go: set") :
+		       tool.marker != nullptr       ? STR_C("LMB: select a piece, a junction, a point or a marker   Del: delete   Ctrl+Z: undo") :
+		       false == tool.points.empty() ? STR_C("LMB: select a point (under the terrain too)   Shift+LMB: add a point or take it out   Alt+LMB drag: the height   Del: delete the points   Ctrl+Z: undo") :
 		       tool.selected != nullptr     ? STR_C("LMB: select a piece, a junction or a point (white dot)   K: split at the cursor   Del: delete   Ctrl+Z: undo") :
 		       tool.junction != nullptr     ? STR_C("LMB: select a piece, a junction or a point (white dot)   Del: delete   Ctrl+Z: undo") :
 		                                      STR_C("LMB: select a piece, a junction, a point (white dot) or a marker");
@@ -2844,5 +2941,6 @@ void editor_mode::draw_road_overlay() const
 	ImVec2 const position{editor_ui::view_min().x + 12.0f, editor_ui::view_max().y - 56.0f};
 	auto const size{ImGui::CalcTextSize(hint.c_str())};
 	drawlist->AddRectFilled(ImVec2(position.x - 6.0f, position.y - 4.0f), ImVec2(position.x + size.x + 6.0f, position.y + size.y + 4.0f), IM_COL32(0, 0, 0, 150), 4.0f);
-	drawlist->AddText(position, IM_COL32(255, 255, 255, 230), hint.c_str());
+	// the hints yellow, as everywhere in the editor
+	drawlist->AddText(position, IM_COL32(255, 210, 60, 255), hint.c_str());
 }

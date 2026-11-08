@@ -350,6 +350,7 @@ void editor_mode::lay_out_film()
 			{
 				if (material[kind].empty())
 					continue;
+				editor_busy_progress(-1.0);
 				std::vector<film_meta::strip const *> strips;
 				for (auto const &s : meta.strips)
 					if (s.right == (side == 1) && s.to > settings.bed + 1e-3)
@@ -472,8 +473,10 @@ void editor_mode::lay_out_film()
 			std::mt19937 random{2026u};
 			auto const uniform = [&](double const Low, double const High) { return std::uniform_real_distribution<double>{Low, High}(random); };
 			std::size_t number{0};
+			std::size_t done_strips{0};
 			for (auto const &s : meta.strips)
 			{
+				editor_busy_progress(0.5 + 0.5 * static_cast<double>(done_strips++) / static_cast<double>(meta.strips.size()));
 				if (s.to <= settings.nearest)
 					continue;
 				auto const inner{std::max(s.from, static_cast<double>(settings.nearest))};
@@ -594,11 +597,11 @@ void editor_mode::render_film_ui()
 	}
 	ImGui::Spacing();
 	if (main_button(STR_C("Lay out along the route##film"), ImVec2(-FLT_MIN, tall_button_height())))
-		lay_out_film();
-	item_tooltip("What was laid out from a film before is taken away first. Over a whole line it takes a while: the editor doesn't answer meanwhile.\n"
+		run_busy(STR_C("Laying out what the film saw"), [this]() { lay_out_film(); });
+	item_tooltip("What was laid out from a film before is taken away first. Over a whole line it takes a while: an hourglass shows meanwhile.\n"
 	             "The surfaces go back with Ctrl+Z, the trees with the button below");
-	if (ImGui::Button(STR_C("Take away what was laid out from the film##film"), ImVec2(-FLT_MIN, 0.0f)))
-		remove_film();
+	if (change_button(STR_C("Take away what was laid out from the film##film"), ImVec2(-FLT_MIN, 0.0f)))
+		run_busy(STR_C("Taking away what was laid out from the film"), [this]() { remove_film(); });
 	if (false == m_film_status.empty())
 		ImGui::TextWrapped("%s", m_film_status.c_str());
 }
