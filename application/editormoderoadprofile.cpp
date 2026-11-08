@@ -20,7 +20,11 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulation.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include "model/AnimModel.h"
 
 namespace
 {
@@ -58,27 +62,67 @@ std::vector<std::array<glm::dvec3, 4> *> parts(segment_data &Path)
 
 double constexpr kJoin{0.5}; // m: ends this close are the same point
 
-} // namespace
-
-void editor_mode::road_profile_smooth()
+// a model of the structure of a tunnel, written as a .t3d: triangles of one material, both faces of each so it's seen from
+// anywhere; the points are metres from Origin, the way the scenery has them
+struct structure_mesh
 {
-	auto &tool{m_roadtool};
-	if (tool.selected == nullptr)
-		return;
-	auto pieces{editor_road::chain(*tool.selected)};
-	std::string reason;
-	for (auto const *road : pieces)
-		if (false == editor_road::can_edit(*road, &reason))
-		{
-			tool.status = format(STR_C("\"%s\" can't be changed: %s"), road->name().c_str(), reason.c_str());
-			return;
-		}
-	// the pieces in order along the road, each with the way it goes: from an end no other piece of the road meets
-	struct oriented
+	std::vector<glm::dvec3> points;
+	std::vector<glm::vec2> uvs;
+
+	void quad(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &D, glm::vec2 const &Ta, glm::vec2 const &Tb, glm::vec2 const &Tc, glm::vec2 const &Td)
 	{
-		road_node *road;
-		bool reversed;
-	};
+		triangle(A, B, C, Ta, Tb, Tc);
+		triangle(A, C, D, Ta, Tc, Td);
+	}
+	void triangle(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::vec2 const &Ta, glm::vec2 const &Tb, glm::vec2 const &Tc)
+	{
+		points.insert(points.end(), {A, B, C, A, C, B});
+		uvs.insert(uvs.end(), {Ta, Tb, Tc, Ta, Tc, Tb});
+	}
+	bool write(std::string const &Path, glm::dvec3 const &Origin, std::string const &Material) const
+	{
+		std::ofstream file{Path};
+		if (false == file.good())
+			return false;
+		file << "// the structure of a tunnel under a road, made by the editor\n"
+		     << "Parent: none\nType: Mesh\nName: tunel\nAnim: false\nAmbient: 255 255 255\nDiffuse: 255 255 255\nSpecular: 0 0 0\n"
+		     << "SelfIllum: false\nWire: false\nWireSize: 1\nOpacity: 1\nMap: " << Material << "\nMaxDistance: 3000\nMinDistance: 0\n"
+		     << "Transform:\n 1 0 0 0\n 0 1 0 0\n 0 0 1 0\n 0 0 0 1\n\n";
+		file << "NumIndices: " << points.size() << "\n";
+		for (std::size_t i = 0; i < points.size(); i += 3)
+			file << i << ' ' << i + 1 << ' ' << i + 2 << "\n";
+		file << "NumVerts: " << points.size() << "\n";
+		file.precision(4);
+		file << std::fixed;
+		for (std::size_t i = 0; i < points.size(); i += 3)
+		{
+			auto const a{points[i] - Origin}, b{points[i + 1] - Origin}, c{points[i + 2] - Origin};
+			auto normal{glm::cross(b - a, c - a)};
+			normal = glm::length(normal) > 1e-12 ? glm::normalize(normal) : glm::dvec3{0.0, 1.0, 0.0};
+			for (int k = 0; k < 3; ++k)
+			{
+				auto const p{points[i + k] - Origin};
+				file << p.x << ' ' << p.y << ' ' << p.z << ' ' << normal.x << ' ' << normal.y << ' ' << normal.z << ' ' << uvs[i + k].x << ' ' << uvs[i + k].y
+				     << " 1 0 0 1\n";
+			}
+		}
+		return file.good();
+	}
+};
+
+struct oriented_piece
+{
+	road_node *road;
+	bool reversed;
+};
+
+// the pieces of a road in order along it, each with the way it goes: from an end no other piece of the road meets; at a fork
+// the run stops
+std::vector<oriented_piece> ordered_chain(std::vector<road_node *> const &Pieces)
+{
+	auto const &pieces{Pieces};
+	using oriented = oriented_piece;
+	// the pieces in order along the road, each with the way it goes: from an end no other piece of the road meets
 	auto const end_of = [](road_node const *Road, int const End) { return Road->definition().point(static_cast<double>(End)); };
 	auto const meets = [&](glm::dvec3 const &Point, road_node const *Except) {
 		for (auto const *other : pieces)
@@ -132,6 +176,25 @@ void editor_mode::road_profile_smooth()
 		left.erase(next);
 	}
 
+	return order;
+}
+
+} // namespace
+
+void editor_mode::road_profile_smooth()
+{
+	auto &tool{m_roadtool};
+	if (tool.selected == nullptr)
+		return;
+	auto pieces{editor_road::chain(*tool.selected)};
+	std::string reason;
+	for (auto const *road : pieces)
+		if (false == editor_road::can_edit(*road, &reason))
+		{
+			tool.status = format(STR_C("\"%s\" can't be changed: %s"), road->name().c_str(), reason.c_str());
+			return;
+		}
+	auto const order{ordered_chain(pieces)};
 	// the heights along the road as they are, every couple of metres of the run seen from above
 	std::vector<double> runs;
 	std::vector<double> heights;
@@ -404,6 +467,30 @@ void editor_mode::road_tunnel(bool const Close)
 			led = true;
 		}
 	}
+	{
+		// the structures of before go: made again where the tunnels are now, or not at all when they're closed
+		std::vector<TAnimModel *> old;
+		for (auto *model : simulation::Instances.sequence())
+		{
+			if (model == nullptr)
+				continue;
+			for (auto const *road : pieces)
+				if (model->name().rfind("tunel " + name_of(road) + " ", 0) == 0)
+				{
+					old.push_back(model);
+					break;
+				}
+		}
+		for (auto *model : old)
+		{
+			if (m_node == model)
+			{
+				m_node = nullptr;
+				ui()->set_node(nullptr);
+			}
+			erase_model(model);
+		}
+	}
 	auto const cover{std::max(0.2, static_cast<double>(tool.tunnel_cover))};
 	std::size_t tunnels{0};
 	double total{0.0};
@@ -466,6 +553,8 @@ void editor_mode::road_tunnel(bool const Close)
 			std::vector<glm::dvec2> outline{leftside};
 			outline.insert(outline.end(), rightside.rbegin(), rightside.rend());
 			m_streamer.cut(outline, false == Close);
+			if (false == Close && tool.tunnel_structure)
+				road_tunnel_structure(*road, run.first, run.second, steps, beside, tunnels);
 			++tunnels;
 			total += (last - first) * length / steps;
 		}
@@ -486,4 +575,285 @@ void editor_mode::road_tunnel(bool const Close)
 		tool.status = format(STR_C("The ground is nowhere %.1f m or more over the road: no tunnel cut"), cover);
 	else
 		tool.status = format(STR_C("Tunnels cut: %zu, %.0f m together. The track and the embankment over them stay; Ctrl+Z takes it back"), tunnels, total);
+}
+
+void editor_mode::road_profile_window_open()
+{
+	if (m_roadtool.selected == nullptr)
+		return;
+	m_road_profile.open = true;
+	m_road_profile.road = m_roadtool.selected;
+	road_profile_sample();
+}
+
+void editor_mode::road_profile_sample()
+{
+	auto &view{m_road_profile};
+	view.runs.clear();
+	view.heights.clear();
+	view.ground.clear();
+	if (view.road == nullptr)
+		return;
+	auto const order{ordered_chain(editor_road::chain(*view.road))};
+	double run{0.0};
+	glm::dvec3 previous{0.0};
+	bool first{true};
+	for (auto const &entry : order)
+	{
+		auto const &state{entry.road->definition()};
+		int constexpr steps{48};
+		for (int i = 0; i <= steps; ++i)
+		{
+			if (false == first && i == 0)
+				continue;
+			auto const t{entry.reversed ? 1.0 - i / static_cast<double>(steps) : i / static_cast<double>(steps)};
+			auto const point{state.point(t)};
+			if (false == first)
+				run += glm::length(glm::dvec2{point.x - previous.x, point.z - previous.z});
+			first = false;
+			previous = point;
+			double ground{0.0};
+			view.runs.push_back(static_cast<float>(run));
+			view.heights.push_back(static_cast<float>(point.y));
+			view.ground.push_back(m_streamer.height_at(point.x, point.z, ground, true) ? static_cast<float>(ground) : std::numeric_limits<float>::quiet_NaN());
+		}
+	}
+}
+
+void editor_mode::render_road_profile_window()
+{
+	auto &view{m_road_profile};
+	if (false == view.open)
+		return;
+	// the road gone (deleted, or another scenery): the window too
+	bool alive{false};
+	for (auto const *road : simulation::Roads.sequence())
+		if (road == view.road)
+			alive = true;
+	if (false == alive)
+	{
+		view = {};
+		return;
+	}
+	auto &tool{m_roadtool};
+	ImGui::SetNextWindowSize(ImVec2(760.0f, 470.0f), ImGuiCond_FirstUseEver);
+	if (false == ImGui::Begin(STR_C("Vertical profile of the road###roadprofile"), &view.open))
+	{
+		ImGui::End();
+		return;
+	}
+	ImGui::TextUnformatted(view.road->name().c_str());
+	ImGui::SameLine();
+	if (ImGui::SmallButton(STR_C("Read again##roadprofile")))
+		road_profile_sample();
+	// the graph: the ground brown, the road grey, heights stretched to fill it
+	auto const size{ImVec2(ImGui::GetContentRegionAvail().x, 200.0f)};
+	auto const origin{ImGui::GetCursorScreenPos()};
+	ImGui::InvisibleButton("##roadprofilegraph", size);
+	auto *draw{ImGui::GetWindowDrawList()};
+	draw->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y), IM_COL32(25, 28, 32, 255));
+	if (view.runs.size() >= 2)
+	{
+		float low{std::numeric_limits<float>::max()}, high{-low};
+		for (std::size_t i = 0; i < view.runs.size(); ++i)
+		{
+			low = std::min(low, view.heights[i]);
+			high = std::max(high, view.heights[i]);
+			if (std::isfinite(view.ground[i]))
+			{
+				low = std::min(low, view.ground[i]);
+				high = std::max(high, view.ground[i]);
+			}
+		}
+		high = std::max(high, low + 2.0f);
+		auto const margin{(high - low) * 0.08f};
+		low -= margin;
+		high += margin;
+		auto const length{std::max(1.0f, view.runs.back())};
+		auto const at = [&](float const Run, float const Height) {
+			return ImVec2(origin.x + Run / length * size.x, origin.y + size.y - (Height - low) / (high - low) * size.y);
+		};
+		for (std::size_t i = 1; i < view.runs.size(); ++i)
+			if (std::isfinite(view.ground[i - 1]) && std::isfinite(view.ground[i]))
+				draw->AddLine(at(view.runs[i - 1], view.ground[i - 1]), at(view.runs[i], view.ground[i]), IM_COL32(170, 120, 70, 255), 2.0f);
+		for (std::size_t i = 1; i < view.runs.size(); ++i)
+			draw->AddLine(at(view.runs[i - 1], view.heights[i - 1]), at(view.runs[i], view.heights[i]), IM_COL32(220, 220, 225, 255), 2.0f);
+		// where the cursor is: the run, the heights and the grade
+		if (ImGui::IsItemHovered())
+		{
+			auto const mouse{ImGui::GetIO().MousePos};
+			auto const run{(mouse.x - origin.x) / size.x * length};
+			auto const it{std::lower_bound(view.runs.begin(), view.runs.end(), run)};
+			auto const i{static_cast<std::size_t>(std::clamp<std::ptrdiff_t>(it - view.runs.begin(), 1, static_cast<std::ptrdiff_t>(view.runs.size()) - 1))};
+			auto const grade{(view.heights[i] - view.heights[i - 1]) / std::max(0.01f, view.runs[i] - view.runs[i - 1]) * 100.0f};
+			draw->AddLine(ImVec2(mouse.x, origin.y), ImVec2(mouse.x, origin.y + size.y), IM_COL32(255, 255, 255, 60));
+			ImGui::SetTooltip(STR_C("%.0f m: road %.2f m, ground %.2f m, grade %.1f %%"), view.runs[i], view.heights[i], view.ground[i], grade);
+		}
+		ImGui::TextDisabled(STR_C("%.0f m long, heights %.1f - %.1f m; the road grey, the ground brown"), length, low + margin, high - margin);
+	}
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Steepest grade (%)##road"), &tool.maxgrade, 0.1f, 0.5f, 20.0f, "%.1f");
+	item_tooltip("A road in the country 6-8 %, a main road 4-5 %, a motorway 4 %");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Crest radius (m)##road"), &tool.crest, 50.0f, 50.0f, 50000.0f, "%.0f");
+	item_tooltip("The smallest radius of the vertical curve over a hilltop: the larger, the farther a driver sees over it");
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Dip radius (m)##road"), &tool.sag, 50.0f, 50.0f, 50000.0f, "%.0f");
+	item_tooltip("The smallest radius of the vertical curve in a dip");
+	auto const selected_before{tool.selected};
+	tool.selected = view.road;
+	if (ImGui::Button(STR_C("Even out the profile of the road")))
+	{
+		road_profile_smooth();
+		road_profile_sample();
+	}
+	item_tooltip("The heights of all the pieces of the road: grades no steeper and curves no sharper than set, as near the heights it had as that lets;\n"
+	             "its two ends stay where they are, so it keeps meeting the junctions. Ctrl+Z takes it back");
+	ImGui::SeparatorText(STR_C("Terrain##roadprofile"));
+	ImGui::SetNextItemWidth(120.0f);
+	if (ImGui::InputFloat(STR_C("Bank slope 1:n"), &tool.bankgrade, 0.25f, 0.5f, "%.2f"))
+		tool.bankgrade = std::clamp(tool.bankgrade, 0.25f, 10.0f);
+	ImGui::Checkbox(STR_C("All the roads of the scenery##roadterrain"), &tool.every_road);
+	if (ImGui::Button(STR_C("Lead the terrain to the road")))
+	{
+		road_terrain(false);
+		road_profile_sample();
+	}
+	item_tooltip("The terrain made flat under the roadway and its sides, with slopes of the grade set for the banks (1:n) down or up to the ground around,\n"
+	             "rough as the natural slopes of the track bed are set. It follows the road when it's led again. Ctrl+Z takes it back");
+	ImGui::SameLine();
+	if (ImGui::Button(STR_C("Let go##roadterrain")))
+	{
+		road_terrain(true);
+		road_profile_sample();
+	}
+	item_tooltip("The terrain no longer shaped by the road (of the selected one, or of all of them)");
+	ImGui::SeparatorText(STR_C("Tunnels and underpasses##roadprofile"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Tunnel where the ground is over the road by (m)##road"), &tool.tunnel_cover, 0.1f, 0.5f, 30.0f, "%.1f");
+	item_tooltip("Where the ground at the axis is this much over the surface of the road, the road goes under it: through an embankment, a hill");
+	ImGui::Checkbox(STR_C("Build the structure##tunnel"), &tool.tunnel_structure);
+	item_tooltip("Walls along the road, the deck or the vault over it and the wing walls at the portals, as a model of its own placed with the tunnel");
+	if (ImGui::Button(STR_C("Cut a tunnel")))
+	{
+		road_tunnel(false);
+		road_profile_sample();
+	}
+	item_tooltip("Along the road, where it runs into an embankment or a hill, a hole cut in the ground as wide as the road and its sides:\n"
+	             "the embankment and the track on it stay over the road, the terrain led to the road stops at the portals. Ctrl+Z takes it back");
+	ImGui::SameLine();
+	if (ImGui::Button(STR_C("Close it##tunnel")))
+	{
+		road_tunnel(true);
+		road_profile_sample();
+	}
+	item_tooltip("The holes along the road closed again, its structures taken away");
+	tool.selected = selected_before != nullptr ? selected_before : view.road;
+	if (false == tool.status.empty())
+		ImGui::TextWrapped("%s", tool.status.c_str());
+	ImGui::End();
+}
+
+
+void editor_mode::road_tunnel_structure(road_node const &Road, int const First, int const Last, int const Steps, double const Beside, std::size_t const Number)
+{
+	auto const &state{Road.definition()};
+	auto const name_of = [](road_node const *R) { return "road " + (R->name().empty() ? std::to_string(reinterpret_cast<std::uintptr_t>(R)) : R->name()); };
+	double constexpr clearance{4.7}; // m over the road to the soffit, as under a bridge over a road
+	double constexpr deck{0.8}; // m the deck or the vault is thick
+	double constexpr wing{4.0}; // m the wing walls reach out of the portals
+	structure_mesh mesh;
+	struct section
+	{
+		glm::dvec3 left, right; // the feet of the walls, at the surface of the road
+		double top; // of the structure: the ground over it, or the soffit and the deck where the ground is far up (a hill)
+		double along;
+	};
+	std::vector<section> sections;
+	double along{0.0};
+	glm::dvec3 previous{state.point(First / static_cast<double>(Steps))};
+	for (int i = First; i <= Last; ++i)
+	{
+		auto const t{i / static_cast<double>(Steps)};
+		auto const point{state.point(t)};
+		along += glm::length(point - previous);
+		previous = point;
+		auto const tangent{state.tangent(t)};
+		glm::dvec3 across{tangent.z, 0.0, -tangent.x};
+		if (glm::length(across) < 1e-9)
+			continue;
+		across = glm::normalize(across) * (0.5 * state.span(t) + Beside);
+		double ground{point.y + clearance + deck};
+		m_streamer.height_at(point.x, point.z, ground, true);
+		// under an embankment the deck is its top; under a hill a vault at the clearance, the ground above it closed by its top
+		auto const top{std::max(point.y + clearance + deck, std::min(ground, point.y + clearance + deck + 1.0))};
+		sections.push_back({point + across - glm::dvec3{0.0, 0.3, 0.0}, point - across - glm::dvec3{0.0, 0.3, 0.0}, std::max(top, ground - 0.05), along});
+	}
+	if (sections.size() < 2)
+		return;
+	double constexpr tile{4.0};
+	for (std::size_t i = 1; i < sections.size(); ++i)
+	{
+		auto const &a{sections[i - 1]};
+		auto const &b{sections[i]};
+		auto const ua{static_cast<float>(a.along / tile)}, ub{static_cast<float>(b.along / tile)};
+		// the walls, from below the road up to the top
+		for (auto const side : {0, 1})
+		{
+			auto const &fa{side == 0 ? a.left : a.right};
+			auto const &fb{side == 0 ? b.left : b.right};
+			glm::dvec3 const ta{fa.x, a.top, fa.z}, tb{fb.x, b.top, fb.z};
+			mesh.quad(fa, fb, tb, ta, {ua, 0.f}, {ub, 0.f}, {ub, static_cast<float>((b.top - fb.y) / tile)}, {ua, static_cast<float>((a.top - fa.y) / tile)});
+		}
+		// the soffit at the clearance and the top of the deck, as wide as between the walls
+		for (auto const level : {0, 1})
+		{
+			auto const ya{level == 0 ? std::min(a.top - deck, a.left.y + 0.3 + clearance) : a.top};
+			auto const yb{level == 0 ? std::min(b.top - deck, b.left.y + 0.3 + clearance) : b.top};
+			glm::dvec3 const la{a.left.x, ya, a.left.z}, ra{a.right.x, ya, a.right.z}, lb{b.left.x, yb, b.left.z}, rb{b.right.x, yb, b.right.z};
+			auto const width{static_cast<float>(glm::distance(a.left, a.right) / tile)};
+			mesh.quad(la, lb, rb, ra, {ua, 0.f}, {ub, 0.f}, {ub, width}, {ua, width});
+		}
+	}
+	// at the portals: the face of the deck over the opening, and the wing walls going out at 45 degrees, falling to the road
+	for (auto const end : {0, 1})
+	{
+		auto const &s{end == 0 ? sections.front() : sections.back()};
+		auto const &n{end == 0 ? sections[1] : sections[sections.size() - 2]};
+		auto out{glm::dvec3{s.left.x - n.left.x, 0.0, s.left.z - n.left.z}};
+		if (glm::length(out) < 1e-9)
+			continue;
+		out = glm::normalize(out);
+		auto const soffit{std::min(s.top - deck, s.left.y + 0.3 + clearance)};
+		glm::dvec3 const l0{s.left.x, soffit, s.left.z}, r0{s.right.x, soffit, s.right.z}, l1{s.left.x, s.top, s.left.z}, r1{s.right.x, s.top, s.right.z};
+		auto const width{static_cast<float>(glm::distance(s.left, s.right) / tile)};
+		mesh.quad(l0, r0, r1, l1, {0.f, 0.f}, {width, 0.f}, {width, static_cast<float>((s.top - soffit) / tile)}, {0.f, static_cast<float>((s.top - soffit) / tile)});
+		auto const sideways{glm::normalize(s.left - s.right)};
+		for (auto const side : {0, 1})
+		{
+			auto const &foot{side == 0 ? s.left : s.right};
+			auto const away{side == 0 ? sideways : -sideways};
+			auto const tip{foot + (out + away) * (wing / std::sqrt(2.0))};
+			glm::dvec3 const top{foot.x, s.top, foot.z};
+			mesh.quad(foot, tip, glm::dvec3{tip.x, foot.y + 0.6, tip.z}, top, {0.f, 0.f}, {static_cast<float>(wing / tile), 0.f}, {static_cast<float>(wing / tile), 0.15f},
+			          {0.f, static_cast<float>((s.top - foot.y) / tile)});
+		}
+	}
+	// a file of its own each time: the models read once are kept by the simulation under their names
+	auto const stamp{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
+	std::string clean{name_of(&Road)};
+	for (auto &c : clean)
+		if (false == std::isalnum(static_cast<unsigned char>(c)))
+			c = '_';
+	auto const relative{"kabina_tunele/" + clean + "_" + std::to_string(Number) + "_" + std::to_string(stamp) + ".t3d"};
+	std::error_code error;
+	std::filesystem::create_directories("models/kabina_tunele", error);
+	auto const origin{sections.front().left};
+	if (false == mesh.write("models/" + relative, origin, m_roadtool.tunnel_material))
+		return;
+	auto *model{simulation::State.create_model("node 3000 0 none model 0 0 0 0 " + relative + " none endmodel",
+	                                           "tunel " + name_of(&Road) + " " + std::to_string(Number), origin)};
+	(void)model;
 }

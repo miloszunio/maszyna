@@ -1641,6 +1641,7 @@ bool editor_mode::update()
             m_vehicle.draw_overlay();
         }
         render_track_context();
+        render_road_profile_window();
         steps.step("context");
         update_build_tools();
         steps.step("laying");
@@ -4877,6 +4878,11 @@ void editor_mode::render_view_menu()
         toggle_ortho();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The view straight down without perspective, as on a map; again for the camera as it was"));
+    if (ImGui::MenuItem(STR_C("Cursor drawn into the picture (streams)"), nullptr, ui_layer::drawn_cursor()))
+        ui_layer::draw_cursor(false == ui_layer::drawn_cursor());
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", STR_C("The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\n"
+                                      "or a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"));
     if (ImGui::BeginMenu(STR_C("Camera speed and panning")))
     {
         render_camera_settings();
@@ -7439,6 +7445,12 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
                 ui()->set_node(nullptr);
             }
         }
+        break;
+
+    case GLFW_KEY_P:
+        // the vertical profile of the selected road, in its own window
+        if (is_press(Action) && false == anyModifier && false == ImGui::GetIO().WantTextInput && m_roadtool.window && m_roadtool.selected != nullptr)
+            road_profile_window_open();
         break;
 
     case GLFW_KEY_TAB:

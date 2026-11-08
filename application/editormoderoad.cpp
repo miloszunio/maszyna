@@ -2161,61 +2161,12 @@ bool editor_mode::render_road_layout(road_node::state &State)
 
 	}
 
-	// the profile, the terrain and the tunnels of the selected road: always shown, so it's found; the buttons wait for a road
-	if (ImGui::CollapsingHeader(STR_C("Vertical profile and terrain##road"), ImGuiTreeNodeFlags_DefaultOpen))
+	// the vertical profile, the terrain and the tunnels: a window of their own, as the profile of a line of tracks
+	if (tool.selected != nullptr)
 	{
-		if (tool.selected == nullptr)
-			ImGui::TextDisabled("%s", STR_C("Select a road (the Select tool) for these"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Steepest grade (%)##road"), &tool.maxgrade, 0.1f, 0.5f, 20.0f, "%.1f");
-		item_tooltip("A road in the country 6-8 %, a main road 4-5 %, a motorway 4 %");
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Crest radius (m)##road"), &tool.crest, 50.0f, 50.0f, 50000.0f, "%.0f");
-		item_tooltip("The smallest radius of the vertical curve over a hilltop: the larger, the farther a driver sees over it");
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Dip radius (m)##road"), &tool.sag, 50.0f, 50.0f, 50000.0f, "%.0f");
-		item_tooltip("The smallest radius of the vertical curve in a dip");
-		ImGui::BeginDisabled(tool.selected == nullptr);
-		if (ImGui::Button(STR_C("Even out the profile of the road")))
-		{
-			road_profile_smooth();
-			return false;
-		}
-		item_tooltip("The heights of all the pieces of the road: grades no steeper and curves no sharper than set, as near the heights it had as that lets;\n"
-		             "its two ends stay where they are, so it keeps meeting the junctions. Ctrl+Z takes it back");
-		ImGui::EndDisabled();
-		ImGui::Separator();
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Tunnel where the ground is over the road by (m)##road"), &tool.tunnel_cover, 0.1f, 0.5f, 30.0f, "%.1f");
-		item_tooltip("Where the ground at the axis is this much over the surface of the road, the road goes under it: through an embankment, a hill");
-		ImGui::BeginDisabled(tool.selected == nullptr);
-		if (ImGui::Button(STR_C("Cut a tunnel")))
-		{
-			road_tunnel(false);
-			return false;
-		}
-		item_tooltip("Along the selected road, where it runs into an embankment or a hill, a hole cut in the ground as wide as the road and its sides:\n"
-		             "the embankment and the track on it stay over the road, the terrain led to the road stops at the portals. Ctrl+Z takes it back");
-		ImGui::SameLine();
-		if (ImGui::Button(STR_C("Close it##tunnel")))
-		{
-			road_tunnel(true);
-			return false;
-		}
-		item_tooltip("The holes along the selected road closed again");
-		ImGui::EndDisabled();
-		ImGui::Separator();
-		ImGui::Checkbox(STR_C("All the roads of the scenery##roadterrain"), &tool.every_road);
-		ImGui::BeginDisabled(tool.selected == nullptr && false == tool.every_road);
-		if (ImGui::Button(STR_C("Lead the terrain to the road")))
-			road_terrain(false);
-		item_tooltip("The terrain made flat under the roadway and its sides, with slopes of the grade set for the banks (1:n) down or up to the ground around,\n"
-		             "rough as the natural slopes of the track bed are set. It follows the road when it's led again. Ctrl+Z takes it back");
-		ImGui::SameLine();
-		if (ImGui::Button(STR_C("Let go##roadterrain")))
-			road_terrain(true);
-		item_tooltip("The terrain no longer shaped by the road (of the selected one, or of all of them)");
-		ImGui::EndDisabled();
+		if (ImGui::Button(STR_C("Vertical profile of the road... (P)")))
+			road_profile_window_open();
+		item_tooltip("The ground and the road along the whole of it: evening the profile out, leading the terrain to the road, cutting tunnels");
 	}
 
 	// the two directions kept apart

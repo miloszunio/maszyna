@@ -178,3 +178,9 @@ Numer rośnie o jeden z każdym buildem. Exe zbudowane w domu ma numer z dopiski
   płasko pod jezdnią i poboczami, skarpy 1:n z naturalną nierównością; dla zaznaczonej drogi albo wszystkich dróg scenerii, z możliwością puszczenia terenu.
 - **Drogi: tunel** („Wytnij tunel” w sekcji „Profil pionowy i teren”): tam, gdzie zaznaczona droga wchodzi w nasyp albo wzgórze (teren o ustawioną wysokość nad nawierzchnią),
   w terenie wycinana jest dziura na szerokość drogi z poboczami; nasyp i tor zostają nad drogą, a teren dociągnięty do drogi kończy się na portalach. Sekcja jest zawsze widoczna.
+- **Profil pionowy drogi w osobnym oknie** (klawisz P przy zaznaczonej drodze albo przycisk w panelu drogi): wykres drogi i terenu wzdłuż całej drogi,
+  wyrównanie profilu, dociągnięcie terenu, tunele.
+- **Tunel z konstrukcją**: przy wycinaniu tunelu powstaje model: ściany wzdłuż drogi, płyta (pod nasypem) albo sklepienie (pod wzgórzem), czoło nad otworem i skrzydła przy portalach, z betonu.
+- **Zakres „Wokół kamery / Cała sceneria”** jest teraz przy każdym przycisku, który działa na obszar (wycinanie torowiska, naturalne skarpy, przemalowanie w teren).
+- **Skrzyżowania**: asfalt dróg i skrzyżowań mapowany z góry w jednej skali, bez szwów na styku wlotów.
+- **Widok > Kursor rysowany w obrazie (stream)**: wskaźnik widoczny w streamie i nagraniu okna.

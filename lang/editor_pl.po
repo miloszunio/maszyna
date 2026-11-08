@@ -16437,3 +16437,60 @@ msgstr "Nigdzie teren nie jest o %.1f m lub więcej nad drogą: tunelu nie wyci�
 
 msgid "Tunnels cut: %zu, %.0f m together. The track and the embankment over them stay; Ctrl+Z takes it back"
 msgstr "Wycięte tunele: %zu, razem %.0f m. Tor i nasyp nad nimi zostają; Ctrl+Z cofa"
+
+msgid "%.0f m long, heights %.1f - %.1f m; the road grey, the ground brown"
+msgstr "Długość %.0f m, wysokości %.1f - %.1f m; droga szara, teren brązowy"
+
+msgid "%.0f m: road %.2f m, ground %.2f m, grade %.1f %%"
+msgstr "%.0f m: droga %.2f m, teren %.2f m, pochylenie %.1f %%"
+
+msgid "Along the road, where it runs into an embankment or a hill, a hole cut in the ground as wide as the road and its sides:\nthe embankment and the track on it stay over the road, the terrain led to the road stops at the portals. Ctrl+Z takes it back"
+msgstr "Wzdłuż drogi, tam gdzie wchodzi w nasyp albo wzgórze, w terenie wycinana jest dziura na szerokość drogi z poboczami:\nnasyp i tor na nim zostają nad drogą, teren dociągnięty do drogi kończy się na portalach. Ctrl+Z cofa"
+
+msgid "Around the camera##scope"
+msgstr "Wokół kamery##scope"
+
+msgid "Build the structure##tunnel"
+msgstr "Zbuduj konstrukcję##tunnel"
+
+msgid "Clods and hummocks of about 3 m over the whole surface, up to 20 cm high: a ploughed field, a trodden pasture.\nThe terrain under the surface gets a point every metre for them (and for waves shorter than 15 m), the files grow"
+msgstr "Grudy i kępy wielkości około 3 m na całej powierzchni, do 20 cm wysokości: zaorane pole, wydeptane pastwisko.\nTeren pod powierzchnią dostaje dla nich punkt co metr (także dla fal krótszych niż 15 m), pliki rosną"
+
+msgid "Cursor drawn into the picture (streams)"
+msgstr "Kursor rysowany w obrazie (stream)"
+
+msgid "Read again##roadprofile"
+msgstr "Odczytaj ponownie##roadprofile"
+
+msgid "Terrain##roadprofile"
+msgstr "Teren##roadprofile"
+
+msgid "The ground and the road along the whole of it: evening the profile out, leading the terrain to the road, cutting tunnels"
+msgstr "Teren i droga na całej jej długości: wyrównanie profilu, dociągnięcie terenu do drogi, wycinanie tuneli"
+
+msgid "The holes along the road closed again, its structures taken away"
+msgstr "Dziury wzdłuż drogi zamknięte, konstrukcje usunięte"
+
+msgid "The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\nor a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"
+msgstr "Wskaźnik rysowany przez edytor w klatce zamiast systemowego: widać go w streamie\ni w nagraniu okna (Discord, OBS, przechwytywanie systemowe), które pomijają wskaźnik systemu"
+
+msgid "The whole scenery##scope"
+msgstr "Cała sceneria##scope"
+
+msgid "Tunnels and underpasses##roadprofile"
+msgstr "Tunele i przejazdy pod spodem##roadprofile"
+
+msgid "Vertical profile of the road###roadprofile"
+msgstr "Profil pionowy drogi###roadprofile"
+
+msgid "Vertical profile of the road... (P)"
+msgstr "Profil pionowy drogi... (P)"
+
+msgid "Walls along the road, the deck or the vault over it and the wing walls at the portals, as a model of its own placed with the tunnel"
+msgstr "Ściany wzdłuż drogi, płyta albo sklepienie nad nią i skrzydła przy portalach jako osobny model wstawiany razem z tunelem"
+
+msgid "Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back"
+msgstr "W zakresie ustawionym tuż wyżej. Dziury są zamykane, a powierzchnie wmalowywane swoimi materiałami. Ctrl+Z cofa"
+
+msgid "m##scope"
+msgstr "m##scope"

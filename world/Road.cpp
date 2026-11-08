@@ -461,6 +461,17 @@ void cap(std::vector<world_vertex> &Output, axis_frame const &Frame, std::vector
 }
 
 // proportions of the image specified material is painted with
+// the asphalt laid out flat over the world, the same way at every road and every junction, so nothing shows where they meet
+// whatever way they go: Tile metres across the image, Length metres along it, as along a road
+void flatten_texture(std::vector<world_vertex> &Vertices, std::size_t const From, double const Tile, double const Length)
+{
+	for (auto i = From; i < Vertices.size(); ++i)
+	{
+		auto &vertex{Vertices[i]};
+		vertex.texture = {static_cast<float>(std::fmod(vertex.position.x / Tile, 4096.0)), static_cast<float>(std::fmod(vertex.position.z / Length, 4096.0))};
+	}
+}
+
 float texture_ratio(std::string const &Material)
 {
 	auto const material{GfxRenderer->Fetch_Material(Material)};
@@ -1535,6 +1546,7 @@ std::vector<scene::shape_node> road_node::create_shapes() const
 			return profile_point{offset, 0.0, static_cast<float>(0.5 + (offset + Spread * widest) / tile), 0.0, Spread};
 		};
 		auto &surface{vertices(road.surface, lighting_data{})};
+		auto const first{surface.size()};
 		if (false == divided)
 		{
 			loft(surface, axis, {corner(anchor_left, 0.0), corner(anchor_right, 0.0)}, 0.0, length, step, texturelength, road);
@@ -1549,6 +1561,7 @@ std::vector<scene::shape_node> road_node::create_shapes() const
 			}
 			loft(surface, axis, {corner(anchor_middle, -0.5), corner(anchor_right, -0.5)}, 0.0, length, step, texturelength, road);
 		}
+		flatten_texture(surface, first, tile, texturelength);
 	}
 
 	// an island between the roadways: a kerb facing each of them, and what's between the kerbs
@@ -3456,6 +3469,7 @@ std::vector<scene::shape_node> junction_node::create_transition_shapes() const
 			return [tile, Edge](section const &Section) { return section_corner{Section.offsets.*Edge, 0.0, static_cast<float>(0.5 + Section.offsets.*Edge / tile)}; };
 		};
 		auto &surface{vertices(m_state.surface, lighting_data{})};
+		auto const first{surface.size()};
 		if (apart && m_state.median == road_node::median_type::gap)
 		{
 			// a roadway for each direction, with the ground showing between them
@@ -3466,6 +3480,7 @@ std::vector<scene::shape_node> junction_node::create_transition_shapes() const
 		{
 			strip(surface, along(&edges::left), along(&edges::right), 0, whole);
 		}
+		flatten_texture(surface, first, tile, m_state.texturelength);
 	}
 	// an island where the two directions part
 	if (apart && m_state.median == road_node::median_type::island && (usable(m_state.medianmaterial) || (m_state.kerbs && usable(m_state.kerbmaterial))))
@@ -3648,7 +3663,8 @@ std::vector<scene::shape_node> junction_node::create_shapes() const
 		// a fan of triangles spanned from the centre, with the image laid out flat over the ground
 		auto const tile{static_cast<double>(texture_ratio(m_state.surface)) * m_state.texturelength};
 		auto const vertex = [&](glm::dvec3 const &Point, glm::vec3 const &Normal) {
-			return world_vertex{Point, Normal, {static_cast<float>(0.5 + (Point.x - centre.x) / tile), static_cast<float>(0.5 + (Point.z - centre.z) / m_state.texturelength)}};
+			// laid flat over the world the way the roads are, so the asphalt goes on across the junction without a seam
+			return world_vertex{Point, Normal, {static_cast<float>(std::fmod(Point.x / tile, 4096.0)), static_cast<float>(std::fmod(Point.z / m_state.texturelength, 4096.0))}};
 		};
 		std::vector<world_vertex> vertices;
 		for (std::size_t idx = 0; idx < points.size(); ++idx)

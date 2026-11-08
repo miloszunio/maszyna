@@ -398,14 +398,7 @@ void editor_mode::render_features_ui()
 			                               "are cut out as surfaces of their own, each up to the length below, to be given textures of their own. "
 			                               "The embankments stay shaped by the modifiers; the pieces keep the heights of the terrain"));
 			ImGui::TextDisabled(STR_C("Formation modifiers: %zu"), m_streamer.modifiers().size());
-			ImGui::Checkbox(STR_C("The whole scenery"), &settings.everywhere);
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", STR_C("All the modifiers; the chunks under them are read from their files, so it takes time and memory"));
-			if (false == settings.everywhere)
-			{
-				ImGui::SetNextItemWidth(120.0f);
-				ImGui::DragFloat(STR_C("Around the camera (m)"), &settings.radius, 10.0f, 100.0f, 5000.0f, "%.0f");
-			}
+
 			ImGui::SetNextItemWidth(120.0f);
 			ImGui::DragFloat(STR_C("Longest piece (m)"), &settings.length, 1.0f, 10.0f, 500.0f, "%.0f");
 			ImGui::SetNextItemWidth(120.0f);
@@ -433,6 +426,7 @@ void editor_mode::render_features_ui()
 			if (ImGui::IsItemHovered())
 				ImGui::SetTooltip("%s", STR_C("How far the ground may lie off the slope of the modifier (1:1.5) and still count as the slope"));
 			ImGui::Spacing();
+			render_scope("bed");
 			ImGui::BeginDisabled(m_streamer.modifiers().empty());
 			if (main_button(STR_C("Cut the track bed and the slopes"), ImVec2(-FLT_MIN, tall_button_height())))
 				cut_track_bed();
@@ -460,6 +454,7 @@ void editor_mode::render_features_ui()
 		drag(STR_C("Soft foot (m/m)"), natural.soften, 0.01f, 0.0f, 2.0f, "%.2f", STR_C("Metres the foot is rounded off over, for a metre of the height of the slope: high embankments meet the ground softer"));
 		drag(STR_C("Bumps on the face (m)"), natural.roughness, 0.01f, 0.0f, 0.5f, "%.2f", STR_C("Metres the face of the slope is uneven by, as earth settled for years"));
 		ImGui::Spacing();
+		render_scope("natural");
 		ImGui::BeginDisabled(m_streamer.modifiers().empty());
 		if (main_button(STR_C("Make the slopes natural"), ImVec2(-FLT_MIN, tall_button_height())))
 			naturalise_slopes(true);
@@ -482,11 +477,11 @@ void editor_mode::render_features_ui()
 			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.75f, 0.3f, 1.0f));
 			ImGui::TextWrapped(STR_C("%zu of them are cut out with a hole and a mesh of their own (the seam shows): paint them into the terrain"), meshes);
 			ImGui::PopStyleColor();
+			render_scope("convert");
 			if (ImGui::Button(STR_C("Paint them into the terrain##convert")))
 				convert_patches_to_paint();
 			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", STR_C("Around the camera as far as set in Track bed and slopes, or in the whole scenery when that's ticked there.\n"
-				                              "The holes are closed and the surfaces painted with their materials, the transitions as set there. Ctrl+Z takes it back"));
+				ImGui::SetTooltip("%s", STR_C("Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back"));
 		}
 		render_patches_ui();
 	}
@@ -1704,4 +1699,24 @@ void editor_mode::naturalise_slopes(bool const Natural)
 	                                  : STR_C("The slopes of %zu modifiers as designed again. Ctrl+Z takes it back"),
 	                          count);
 	WriteLog("Editor: " + m_terrain_status);
+}
+
+// where an action over an area works: around the camera as far as set, or the whole scenery; shown beside every button which
+// works so, all of them sharing it, so none depends on a tick hidden in another panel
+void editor_mode::render_scope(char const *Id)
+{
+	auto &settings{m_track_bed};
+	ImGui::PushID(Id);
+	int scope{settings.everywhere ? 1 : 0};
+	ImGui::RadioButton(STR_C("Around the camera##scope"), &scope, 0);
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("The whole scenery##scope"), &scope, 1);
+	settings.everywhere = scope == 1;
+	if (false == settings.everywhere)
+	{
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(90.0f);
+		ImGui::DragFloat(STR_C("m##scope"), &settings.radius, 10.0f, 100.0f, 20000.0f, "%.0f");
+	}
+	ImGui::PopID();
 }

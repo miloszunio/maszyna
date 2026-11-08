@@ -821,6 +821,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool wand_select(glm::dvec3 const &World);
 	// Ctrl+Tab: the tiles of the orthophoto the camera sees asked for before any other
 	void orthophoto_hurry();
+	// around the camera or the whole scenery, beside every button which works over an area
+	void render_scope(char const *Id);
 	void render_wand_options();
 	// the surfaces with a mesh and a hole of their own (made before the painting came) painted into the terrain instead
 	void convert_patches_to_paint();
@@ -3549,6 +3551,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float sag{800.0f}; // m
 		bool every_road{false}; // the terrain led to all the roads of the scenery, not only to the selected one
 		float tunnel_cover{2.0f}; // m of ground over the surface of the road from which it goes under it
+		bool tunnel_structure{true}; // walls, the deck or the vault and the wing walls built with the tunnel
+		std::string tunnel_material{"beton001"}; // what they're made of
 		bool varied{false}; // the selected piece is shown with lanes of its own for its end
 		bool chain{false}; // the point to build from is set
 		glm::dvec3 point{0.0}; // where the next piece starts
@@ -3628,6 +3632,23 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// along the selected road, where the ground is over it by tunnel_cover or more (an embankment, a hill), a hole cut as wide as
 	// the road; the terrain led to the road leaves those stretches alone. Close: the holes closed again
 	void road_tunnel(bool Close);
+	// the walls, the deck (or the vault and the ground over it) and the wing walls of a tunnel under the road from sample First
+	// to Last of Steps along the piece, written as a model of its own and placed, named "tunel <road> <n>"
+	void road_tunnel_structure(road_node const &Road, int First, int Last, int Steps, double Beside, std::size_t Number);
+	// the vertical profile of the selected road in a window of its own (P, or the button of the road panel): the ground and the
+	// road along it, and what evens it out, leads the terrain to it and cuts the tunnels
+	struct road_profile_view
+	{
+		bool open{false};
+		road_node *road{nullptr}; // the profile shown is of the road this piece belongs to
+		std::vector<float> runs; // m from the start of the road, seen from above
+		std::vector<float> heights; // of the road
+		std::vector<float> ground; // under it, NaN where there's none
+	};
+	road_profile_view m_road_profile;
+	void road_profile_window_open();
+	void road_profile_sample();
+	void render_road_profile_window();
 	// level crossings and traffic points
 	void roadpoint_select(roadpoint_node *Point);
 	// works out the point a click of the place tool would make. Fresh: even if the cursor is where it was the last time
