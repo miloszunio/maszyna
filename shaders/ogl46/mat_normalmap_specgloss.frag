@@ -38,7 +38,8 @@ void main()
 {
 	vec4 tex_color = texture(diffuse, f_coord);
 
-	bool alphatestfail = ( opacity >= 0.0 ? (tex_color.a < opacity) : (tex_color.a >= -opacity) );
+	float alphacoverage = alpha_coverage(tex_color.a);
+	bool alphatestfail = alpha_test_fail(tex_color.a, alphacoverage);
 	if(alphatestfail)
 		discard;
 //	if (tex_color.a < opacity)

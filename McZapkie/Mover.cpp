@@ -1973,6 +1973,11 @@ double TMoverParameters::LocalPowerVoltage(coupling const Coupling)
 // the voltage passed through the vehicle to the coupler at its other end, from the coupled vehicle or its own source
 void TMoverParameters::PowerCouplersVoltage(coupling const Coupling, double const abslocalvoltage, bool const localpowersource)
 {
+	if (Couplers[end::front].power(Coupling) == nullptr)
+	{
+		// not a power coupling, there's no voltage to pass
+		return;
+	}
 	for (auto side = 0; side < 2; ++side)
 	{
 
@@ -2044,9 +2049,15 @@ void TMoverParameters::PowerCouplersVoltage(coupling const Coupling, double cons
 // the current drawn through the couplers, shared by their voltages, or added to the vehicle's own
 void TMoverParameters::PowerCouplersCurrent(coupling const Coupling, bool const localpowersource)
 {
-	// a power coupling, PowerCouplersCheck() takes no other
-	auto const couplervoltage{static_cast<int>(Couplers[end::front].power(Coupling)->voltage + Couplers[end::rear].power(Coupling)->voltage)};
+	auto const *frontcoupling{Couplers[end::front].power(Coupling)};
+	auto const *rearcoupling{Couplers[end::rear].power(Coupling)};
 	auto *totalcurrent{PowerCircuitCurrent(Coupling)};
+	if (frontcoupling == nullptr || rearcoupling == nullptr || totalcurrent == nullptr)
+	{
+		// not a power coupling, there's no current to share
+		return;
+	}
+	auto const couplervoltage{static_cast<int>(frontcoupling->voltage + rearcoupling->voltage)};
 
 	for (auto &thiscoupler : Couplers)
 	{
@@ -7299,13 +7310,12 @@ bool TMoverParameters::AutoRelayShuntStep(bool const ARFASI2)
 bool TMoverParameters::AutoRelayMainStep(bool const ARFASI)
 {
 	bool OK = false;
-	if (DirActive < 0 && TrainType != dt_PseudoDiesel && RList[MainCtrlActualPos + 1].Bn > BackwardsBranchesAllowed)
-	{
-		return false; // nie poprawiamy przy konwersji
-		// return ARC;// bbylo exit; //Ra: to powoduje, że EN57 nie wyłącza się przy IminLo
-	}
+	// running backwards, the motors don't get joined in more branches than allowed (the series connection
+	// alone, usually); the camshaft still goes back down from there (eu07/maszyna#393: it stayed where it
+	// was, the line contactors closed, whatever the driver did with the master controller)
+	auto const backwardslimit{DirActive < 0 && TrainType != dt_PseudoDiesel && RList[MainCtrlActualPos + 1].Bn > BackwardsBranchesAllowed};
 	// main bez samoczynnego rozruchu
-	if (MainCtrlActualPos < std::size(RList) - 1 // crude guard against running out of current fixed table
+	if (false == backwardslimit && MainCtrlActualPos < std::size(RList) - 1 // crude guard against running out of current fixed table
 	    && (RList[MainCtrlActualPos].Relay < MainCtrlPos || (RList[MainCtrlActualPos + 1].Relay == MainCtrlPos && MainCtrlActualPos < RlistSize) ||
 	        (TrainType == dt_ET22 && DelayCtrlFlag)))
 	{
@@ -9251,6 +9261,48 @@ bool TMoverParameters::signal_departure(bool const State, range_t const Notify)
 	return true;
 }
 
+// state of the door closure signalling (SOD) of this vehicle: open while a door isn't fully closed, released while
+// the closed doors can be opened (a permit given, or, for doors that need none, no lock engaged), locked otherwise.
+// doors the crew doesn't close (autonomous) aren't signalled, the same as for the door lights of the consist
+door_closure_t TMoverParameters::door_closure() const
+{
+	if (Doors.range == 0.f || Doors.close_control == control_t::autonomous)
+	{
+		return door_closure_t::none;
+	}
+	if (std::ranges::any_of(Doors.instances, [](basic_door const &Door) { return false == Door.is_closed; }))
+	{
+		return door_closure_t::open;
+	}
+	if (Doors.is_locked)
+	{
+		return door_closure_t::locked;
+	}
+	if (Doors.permit_needed && std::ranges::none_of(Doors.instances, [](basic_door const &Door) { return Door.open_permit; }))
+	{
+		return door_closure_t::locked;
+	}
+	return door_closure_t::released;
+}
+
+bool TMoverParameters::door_closure_lamp_lit(door_closure_t const Consist, bool const BlinkLit) const
+{
+	return Doors.closure_signal ? door_closure_lamp(Consist, BlinkLit) : Doors.is_locked;
+}
+
+bool door_closure_lamp(door_closure_t const State, bool const BlinkLit)
+{
+	switch (State)
+	{
+	case door_closure_t::locked:
+		return true;
+	case door_closure_t::released:
+		return BlinkLit;
+	default:
+		return false;
+	}
+}
+
 // automatic door controller update
 void TMoverParameters::update_doors(double const Deltatime)
 {
@@ -9300,7 +9352,7 @@ void TMoverParameters::update_doors(double const Deltatime)
 }
 
 // the permit, the state and the requests of a door, and whether it and its step open or close
-void TMoverParameters::update_door_requests(basic_door &door, bool const localopencontrol, bool const remoteopencontrol, bool const localclosecontrol, bool const remoteclosecontrol) const
+void TMoverParameters::update_door_requests(basic_door &door, bool const localopencontrol, bool const remoteopencontrol, bool const localclosecontrol, bool const remoteclosecontrol)
 {
 	// revoke permit if...
 	door.open_permit = true == door.open_permit // ...we already have one...
@@ -9387,7 +9439,7 @@ float TMoverParameters::door_open_duration(basic_door const &door, bool const lo
 }
 
 // a door and its step moved as they open or close
-void TMoverParameters::move_door(basic_door &door, double const Deltatime) const
+void TMoverParameters::move_door(basic_door &door, double const Deltatime)
 {
 	// doors
 	if (true == door.is_opening)
@@ -11233,6 +11285,8 @@ void TMoverParameters::LoadFIZ_Doors(std::string const &line)
 	extract_value(Doors.auto_include_remote, "DoorAutoCloseRemote", line, "");
 	// operation permit
 	extract_value(Doors.permit_needed, "DoorNeedPermit", line, "");
+	// the door closure lamp (SOD) of the cab signals the doors of the whole consist
+	extract_value(Doors.closure_signal, "DoorClosureSignal", line, "");
 	{
 		auto permitpresets = Split(extract_value("DoorPermitList", line), '|');
 		for (auto const &permit : permitpresets)

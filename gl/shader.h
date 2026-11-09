@@ -44,6 +44,9 @@ namespace gl
         gfx::shader_texture_conf texture_conf;
         gfx::shader_param_conf param_conf;
         std::string name;
+        // the shader does its alpha test with alpha_test_fail() of glsl_common, so its alpha
+        // output can drive GL_SAMPLE_ALPHA_TO_COVERAGE in the opaque pass
+        bool alpha_to_coverage{ false };
 
         // whether the shader was loaded from a SPIR-V binary
         bool is_binary() const
