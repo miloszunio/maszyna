@@ -16,6 +16,7 @@ http://mozilla.org/MPL/2.0/.
 #include <deque>
 #include <functional>
 #include <map>
+#include <set>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -89,6 +90,9 @@ class editor_orthophoto
 	editor_orthophoto(editor_orthophoto const &) = delete;
 	editor_orthophoto &operator=(editor_orthophoto const &) = delete;
 
+	// the tiles over a rectangle of the world (x, z; what the camera sees), within the reach around the camera, asked for before anything
+	// else, the ones which failed tried again at once. returns: how many were put at the front of the queue
+	std::size_t hurry(glm::dvec2 const &Min, glm::dvec2 const &Max);
 	bool enabled() const { return m_enabled; }
 	// disabling drops the queue and returns the gpu memory of the resident tiles
 	void enabled(bool State);
@@ -220,6 +224,7 @@ class editor_orthophoto
 	std::deque<job> m_queue;
 	std::deque<result> m_done;
 	tile_key m_focus{0, 0}; // workers pick the queued tile closest to it
+	std::set<tile_key> m_urgent; // asked for by hurry(): workers take these first; guarded by m_mutex
 
 	std::atomic<bool> m_stop{false};
 	std::atomic<std::uint32_t> m_generation{1};

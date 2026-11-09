@@ -174,6 +174,12 @@ struct global_settings {
     float FieldOfView{ 45.f }; // vertical field of view for the camera. TODO: move it to the renderer
     bool EditorOrtho{ false };
     float EditorOrthoExtent{ 150.f };
+    // the free camera of the editor: its speed set in the View menu, the Ctrl multiplier of it, and in the top view whether it goes as far
+    // as the view reaches, so the map moves across the screen as fast zoomed in as out
+    bool EditorCameraOn{ false }; // the editor is on: its camera goes by the settings below
+    double EditorCameraSpeed{ 1.0 };
+    double EditorCameraFast{ 30.0 };
+    bool EditorCameraZoomed{ false };
     GLint iMaxTextureSize{ 4096 }; // maksymalny rozmiar tekstury
     GLint iMaxCabTextureSize{ 4096 }; // largest allowed texture in vehicle cab
     int iMultisampling{ 2 }; // tryb antyaliasingu: 0=brak,1=2px,2=4px,3=8px,4=16px
