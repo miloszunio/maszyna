@@ -322,6 +322,13 @@ class editor_mode : public application_mode, private editor_track::observer
 		return m_terrain_tool == terrain_tool::sculpt || m_terrain_tool == terrain_tool::smooth || m_terrain_tool == terrain_tool::level || m_terrain_tool == terrain_tool::paint ||
 		       m_terrain_tool == terrain_tool::restore;
 	}
+	// the point of the ground of the terrain under the cursor, found along the ray through the cursor, so it's found also over
+	// a hole and behind the grass. returns: false if the ray meets no terrain
+	bool terrain_cursor(glm::dvec3 &World) const;
+	// the point of the ground under the cursor in this frame, for the points put on the ground (outlines, areas, brushes): along the ray
+	// through the cursor to the terrain; the depth read back (a frame late, and stopped by the models over the ground) only where
+	// there's none. false: nothing under the cursor
+	bool cursor_on_ground(glm::dvec3 &World);
 	// converts the point spacing of the selected chunks to m_terrain_convert_spacing
 	void convert_selected_chunks();
 	// takes the height of whatever is under the cursor (terrain, track, model) for the target of the level brush. returns: false if there's nothing
