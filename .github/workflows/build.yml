@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - master
+      - ficzery2
   pull_request:
     types: [ opened, reopened, synchronize ]
 

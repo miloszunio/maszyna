@@ -87,12 +87,12 @@ jobs:
       # might have tampered with. Fetched as a single file through the API rather
       # than with actions/checkout: nothing gets checked out in this privileged
       # context. Kept outside the workspace, so the archive can't overwrite it.
-      - name: Fetch trusted config from master
+      - name: Fetch trusted config from the default branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          url="repos/${{ github.repository }}/contents/sonar-project.properties?ref=master"
+          url="repos/${{ github.repository }}/contents/sonar-project.properties?ref=${{ github.event.repository.default_branch }}"
           if ! gh api -H "Accept: application/vnd.github.raw" "$url" > /tmp/trusted-sonar-project.properties; then
             echo "::warning::no sonar-project.properties on master"
             rm -f /tmp/trusted-sonar-project.properties
