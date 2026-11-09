@@ -233,8 +233,8 @@ void editor_mode::orthophoto_hurry()
             high = glm::max(high, glm::dvec2{hit.x, hit.z});
         }
     auto const count{m_orthophoto.hurry(low, high)};
-    ui()->set_status(count > 0 ? format(STR_C("Orthophoto: %zu tiles of the view downloaded first (Ctrl+Tab)"), count)
-                           : std::string{STR("Orthophoto: the view is all shown already (Ctrl+Tab)")});
+    ui()->set_status(count > 0 ? format(STR_C("Orthophoto: %zu tiles of the view downloaded first (Ctrl+~)"), count)
+                           : std::string{STR("Orthophoto: the view is all shown already (Ctrl+~)")});
 }
 
 void editor_mode::render_patches_ui()

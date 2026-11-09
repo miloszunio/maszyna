@@ -6,7 +6,7 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 ## Na start
 
 - Numer wersji jest w tytule okna i w `WERSJA.txt`. Zgłaszając błąd, podawaj go.
-- **Tab** włącza i wyłącza ortofotomapę na terenie, **Ctrl+Tab** najpierw ściąga kafelki tam, gdzie patrzy kamera.
+- **~** (tylda, klawisz na lewo od 1) włącza i wyłącza ortofotomapę na terenie, **Ctrl+~** najpierw ściąga kafelki tam, gdzie patrzy kamera.
 - **Ficzery** to dział **F7** na górnej belce. Drogi to **F4**, Tory **F3**.
 - Ciężkie operacje (torowisko i skarpy na całej scenerii, przemalowanie, film, dociąganie terenu, obiekty pod torami) pokazują **klepsydrę** na zamrożonym ekranie.
   Postęp w procentach jest w tytule okna, **Esc** przerywa tam, gdzie się da. To, co zrobione, zostaje i da się cofnąć.

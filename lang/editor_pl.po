@@ -16378,8 +16378,8 @@ msgstr "Wszystkie drogi scenerii##roadterrain"
 msgid "Vertical profile and terrain##road"
 msgstr "Profil pionowy i teren##road"
 
-msgid "Orthophoto: the view is all shown already (Ctrl+Tab)"
-msgstr "Ortofoto: cały widok jest już pokazany (Ctrl+Tab)"
+msgid "Orthophoto: the view is all shown already (Ctrl+~)"
+msgstr "Ortofoto: cały widok jest już pokazany (Ctrl+~)"
 
 msgid "The terrain shaped to the roads, pieces: %zu, slopes 1:%.2f. Ctrl+Z takes it back"
 msgstr "Teren dociągnięty do dróg, odcinków: %zu, skarpy 1:%.2f. Ctrl+Z cofa"
@@ -16396,8 +16396,8 @@ msgstr "Teren przestaje się dopasowywać do drogi (zaznaczonej albo wszystkich)
 msgid "The smallest radius of the vertical curve over a hilltop: the larger, the farther a driver sees over it"
 msgstr "Najmniejszy promień łuku pionowego na wzniesieniu: im większy, tym dalej kierowca widzi za szczyt"
 
-msgid "Orthophoto: %zu tiles of the view downloaded first (Ctrl+Tab)"
-msgstr "Ortofoto: %zu kafli widoku pobieranych w pierwszej kolejności (Ctrl+Tab)"
+msgid "Orthophoto: %zu tiles of the view downloaded first (Ctrl+~)"
+msgstr "Ortofoto: %zu kafli widoku pobieranych w pierwszej kolejności (Ctrl+~)"
 
 msgid "The terrain let go of the roads: %zu modifiers taken away. Ctrl+Z takes it back"
 msgstr "Teren puścił drogi: usunięto %zu modyfikatorów. Ctrl+Z cofa"
@@ -16956,3 +16956,9 @@ msgstr "Obiekty pod torami: postawione %zu z %zu skrzyżowań. Ctrl+Z przywraca 
 
 msgid "Textures of walls found: %zu"
 msgstr "Znalezione tekstury ścian: %zu"
+
+msgid "Orthophoto on (~)"
+msgstr "Ortofoto włączone (~)"
+
+msgid "Orthophoto off (~)"
+msgstr "Ortofoto wyłączone (~)"

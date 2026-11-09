@@ -6984,19 +6984,22 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
             lay_switch_mode();
             break;
         }
+        break;
+
+    case GLFW_KEY_GRAVE_ACCENT:
+        // the key of the tilde (left of 1), Tab being the laying's and the switches': the orthophoto shown or hidden, with Ctrl
+        // what the camera sees downloaded before anything else
         if (false == is_press(Action) || ImGui::GetIO().WantTextInput)
             break;
-        // Ctrl+Tab: the orthophoto of what the camera sees downloaded before anything else
         if (Mods & GLFW_MOD_CONTROL)
         {
             orthophoto_hurry();
             break;
         }
-        // Tab, where nothing else takes it: the orthophoto shown or hidden
         if (false == anyModifier)
         {
             m_orthophoto.enabled(false == m_orthophoto.enabled());
-            ui()->set_status(m_orthophoto.enabled() ? STR("Orthophoto on (Tab)") : STR("Orthophoto off (Tab)"));
+            ui()->set_status(m_orthophoto.enabled() ? STR("Orthophoto on (~)") : STR("Orthophoto off (~)"));
         }
         break;
 
