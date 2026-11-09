@@ -145,15 +145,15 @@ bool ClearFlag(int &Flag, int const Value)
 
 namespace
 {
-thread_local std::mt19937 *t_random_engine{nullptr};
+thread_local std::mt19937 *t_random_engine{nullptr}; // NOSONAR: randomness of the simulation, not of anything security-relevant
 
-std::mt19937 &random_engine()
+std::mt19937 &random_engine() // NOSONAR: randomness of the simulation, not of anything security-relevant
 {
 	return t_random_engine != nullptr ? *t_random_engine : Global.random_engine;
 }
 } // namespace
 
-void set_thread_random_engine(std::mt19937 *Engine)
+void set_thread_random_engine(std::mt19937 *Engine) // NOSONAR: randomness of the simulation, not of anything security-relevant
 {
 	t_random_engine = Engine;
 }
@@ -531,23 +531,22 @@ bool FileExists(std::string const &Filename)
 	return std::filesystem::exists(Filename);
 }
 
-std::string FileCased(std::string const &Filename)
+std::string FileCased(std::filesystem::path const &Filename)
 {
 	std::error_code error;
 	if (std::filesystem::exists(Filename, error))
-		return Filename;
+		return Filename.string();
 #ifdef _WIN32
 	// the names there are found in any case already: no folder to go through for every file missing, nor names outside of the
 	// code page to throw on
 	return {};
 #else
 	// only the name of the file itself, a folder named in another case isn't found
-	std::filesystem::path const path{Filename};
-	auto const directory{path.has_parent_path() ? path.parent_path() : std::filesystem::path{"."}};
-	auto const wanted{ToLower(path.filename().string())};
+	auto const directory{Filename.has_parent_path() ? Filename.parent_path() : std::filesystem::path{"."}};
+	auto const wanted{ToLower(Filename.filename().string())};
 	for (std::filesystem::directory_iterator entry{directory, error}, end; entry != end; entry.increment(error))
 		if (ToLower(entry->path().filename().string()) == wanted)
-			return path.has_parent_path() ? (directory / entry->path().filename()).string() : entry->path().filename().string();
+			return Filename.has_parent_path() ? (directory / entry->path().filename()).string() : entry->path().filename().string();
 	return {};
 #endif
 }

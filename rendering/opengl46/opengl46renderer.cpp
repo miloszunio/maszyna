@@ -3161,7 +3161,8 @@ gfx::userdata_array const &opengl46_renderer::UserData(const gfx::geometry_handl
 
 int opengl46_renderer::Primitive(gfx::geometry_handle const &Geometry) const
 {
-	return static_cast<int>(m_geometry.type(Geometry));
+	auto const primitive{m_geometry.primitive(Geometry)};
+	return primitive == gfx::geometry_bank::no_primitive ? -1 : static_cast<int>(primitive);
 }
 
 // material methods
@@ -3704,7 +3705,8 @@ void opengl46_renderer::Render_Instances_Indirect()
 	part( m_cullparts.record );
 
 	using command_set = opengl46_instance_cull::command_set;
-	auto const twophase { m_instancecull.two_phase() };
+	// two phases only with the occlusion test, which needs the viewport
+	auto const twophase { useocclusion && m_instancecull.two_phase() };
 	auto const draws { false == m_indirectdraws.empty() };
 	// the depth comes first in the depth pass of the whole scene, which has its state set and leaves the colour to the colour
 	// pass (m_indirectcolourpending), and with the depth prepass of the instances: the colour pass shades only what stays in
@@ -6381,7 +6383,8 @@ void opengl46_renderer::Render_local_shadows()
 	// only the light buffers with the lamps read the maps
 	auto const *vehicle{Global.gfx_lights_clustered ? m_locallights.cab_lamp_vehicle() : nullptr};
 	m_localshadows.update_cab(vehicle, (vehicle != nullptr ? vehicle->mdKabina : nullptr), m_locallights.cab_lights(), m_framestamp);
-	if (m_localshadows.cab_draws().empty())
+	// without a vehicle there are no draws either
+	if ((vehicle == nullptr) || m_localshadows.cab_draws().empty())
 		return;
 
 	glDebug("render lamp shadows");
@@ -6424,7 +6427,8 @@ void opengl46_renderer::Render_cab_probe()
 	// the lights of the cab light the probe when they're lights of the frame
 	std::vector<gfx::local_lights::cab_light> const nolights;
 	auto const &lights{(vehicle != nullptr) && (m_locallights.cab_lamp_vehicle() == vehicle) ? m_locallights.cab_lights() : nolights};
-	if (false == m_cabprobe.update_wanted(vehicle, (vehicle != nullptr ? vehicle->mdKabina : nullptr), center, extent, lights, m_framestamp))
+	// update_wanted() wants no update without a vehicle, but is called anyway to forget the probe
+	if ((false == m_cabprobe.update_wanted(vehicle, (vehicle != nullptr ? vehicle->mdKabina : nullptr), center, extent, lights, m_framestamp)) || (vehicle == nullptr))
 		return;
 
 	glDebug("render cab probe");

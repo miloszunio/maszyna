@@ -177,7 +177,8 @@ bool TSegment::InitChain(std::vector<std::shared_ptr<TSegment>> Pieces)
     Point2 = last.Point2;
     fRoll1 = first.fRoll1;
     fRoll2 = last.fRoll2;
-    m_setting.designrolls = { first.m_setting.designrolls[ 0 ], last.m_setting.designrolls[ 1 ] };
+    m_setting.designrolls[ 0 ] = first.m_setting.designrolls[ 0 ];
+    m_setting.designrolls[ 1 ] = last.m_setting.designrolls[ 1 ];
     bCurve = true;
     fDirection = -std::atan2(Point2.x - Point1.x, Point2.z - Point1.z);
     fStoop = std::atan2(Point2.y - Point1.y, fLength);
@@ -805,11 +806,19 @@ bool TSegment::RenderLoftSpan( gfx::vertex_array &Output, glm::dvec3 const &Orig
 
     std::vector<double> stations { Span.from, Span.to };
     auto const step { std::max( fStep, 0.2 ) };
-    for( auto distance { std::ceil( Span.from / step ) * step }; distance < Span.to; distance += step ) {
-        stations.push_back( distance );
+    {
+        auto distance { std::ceil( Span.from / step ) * step };
+        while( distance < Span.to ) {
+            stations.push_back( distance );
+            distance += step;
+        }
     }
-    for( auto distance { std::ceil( Span.from / 0.5 ) * 0.5 }; distance < std::min( Span.to, m_dense ); distance += 0.5 ) {
-        stations.push_back( distance );
+    {
+        auto distance { std::ceil( Span.from / 0.5 ) * 0.5 };
+        while( distance < std::min( Span.to, m_dense ) ) {
+            stations.push_back( distance );
+            distance += 0.5;
+        }
     }
     for( auto const *line : { &Span.offsets, &Span.extents, &Span.inner, &Span.drops, &Span.rises, &Span.lows } ) {
         for( auto const &knot : *line ) {
