@@ -219,3 +219,10 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
 - **Shadery ogl46:** cofnięta zmiana z mastera (alpha to coverage), która przy scalaniu trafiła do shaderów GL 4.6 bez swoich funkcji i zawieszała ładowanie scenerii.
 - **Sonar:** „Idź do” nie sięga za listę miejscowości; wysokość wczytywanego chunka bez pętli.
 
+## Pola w trybie Teren (po nr 72)
+
+- Wycinanie powierzchni przeniesione z zakładki Ficzery do **Teren → Pola**, w to samo miejsce co w PR [MaSzyna-EU07 #315](https://github.com/MaSzyna-EU07/maszyna/pull/315) do `feat/gl46-migration`.
+  U nas zostają nasze obrysy (łuki, Bézier, z ręki, wzdłuż toru, różdżka), których w PR-ze nie ma.
+- Nowy wariant **osobnej powierzchni** (dziura i własna siatka, poza limitem 8 materiałów chunka), jak w PR-ze.
+- Lista pól i naturalne skarpy dostępne w panelu Pól; w Ficzerach zostały Torowisko i skarpy, ZIELSKO i Idź do.
+

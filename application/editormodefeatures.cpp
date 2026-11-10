@@ -621,6 +621,138 @@ void editor_mode::render_palette_entries()
 	}
 }
 
+void editor_mode::render_fields_ui()
+{
+	if (false == m_streamer.active())
+	{
+		ImGui::TextDisabled("%s", STR_C("The scenery has no terrain yet"));
+		return;
+	}
+	auto const &layers{m_streamer.manifest().layers};
+	ImGui::TextWrapped("%s", STR_C("LMB adds a point of the outline, Shift+LMB takes the last one back. The field gets the material chosen in the palette and is "
+	                               "kept in the list below, where its material can be changed later"));
+	if (false == layers.empty())
+	{
+		auto const &chosen{layers[std::clamp(m_terrain_layer, 0, static_cast<int>(layers.size()) - 1)]};
+		ImGui::Text(STR_C("Material: %s (chosen in the palette above)"), chosen.material.c_str());
+	}
+	ImGui::Text(STR_C("Outline: %zu points"), m_paint_outline.size());
+	int kind{m_cut_separate ? 1 : 0};
+	ImGui::RadioButton(STR_C("Painted into the terrain##fields"), &kind, 0);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("The material goes into the paint of the chunks: no seam, the edge blends into the ground around; a chunk holds up to 8 materials"));
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("A surface of its own##fields"), &kind, 1);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("The ground is cut away within the outline and the field drawn over the hole as a mesh of its own, following the heights of the terrain:\n"
+		                              "it doesn't take one of the 8 materials of a chunk, but its edge is sharp and the seam can show"));
+	m_cut_separate = kind == 1;
+	ImGui::SeparatorText(STR_C("Shape of the outline"));
+	render_outline_options();
+	ImGui::SeparatorText(STR_C("Edge"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Transition (m)##cut"), &m_cut_feather, 0.05f, 0.0f, 20.0f, m_cut_feather > 0.0f ? "%.2f" : STR_C("sharp"));
+	m_cut_feather = std::max(0.0f, m_cut_feather);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("Metres across the edge the material passes into the one around over, half of them inside the surface.\n"
+		                              "The paint of the terrain is kept every metre (every 0.5 m in the chunks converted to 0.5 m), narrower comes out in steps"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Noise of the edge (m)##cut"), &m_cut_noise, 0.05f, 0.0f, 10.0f, m_cut_noise > 0.0f ? "%.2f" : STR_C("none"));
+	m_cut_noise = std::max(0.0f, m_cut_noise);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("How far the edge wanders in and out of the outline, so it isn't drawn with a ruler"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Waves of the noise (m)##cut"), &m_cut_noise_scale, 0.1f, 0.5f, 50.0f, "%.1f");
+	m_cut_noise_scale = std::max(0.5f, m_cut_noise_scale);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("About how long the waves of the edge are: small - frayed, large - gently wavy"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::SliderFloat(STR_C("Texture turned by (deg)"), &m_paint_rotation, -180.0f, 180.0f, "%.0f");
+	grass_choice(STR_C("3D grass under it##cut"), m_cut_grass);
+	render_waves_options();
+	ImGui::Spacing();
+	ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
+	if (main_button(STR_C("Cut out the field"), ImVec2(-FLT_MIN, tall_button_height())))
+		run_busy(STR_C("Cutting out the field"), [this]() { cut_out_surface(); });
+	ImGui::EndDisabled();
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", STR_C("The area within the outline gets the material chosen in the palette, turned by the angle above, with the transition\n"
+		                              "and the noise above; it's kept in the list below, where its material can be changed later"));
+	if (ImGui::Button(STR_C("Clear the outline##fields"), ImVec2(-FLT_MIN, 0.0f)))
+		m_paint_outline.clear();
+	ImGui::Spacing();
+	if (ImGui::TreeNodeEx(STR_C("Fields and surfaces cut out##fields"), ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		render_cut_surfaces();
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNode(STR_C("Natural slopes##fields")))
+	{
+		render_natural_slopes();
+		ImGui::TreePop();
+	}
+	if (false == m_terrain_status.empty())
+		ImGui::TextWrapped("%s", m_terrain_status.c_str());
+}
+
+void editor_mode::render_natural_slopes()
+{
+	auto &natural{m_natural};
+	ImGui::TextWrapped("%s", STR_C("The embankments and the cuttings not drawn with a ruler: the formation and the edges of the track bed stay as designed (ST-T1-A6), "
+	                               "the slopes and their foot wander, get gentler here and there and meet the ground softly"));
+	auto drag = [](char const *Label, double &Value, float Speed, float Low, float High, char const *Format, char const *Tip) {
+		float value{static_cast<float>(Value)};
+		ImGui::SetNextItemWidth(120.0f);
+		if (ImGui::DragFloat(Label, &value, Speed, Low, High, Format))
+			Value = std::clamp(static_cast<double>(value), static_cast<double>(Low), static_cast<double>(High));
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", Tip);
+	};
+	drag(STR_C("Foot wanders by (m)"), natural.wander, 0.05f, 0.0f, 5.0f, "%.2f", STR_C("How far the foot of the slope goes in and out of the line of the slope 1:1.5"));
+	drag(STR_C("Waves along the line (m)"), natural.scale, 0.5f, 2.0f, 100.0f, "%.0f", STR_C("About how long the waves of the foot are along the line"));
+	drag(STR_C("Gentler by up to"), natural.gentler, 0.01f, 0.0f, 0.6f, "%.2f", STR_C("0.2: the slope 1:1.5 gets as gentle as 1:1.8 here and there, never steeper than designed"));
+	drag(STR_C("Soft foot (m/m)"), natural.soften, 0.01f, 0.0f, 2.0f, "%.2f", STR_C("Metres the foot is rounded off over, for a metre of the height of the slope: high embankments meet the ground softer"));
+	drag(STR_C("Bumps on the face (m)"), natural.roughness, 0.01f, 0.0f, 0.5f, "%.2f", STR_C("Metres the face of the slope is uneven by, as earth settled for years"));
+	ImGui::Spacing();
+	render_scope("natural");
+	ImGui::BeginDisabled(m_streamer.modifiers().empty());
+	if (main_button(STR_C("Make the slopes natural"), ImVec2(-FLT_MIN, tall_button_height())))
+		run_busy(STR_C("Making the slopes natural"), [this]() { naturalise_slopes(true); });
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", STR_C("Around the camera as far as set above, or in the whole scenery when that's ticked; the terrain is shaped anew. Ctrl+Z takes it back.\n"
+		                              "The ground under the slopes comes from the heights before the modifiers (HBAS) the terrain keeps; a terrain without them has its slopes\n"
+		                              "only pushed out and roughened, not made gentler. Paint the track bed and the slopes again after it"));
+	if (change_button(STR_C("Back to the slopes as designed"), ImVec2(-FLT_MIN, 0.0f)))
+		run_busy(STR_C("Bringing back the slopes as designed"), [this]() { naturalise_slopes(false); });
+	ImGui::EndDisabled();
+}
+
+void editor_mode::render_cut_surfaces()
+{
+	auto const &patches{m_streamer.patches()};
+	if (patches.empty())
+		ImGui::TextDisabled("%s", STR_C("None yet"));
+	auto const meshes{static_cast<std::size_t>(std::count_if(patches.begin(), patches.end(), [](heightmap::surface_patch const &Patch) { return false == Patch.paint; }))};
+	// the button always there: with nothing to paint over it's greyed out and says why
+	if (meshes > 0)
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.75f, 0.3f, 1.0f));
+		ImGui::TextWrapped(STR_C("%zu of them are cut out with a hole and a mesh of their own (the seam shows): paint them into the terrain"), meshes);
+		ImGui::PopStyleColor();
+	}
+	else if (false == patches.empty())
+		ImGui::TextDisabled("%s", STR_C("All of them are painted into the terrain already, none with a hole"));
+	render_scope("convert");
+	ImGui::BeginDisabled(meshes == 0);
+	if (change_button(STR_C("Paint them into the terrain##convert")))
+		run_busy(STR_C("Painting the surfaces into the terrain"), [this]() { convert_patches_to_paint(); });
+	ImGui::EndDisabled();
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", meshes > 0 ? STR_C("Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back")
+		                                   : STR_C("Nothing to paint over: no surface here is cut out with a hole and a mesh of its own"));
+	render_patches_ui();
+}
+
 void editor_mode::render_features_ui()
 {
 	if (m_feature_tool == feature_tool::go_to)
@@ -642,49 +774,6 @@ void editor_mode::render_features_ui()
 	if (ImGui::CollapsingHeader(STR_C("Material##features"), ImGuiTreeNodeFlags_DefaultOpen))
 		render_material_palette();
 
-	if (m_feature_tool == feature_tool::cut_out)
-	{
-		if (ImGui::CollapsingHeader(STR_C("Cut out a surface"), ImGuiTreeNodeFlags_DefaultOpen))
-		{
-			ImGui::TextWrapped("%s", STR_C("LMB adds a point of the outline, Shift+LMB takes the last one back. The surface is painted into the terrain with the material "
-			                               "chosen above: the heights stay those of the terrain, there's no hole and no seam"));
-			ImGui::Text(STR_C("Outline: %zu points"), m_paint_outline.size());
-			ImGui::SeparatorText(STR_C("Shape of the outline"));
-			render_outline_options();
-			ImGui::SeparatorText(STR_C("Edge"));
-			ImGui::SetNextItemWidth(120.0f);
-			ImGui::DragFloat(STR_C("Transition (m)##cut"), &m_cut_feather, 0.05f, 0.0f, 20.0f, m_cut_feather > 0.0f ? "%.2f" : STR_C("sharp"));
-			m_cut_feather = std::max(0.0f, m_cut_feather);
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", STR_C("Metres across the edge the material passes into the one around over, half of them inside the surface.\n"
-				                              "The paint of the terrain is kept every metre (every 0.5 m in the chunks converted to 0.5 m), narrower comes out in steps"));
-			ImGui::SetNextItemWidth(120.0f);
-			ImGui::DragFloat(STR_C("Noise of the edge (m)##cut"), &m_cut_noise, 0.05f, 0.0f, 10.0f, m_cut_noise > 0.0f ? "%.2f" : STR_C("none"));
-			m_cut_noise = std::max(0.0f, m_cut_noise);
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", STR_C("How far the edge wanders in and out of the outline, so it isn't drawn with a ruler"));
-			ImGui::SetNextItemWidth(120.0f);
-			ImGui::DragFloat(STR_C("Waves of the noise (m)##cut"), &m_cut_noise_scale, 0.1f, 0.5f, 50.0f, "%.1f");
-			m_cut_noise_scale = std::max(0.5f, m_cut_noise_scale);
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", STR_C("About how long the waves of the edge are: small - frayed, large - gently wavy"));
-			ImGui::SetNextItemWidth(120.0f);
-			ImGui::SliderFloat(STR_C("Texture turned by (deg)"), &m_paint_rotation, -180.0f, 180.0f, "%.0f");
-			grass_choice(STR_C("3D grass under it##cut"), m_cut_grass);
-			render_waves_options();
-			ImGui::Spacing();
-			ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
-			if (main_button(STR_C("Cut out as a separate surface"), ImVec2(-FLT_MIN, tall_button_height())))
-				run_busy(STR_C("Cutting out the surface"), [this]() { cut_out_surface(); });
-			ImGui::EndDisabled();
-			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-				ImGui::SetTooltip("%s", STR_C("The area within the outline gets the material chosen in the palette, turned by the angle above, with the transition\n"
-				                              "and the noise above; it's kept in the list below, where its material can be changed later"));
-			if (ImGui::Button(STR_C("Clear the outline##features"), ImVec2(-FLT_MIN, 0.0f)))
-				m_paint_outline.clear();
-		}
-	}
-	else
 	{
 		if (ImGui::CollapsingHeader(STR_C("Track bed and slopes"), ImGuiTreeNodeFlags_DefaultOpen))
 		{
@@ -730,62 +819,10 @@ void editor_mode::render_features_ui()
 				ImGui::SetTooltip("%s", STR_C("The pieces cut before along the same modifiers are made anew. Ctrl+Z takes it back"));
 		}
 	}
-	if (m_feature_tool == feature_tool::track_bed && ImGui::CollapsingHeader(STR_C("Natural slopes"), ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		auto &natural{m_natural};
-		ImGui::TextWrapped("%s", STR_C("The embankments and the cuttings not drawn with a ruler: the formation and the edges of the track bed stay as designed (ST-T1-A6), "
-		                               "the slopes and their foot wander, get gentler here and there and meet the ground softly"));
-		auto drag = [](char const *Label, double &Value, float Speed, float Low, float High, char const *Format, char const *Tip) {
-			float value{static_cast<float>(Value)};
-			ImGui::SetNextItemWidth(120.0f);
-			if (ImGui::DragFloat(Label, &value, Speed, Low, High, Format))
-				Value = std::clamp(static_cast<double>(value), static_cast<double>(Low), static_cast<double>(High));
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", Tip);
-		};
-		drag(STR_C("Foot wanders by (m)"), natural.wander, 0.05f, 0.0f, 5.0f, "%.2f", STR_C("How far the foot of the slope goes in and out of the line of the slope 1:1.5"));
-		drag(STR_C("Waves along the line (m)"), natural.scale, 0.5f, 2.0f, 100.0f, "%.0f", STR_C("About how long the waves of the foot are along the line"));
-		drag(STR_C("Gentler by up to"), natural.gentler, 0.01f, 0.0f, 0.6f, "%.2f", STR_C("0.2: the slope 1:1.5 gets as gentle as 1:1.8 here and there, never steeper than designed"));
-		drag(STR_C("Soft foot (m/m)"), natural.soften, 0.01f, 0.0f, 2.0f, "%.2f", STR_C("Metres the foot is rounded off over, for a metre of the height of the slope: high embankments meet the ground softer"));
-		drag(STR_C("Bumps on the face (m)"), natural.roughness, 0.01f, 0.0f, 0.5f, "%.2f", STR_C("Metres the face of the slope is uneven by, as earth settled for years"));
-		ImGui::Spacing();
-		render_scope("natural");
-		ImGui::BeginDisabled(m_streamer.modifiers().empty());
-		if (main_button(STR_C("Make the slopes natural"), ImVec2(-FLT_MIN, tall_button_height())))
-			run_busy(STR_C("Making the slopes natural"), [this]() { naturalise_slopes(true); });
-		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-			ImGui::SetTooltip("%s", STR_C("Around the camera as far as set above, or in the whole scenery when that's ticked; the terrain is shaped anew. Ctrl+Z takes it back.\n"
-			                              "The ground under the slopes comes from the heights before the modifiers (HBAS) the terrain keeps; a terrain without them has its slopes\n"
-			                              "only pushed out and roughened, not made gentler. Paint the track bed and the slopes again after it"));
-		if (change_button(STR_C("Back to the slopes as designed"), ImVec2(-FLT_MIN, 0.0f)))
-			run_busy(STR_C("Bringing back the slopes as designed"), [this]() { naturalise_slopes(false); });
-		ImGui::EndDisabled();
-	}
+	if (ImGui::CollapsingHeader(STR_C("Natural slopes"), ImGuiTreeNodeFlags_DefaultOpen))
+		render_natural_slopes();
 	if (ImGui::CollapsingHeader(STR_C("Surfaces cut out of the terrain"), ImGuiTreeNodeFlags_DefaultOpen))
-	{
-		auto const &patches{m_streamer.patches()};
-		if (patches.empty())
-			ImGui::TextDisabled("%s", STR_C("None yet"));
-		auto const meshes{static_cast<std::size_t>(std::count_if(patches.begin(), patches.end(), [](heightmap::surface_patch const &Patch) { return false == Patch.paint; }))};
-		// the button always there: with nothing to paint over it's greyed out and says why
-		if (meshes > 0)
-		{
-			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.95f, 0.75f, 0.3f, 1.0f));
-			ImGui::TextWrapped(STR_C("%zu of them are cut out with a hole and a mesh of their own (the seam shows): paint them into the terrain"), meshes);
-			ImGui::PopStyleColor();
-		}
-		else if (false == patches.empty())
-			ImGui::TextDisabled("%s", STR_C("All of them are painted into the terrain already, none with a hole"));
-		render_scope("convert");
-		ImGui::BeginDisabled(meshes == 0);
-		if (change_button(STR_C("Paint them into the terrain##convert")))
-			run_busy(STR_C("Painting the surfaces into the terrain"), [this]() { convert_patches_to_paint(); });
-		ImGui::EndDisabled();
-		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-			ImGui::SetTooltip("%s", meshes > 0 ? STR_C("Where it's set just above. The holes are closed and the surfaces painted with their materials. Ctrl+Z takes it back")
-			                                   : STR_C("Nothing to paint over: no surface here is cut out with a hole and a mesh of its own"));
-		render_patches_ui();
-	}
+		render_cut_surfaces();
 	render_film_ui();
 	if (false == m_terrain_status.empty())
 		ImGui::TextWrapped("%s", m_terrain_status.c_str());
@@ -1182,7 +1219,7 @@ void editor_mode::cut_out_surface()
 	patch.size = chosen.size;
 	patch.rotation = static_cast<float>(std::remainder(static_cast<double>(chosen.rotation + m_paint_rotation), 360.0));
 	patch.follow = true;
-	patch.paint = true;
+	patch.paint = false == m_cut_separate;
 	patch.feather = m_cut_feather;
 	patch.noise = m_cut_noise;
 	patch.noise_scale = m_cut_noise_scale;
@@ -1195,7 +1232,7 @@ void editor_mode::cut_out_surface()
 	// a name not taken yet
 	for (int number = static_cast<int>(patches.size()) + 1;; ++number)
 	{
-		patch.name = format(STR_C("surface %d"), number);
+		patch.name = format(STR_C("field %d"), number);
 		if (std::none_of(patches.begin(), patches.end(), [&](heightmap::surface_patch const &Other) { return Other.name == patch.name; }))
 			break;
 	}
@@ -1205,9 +1242,19 @@ void editor_mode::cut_out_surface()
 	auto const waved{m_waves.on && apply_waves(patch.outline)};
 	if (waved)
 		forget_ground();
+	auto const separate{false == patch.paint};
+	auto const outline{patch.outline};
 	patches.push_back(std::move(patch));
 	auto const index{patches.size() - 1};
-	repaint_patches(std::move(patches), {index});
+	if (separate)
+	{
+		// the ground cut away under it, the field drawn over the hole with the heights the terrain has there
+		m_streamer.cut(outline, true);
+		m_streamer.patches(std::move(patches));
+		forget_ground();
+	}
+	else
+		repaint_patches(std::move(patches), {index});
 	terrain_history_step();
 	m_patch_selected = static_cast<int>(index);
 	m_paint_outline.clear();

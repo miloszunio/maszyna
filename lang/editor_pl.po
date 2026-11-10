@@ -17130,3 +17130,42 @@ msgstr "Drzewa z modeli 3D drzew geoportal.gov.pl, tam gdzie stoją i tak wysoki
 
 msgid "Finding the band along the tracks"
 msgstr "Wyznaczanie pasa wzdłuż torów"
+
+msgid "LMB adds a point of the outline, Shift+LMB takes the last one back. The field gets the material chosen in the palette and is kept in the list below, where its material can be changed later"
+msgstr "LPM dodaje punkt obrysu, Shift+LPM cofa ostatni. Pole dostaje materiał wybrany w palecie i trafia na listę poniżej, gdzie jego materiał można później zmienić"
+
+msgid "Painted into the terrain##fields"
+msgstr "Wmalowane w teren##fields"
+
+msgid "The material goes into the paint of the chunks: no seam, the edge blends into the ground around; a chunk holds up to 8 materials"
+msgstr "Materiał trafia do malowania chunków: bez szwu, krawędź przechodzi w otoczenie; chunk mieści do 8 materiałów"
+
+msgid "A surface of its own##fields"
+msgstr "Osobna powierzchnia##fields"
+
+msgid "The ground is cut away within the outline and the field drawn over the hole as a mesh of its own, following the heights of the terrain:\nit doesn't take one of the 8 materials of a chunk, but its edge is sharp and the seam can show"
+msgstr "Grunt w obrysie zostaje wycięty, a pole rysowane nad dziurą jako osobna siatka po wysokościach terenu:\nnie zajmuje żadnego z 8 materiałów chunka, ale krawędź jest ostra i może być widać szew"
+
+msgid "Cut out the field"
+msgstr "Wytnij pole"
+
+msgid "Clear the outline##fields"
+msgstr "Wyczyść obrys##fields"
+
+msgid "field %d"
+msgstr "pole %d"
+
+msgid "Fields"
+msgstr "Pola"
+
+msgid "LMB adds a point of the outline of a field: a surface cut out of the terrain with a material of its own, the ground under it made wavy if wanted; Shift+LMB takes the last one back"
+msgstr "LPM dodaje punkt obrysu pola: powierzchni wyciętej z terenu z własnym materiałem, z pofalowanym gruntem, jeśli chcesz; Shift+LPM cofa ostatni"
+
+msgid "Cutting out the field"
+msgstr "Wycinanie pola"
+
+msgid "Fields and surfaces cut out##fields"
+msgstr "Pola i wycięte powierzchnie##fields"
+
+msgid "Natural slopes##fields"
+msgstr "Naturalne skarpy##fields"

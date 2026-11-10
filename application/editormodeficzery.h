@@ -121,9 +121,13 @@
 	bool apply_waves(std::vector<glm::dvec2> const &Outline);
 	// the 3D grass under the surfaces painted: -2 left, -1 taken away, 0 or more: that kind grown (heightmap::surface_patch::grass)
 	int m_cut_grass{-1};
+	bool m_cut_separate{false}; // the Fields: a mesh of its own over a hole instead of the paint of the chunks
+	void render_fields_ui();
+	void render_natural_slopes();
+	void render_cut_surfaces();
 	// a combo of what's done with the grass; true if changed
 	bool grass_choice(char const *Label, int &Choice);
-	feature_tool m_feature_tool{feature_tool::cut_out};
+	feature_tool m_feature_tool{feature_tool::track_bed};
 	bool m_features_open{false};
 	struct track_bed_settings
 	{

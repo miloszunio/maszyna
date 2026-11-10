@@ -19,14 +19,19 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 4. **Zamień w obrysie** (Teren → Wypełnij): narysuj obrys (albo magiczną różdżką), wybierz materiał „z” i kliknij „na zaznaczony”. Reszta scenerii zostaje.
 5. **Wyczyść malowanie całego terenu**: każdy kawałek wraca do pierwszego materiału. Przed tym robi się kopia `terrain\<nazwa>_przed_czyszczeniem` (Ctrl+Z tego nie cofa).
 
-## Wycinanie powierzchni (pola, łąki, place)
+## Pola: wycinanie powierzchni (pola, łąki, place)
 
-1. Ficzery → **Wytnij powierzchnię**. Rysuj obrys: LPM punkt, Shift+LPM cofa. Kształt obrysu: zaokrąglenia, gładka krzywa, Bézier, z ręki, wzdłuż toru.
+Od nr 73 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wypełnienia), tak samo jak w PR-ze do gałęzi Hirka. Z Ficzerów zniknęło.
+
+1. Teren → **Pola**. Rysuj obrys: LPM punkt, Shift+LPM cofa. Kształt obrysu: zaokrąglenia, gładka krzywa, Bézier, z ręki, wzdłuż toru (tego u Hirka jeszcze nie ma).
 2. Albo **magiczna różdżka**: włącz i kliknij na ortofoto w pole, obrys zrobi się sam z obszaru o podobnym kolorze.
-3. Wybierz materiał w palecie, przejście i szum krawędzi, trawę 3D pod spodem.
+3. Materiał wybierasz w palecie trybu Teren (nad panelem). Do wyboru:
+   - **Wmalowane w teren** (domyślnie): bez szwu, przejście i szum krawędzi, trawa 3D pod spodem; zajmuje jeden z 8 materiałów chunka.
+   - **Osobna powierzchnia**: dziura w gruncie i własna siatka po wysokościach terenu; poza limitem 8 materiałów, ale krawędź ostra i może być widać szew.
 4. Jeśli ma falować: „Falowanie terenu” (pagórki, bruzdy, pasy pól, kratka…), profil fali, chropowatość.
-5. Żółty „Wytnij jako osobną powierzchnię”. Powierzchnia jest malowana w teren, bez szwu.
-6. Lista „Powierzchnie wycięte z terenu”: zmiana materiału, „Idź do”, „Obrysuj ponownie”. Stare powierzchnie z dziurą (np. z IRT) zamienia na malowane „Przemaluj je w teren”.
+5. Żółty „Wytnij pole”.
+6. Lista „Pola i wycięte powierzchnie”: zmiana materiału, „Idź do”, „Obrysuj ponownie”. Powierzchnie z dziurą (osobne albo stare z IRT) zamienia na malowane „Przemaluj je w teren”.
+7. „Naturalne skarpy” są w tym samym panelu (i dalej w Ficzery → Torowisko i skarpy).
 
 ## Torowisko i skarpy
 

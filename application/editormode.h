@@ -629,7 +629,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		restore, // takes the touch-ups over the modifiers back
 		fill, // outlines an area filled with a material
 		holes, // cuts holes in the ground (portals of tunnels), Shift: closes them
-		grass // grows the chosen kind of grass, Shift: takes the grass away
+		grass, // grows the chosen kind of grass, Shift: takes the grass away
+		fields // outlines a field: a surface cut out of the terrain with a material of its own, the ground under it made wavy
 	};
 	terrain_tool m_terrain_tool{terrain_tool::none};
 	bool terrain_brush() const
@@ -652,7 +653,13 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void remove_selected_chunks();
 	// takes the height of whatever is under the cursor (terrain, track, model) for the target of the level brush. returns: false if there's nothing
 	bool pick_terrain_target();
-	bool terrain_clicking() const { return m_terrain_tool == terrain_tool::chunks || m_terrain_tool == terrain_tool::spacing || m_terrain_tool == terrain_tool::water || m_terrain_tool == terrain_tool::fill; }
+	bool terrain_clicking() const
+	{
+		return m_terrain_tool == terrain_tool::chunks || m_terrain_tool == terrain_tool::spacing || m_terrain_tool == terrain_tool::water || m_terrain_tool == terrain_tool::fill ||
+		       m_terrain_tool == terrain_tool::fields;
+	}
+	// the tools drawing an outline: the Fill and the Fields
+	bool outlining() const { return m_terrain_tool == terrain_tool::fill || m_terrain_tool == terrain_tool::fields; }
 	// fills the outlined area with the material of the chosen palette entry, turned by m_paint_rotation
 	void fill_terrain_area();
 	// our own members (ficzery2): the features, the road profile and the structures, the hourglass

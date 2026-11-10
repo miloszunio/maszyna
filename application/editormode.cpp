@@ -1556,7 +1556,7 @@ bool editor_mode::update()
     else
         m_terrain_stroke = false;
     // the handles of a point being put, the line drawn by hand
-    if (m_terrain_open && m_terrain_tool == terrain_tool::fill)
+    if (m_terrain_open && outlining())
         outline_drag(mouseHold);
     if (m_terrain_open)
         draw_terrain_overlay();
@@ -2005,6 +2005,9 @@ void editor_mode::render_terrain_ui()
         ImGui::TextDisabled("%s", STR_C("The holes follow the ground every metre (every grid point of finer chunks), whatever the drawn grid"));
     }
 
+    if (ImGui::CollapsingHeader(STR_C("Fields"), m_terrain_tool == terrain_tool::fields ? ImGuiTreeNodeFlags_DefaultOpen : 0))
+        render_fields_ui();
+
     if (ImGui::CollapsingHeader(STR_C("Fill"), m_terrain_tool == terrain_tool::fill ? ImGuiTreeNodeFlags_DefaultOpen : 0))
     {
         auto const &layers{m_streamer.manifest().layers};
@@ -2384,7 +2387,7 @@ void editor_mode::draw_terrain_overlay()
         polyline(outline, static_cast<int>(i) == m_water_selected ? IM_COL32(120, 200, 255, 255) : IM_COL32(60, 120, 220, 160), true, static_cast<int>(i) == m_water_selected ? 2.5f : 1.5f);
     }
     // the outline as it will be cut or filled, its curves made, with the points clicked and their handles
-    if (m_terrain_tool == terrain_tool::fill && false == m_paint_outline.empty())
+    if (outlining() && false == m_paint_outline.empty())
         draw_outline_shape(drawlist);
     if (m_features_open && m_feature_tool == feature_tool::zielsko)
         draw_zielsko_preview(drawlist);
@@ -2932,6 +2935,7 @@ void editor_mode::handle_terrain_click(bool const Shift)
         break;
     }
     case terrain_tool::fill:
+    case terrain_tool::fields:
     {
         if (Shift)
         {
@@ -5693,7 +5697,7 @@ void editor_mode::choose_work_area(work_area const Area)
 		terrain_workspace(true);
 		m_features_open = true;
 		// the outline of the surface is drawn as with Fill
-		m_terrain_tool = m_feature_tool == feature_tool::cut_out || m_feature_tool == feature_tool::zielsko ? terrain_tool::fill : terrain_tool::none;
+		m_terrain_tool = m_feature_tool == feature_tool::zielsko ? terrain_tool::fill : terrain_tool::none;
 		break;
 	}
 }

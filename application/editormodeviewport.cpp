@@ -248,6 +248,10 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::area_fill, STR_C("Water"), nullptr, STR_C("LMB adds a point of the outline of a body of water, Shift+LMB takes the last one back"), chosen(terrain_tool::water), choose(terrain_tool::water)});
 		Buttons.push_back({icon::count, STR_C("Fill"), nullptr, STR_C("LMB adds a point of the outline of an area to fill with a material, Shift+LMB takes the last one back"), chosen(terrain_tool::fill),
 		                   choose(terrain_tool::fill)});
+		Buttons.push_back({icon::grass, STR_C("Fields"), nullptr,
+		                   STR_C("LMB adds a point of the outline of a field: a surface cut out of the terrain with a material of its own, the ground under it made wavy if wanted; "
+		                         "Shift+LMB takes the last one back"),
+		                   chosen(terrain_tool::fields), choose(terrain_tool::fields)});
 		Buttons.push_back({icon::hole, STR_C("Holes"), nullptr, STR_C("LMB cuts a hole in the terrain under the brush (portals of tunnels), Shift+LMB closes it"), chosen(terrain_tool::holes),
 		                   choose(terrain_tool::holes)});
 		auto const orthophoto{m_orthophoto.enabled()};
@@ -271,13 +275,7 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 	}
 	case work_area::features:
 	{
-		// ours: the surfaces cut out of the terrain
-		Buttons.push_back({icon::area_fill, STR_C("Cut out a surface"), nullptr,
-		                   STR_C("LMB adds a point of the outline of a surface cut out of the terrain to texture it, Shift+LMB takes the last one back"),
-		                   m_feature_tool == feature_tool::cut_out, [this]() {
-			                   m_feature_tool = feature_tool::cut_out;
-			                   m_terrain_tool = terrain_tool::fill;
-		                   }});
+		// ours (the surfaces cut out of the terrain went to Terrain > Fields, as in the PR to feat/gl46-migration)
 		Buttons.push_back({icon::profile, STR_C("Track bed and slopes"), nullptr,
 		                   STR_C("The track bed, the embankments and the cuttings along the tracks cut into pieces up to 100 m, to texture them"),
 		                   m_feature_tool == feature_tool::track_bed, [this]() {
