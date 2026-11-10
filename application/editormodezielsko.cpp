@@ -201,8 +201,8 @@ void editor_mode::zielsko_harvest_start(bool const Whole, bool const PlantAfter)
 					for (int i = -1; i <= 1 && false == inside; ++i)
 						for (int j = -1; j <= 1 && false == inside; ++j)
 						{
-							glm::dvec2 const near{at.x + i * step * 0.5, at.y + j * step * 0.5};
-							if (zielsko_in_scope(near))
+							glm::dvec2 const nearby{at.x + i * step * 0.5, at.y + j * step * 0.5};
+							if (zielsko_in_scope(nearby))
 								inside = true;
 						}
 					if (false == inside && false == zielsko_in_scope(nearest))
