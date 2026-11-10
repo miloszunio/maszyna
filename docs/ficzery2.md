@@ -206,3 +206,16 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
   Skrajnia, szerokość w świetle, jedna tekstura z listy (wyszukiwanej w `textures/`). Modele i obrysy dziur w `models/kabina_obiekty/`.
 - **Poradnik** (`docs/poradnik.md`) dołączany do opisu każdej wersji.
 - Poprawka obrotu modeli wysłana do maj00ra jako gałąź `fix/gizmo-yaw-rotation` (na bazie `feat/switch-blades`).
+
+## ZIELSKO z kosmosu, poprawka shaderów, Sonar (po nr 69)
+
+- **Nowe narzędzie w Ficzerach: „ZIELSKO z kosmosu”.** Drzewa z modeli 3D drzew GUGiK (CityGML LoD1, z lotniczego skanowania laserowego, drzewa powyżej 4 m, licencja CC BY 4.0) sadzone wzdłuż torów.
+  - Powiaty pod scenerią znajduje usługa WMS `ModeleDrzew3D` Geoportalu (zapytanie o punkt co 2,5 km pasa wzdłuż torów).
+  - Paczki powiatów (`opendata.geoportal.gov.pl/InneDane/Drzewa3D/LOD1/2023/<woj>/<TERYT>.zip`, 1,5–5,4 GB) są czytane strumieniowo w osobnym wątku: zip po nagłówkach lokalnych, każdy arkusz GML rozpakowany w pamięci (inflate z `stb_image`), z każdego drzewa brany środek podstawy pnia i wysokość. Na dysk trafia tylko mały plik powiatu z drzewami nad terenem w pasie wzdłuż torów (`terrain/<teren>/zielsko/<TERYT>.drz`, 10 bajtów na drzewo).
+  - W danych współrzędne są w EPSG:2180 w kolejności wschód, północ; sprawdzone zapytaniem do WMS (arkusz Wałbrzycha trafia w powiat 0265).
+  - Sito: zasięg (kamera, cała sceneria, obrys), pas od osi toru, odstęp od dróg, woda terenu, najniższe drzewo, przerzedzenie, limit (najpierw najbliżej torów).
+  - Modele z grup banku węzłów, skala według wysokości drzewa, losowy obrót i lekki rozrzut, nazwy `zielsko_<n>`, karczowanie jednym przyciskiem.
+- `editor_http::client::get_stream`: pobieranie bez trzymania całości w pamięci (WinHTTP i curl).
+- **Shadery ogl46:** cofnięta zmiana z mastera (alpha to coverage), która przy scalaniu trafiła do shaderów GL 4.6 bez swoich funkcji i zawieszała ładowanie scenerii.
+- **Sonar:** „Idź do” nie sięga za listę miejscowości; wysokość wczytywanego chunka bez pętli.
+

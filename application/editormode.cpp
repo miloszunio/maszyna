@@ -2386,6 +2386,8 @@ void editor_mode::draw_terrain_overlay()
     // the outline as it will be cut or filled, its curves made, with the points clicked and their handles
     if (m_terrain_tool == terrain_tool::fill && false == m_paint_outline.empty())
         draw_outline_shape(drawlist);
+    if (m_features_open && m_feature_tool == feature_tool::zielsko)
+        draw_zielsko_preview(drawlist);
     if (m_terrain_tool == terrain_tool::water && false == m_water_points.empty())
     {
         std::vector<glm::dvec3> outline;
@@ -5691,7 +5693,7 @@ void editor_mode::choose_work_area(work_area const Area)
 		terrain_workspace(true);
 		m_features_open = true;
 		// the outline of the surface is drawn as with Fill
-		m_terrain_tool = m_feature_tool == feature_tool::cut_out ? terrain_tool::fill : terrain_tool::none;
+		m_terrain_tool = m_feature_tool == feature_tool::cut_out || m_feature_tool == feature_tool::zielsko ? terrain_tool::fill : terrain_tool::none;
 		break;
 	}
 }

@@ -633,6 +633,11 @@ void editor_mode::render_features_ui()
 		ImGui::TextWrapped("%s", STR_C("The scenery has no terrain yet. It's made in the Terrain field of work"));
 		return;
 	}
+	if (m_feature_tool == feature_tool::zielsko)
+	{
+		render_zielsko_ui();
+		return;
+	}
 	auto const &layers{m_streamer.manifest().layers};
 	if (ImGui::CollapsingHeader(STR_C("Material##features"), ImGuiTreeNodeFlags_DefaultOpen))
 		render_material_palette();

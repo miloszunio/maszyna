@@ -70,6 +70,24 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 2. Ficzery → film: wczytaj `.meta` i `.trasa`, ustaw materiały klas (sucha trawa, zarośla, tłuczeń), odsunięcie od osi (4 m), drzewa i krzaki z banku.
 3. Żółty „Rozmieść wzdłuż trasy”. Powierzchnie cofa Ctrl+Z, drzewa „Usuń to, co rozmieszczono z filmu”.
 
+## ZIELSKO z kosmosu (drzewa z Geoportalu)
+
+Ficzery → **ZIELSKO z kosmosu** (ikona trawy). Drzewa z modeli 3D drzew GUGiK: każde stoi tam, gdzie w rzeczywistości, i ma swoją wysokość.
+Dane nie mówią nic o gatunku i koronie (korona jest szablonem skalowanym do wysokości), więc modele bierzesz z banku węzłów.
+
+1. **Dane.** Ustaw, do ilu metrów od torów zachowywać drzewa (domyślnie 300 m), i kliknij żółte „Znajdź powiaty i wczytaj ich drzewa”.
+   Edytor pyta Geoportal, które powiaty leżą pod scenerią, i w tle czyta ich paczki prosto z sieci (powiat to 1,5–5 GB; na dysk nic z tego nie trafia).
+   Zostają tylko drzewa nad terenem w pasie wzdłuż torów, zapisane w `terrain/<teren>/zielsko/<TERYT>.drz`. Wczytany powiat jest pomijany przy następnym razie,
+   chyba że zaznaczysz „Wczytaj ponownie”. Można w tym czasie pracować dalej; „Przerwij wczytywanie” zatrzymuje.
+2. **Sito.** Zasięg: wokół kamery, cała sceneria albo w obrysie (LPM stawia punkty jak przy wycinaniu powierzchni).
+   Najbliżej i najdalej od osi toru, odstęp od krawędzi dróg, najniższe drzewo, odstęp między drzewami (przerzedzenie lasu, zostaje wyższe), limit liczby.
+   Woda terenu zawsze zostaje pusta. Gdy jest więcej drzew niż limit, idą najpierw te najbliżej torów.
+3. **Modele.** Grupa banku węzłów na drzewa (domyślnie „Duze drzewka”) i na niskie (domyślnie „Krzaki”, poniżej 8 m).
+   Wysokość modeli w skali 1: „z modelu” bierze promień modelu, a jeśli drzewa wychodzą za duże albo za małe, wpisz ją ręcznie.
+4. „Policz i pokaż” rysuje kropki do 1,5 km od kamery (żółte niskie, zielone wysokie) i podaje liczbę. Żółte **„Posadź”** stawia modele `zielsko_<n>`
+   (wcześniej posadzone przez ZIELSKO najpierw znikają). „Wykarczuj posadzone” je zdejmuje.
+5. W opisie scenerii podaj źródło: **GUGiK, modele 3D drzew (geoportal.gov.pl), CC BY 4.0**.
+
 ## Idź do
 
 Ficzery → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie znaki obojętne), zapisane kamery w `<sceneria>.kamery`.

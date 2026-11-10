@@ -16962,3 +16962,171 @@ msgstr "Ortofoto włączone (~)"
 
 msgid "Orthophoto off (~)"
 msgstr "Ortofoto wyłączone (~)"
+
+msgid "The terrain doesn't know where it lies (PUWG 1992): set its origin first"
+msgstr "Teren nie wie, gdzie leży (PUWG 1992): najpierw ustaw jego początek"
+
+msgid "No rail track over the terrain: nothing to look for"
+msgstr "Nad terenem nie ma żadnego toru: nie ma czego szukać"
+
+msgid "No county read yet: find and read them first"
+msgstr "Nie wczytano jeszcze żadnego powiatu: najpierw je znajdź i wczytaj"
+
+msgid "%zu trees would be planted (from %zu of %zu counties read)"
+msgstr "Zostałoby posadzonych %zu drzew (z %zu z %zu wczytanych powiatów)"
+
+msgid "No group %s in the node bank: nothing to plant with"
+msgstr "Brak grupy %s w banku węzłów: nie ma czym sadzić"
+
+msgid "No tree passes the sieve"
+msgstr "Żadne drzewo nie przeszło przez sito"
+
+msgid "Planted %zu trees (%zu planted before taken away). The source: GUGiK, 3D tree models, CC BY 4.0"
+msgstr "Posadzono %zu drzew (usunięto %zu posadzonych wcześniej). Źródło: GUGiK, modele 3D drzew, CC BY 4.0"
+
+msgid "ZIELSKO from space"
+msgstr "ZIELSKO z kosmosu"
+
+msgid "The trees of the 3D tree models of geoportal.gov.pl (GUGiK, from airborne laser scanning, trees over 4 m): where each stands and how tall it is. The counties under the scenery are found and their packages (gigabytes each) read over the network in the background; only the trees near the tracks are kept, beside the terrain"
+msgstr "Drzewa z modeli 3D drzew geoportal.gov.pl (GUGiK, z lotniczego skanowania laserowego, drzewa powyżej 4 m): gdzie stoi każde z nich i jak jest wysokie. Edytor sam znajduje powiaty pod scenerią i w tle czyta ich paczki z sieci (po kilka GB); zostają tylko drzewa blisko torów, zapisane obok terenu"
+
+msgid "1. The data"
+msgstr "1. Dane"
+
+msgid "Kept up to (m from the tracks)##zielsko"
+msgstr "Zachowuj do (m od torów)##zielsko"
+
+msgid "The trees further from a rail track aren't kept at all; a wider band means reading the counties again"
+msgstr "Drzewa dalej od toru w ogóle nie są zachowywane; szerszy pas wymaga ponownego wczytania powiatów"
+
+msgid "Read again the counties read before##zielsko"
+msgstr "Wczytaj ponownie wczytane już powiaty##zielsko"
+
+msgid "Find the counties and read their trees"
+msgstr "Znajdź powiaty i wczytaj ich drzewa"
+
+msgid "Stop reading##zielsko"
+msgstr "Przerwij wczytywanie##zielsko"
+
+msgid "Counties (TERYT): %s"
+msgstr "Powiaty (TERYT): %s"
+
+msgid "2. The sieve"
+msgstr "2. Sito"
+
+msgid "Around the camera##zielsko"
+msgstr "Wokół kamery##zielsko"
+
+msgid "The whole scenery##zielsko"
+msgstr "Cała sceneria##zielsko"
+
+msgid "Within the outline##zielsko"
+msgstr "W obrysie##zielsko"
+
+msgid "Radius (m)##zielsko"
+msgstr "Promień (m)##zielsko"
+
+msgid "LMB adds a point of the outline, Shift+LMB takes the last one back"
+msgstr "LPM dodaje punkt obrysu, Shift+LPM cofa ostatni"
+
+msgid "Nearest to a track (m)##zielsko"
+msgstr "Najbliżej toru (m)##zielsko"
+
+msgid "From the axis of a rail track: the clearance, the poles and the cess stay free"
+msgstr "Od osi toru: skrajnia, słupy i ścieżka służbowa zostają wolne"
+
+msgid "Farthest from a track (m)##zielsko"
+msgstr "Najdalej od toru (m)##zielsko"
+
+msgid "Off the roads (m)##zielsko"
+msgstr "Od dróg (m)##zielsko"
+
+msgid "From the edge of a road of the scenery"
+msgstr "Od krawędzi drogi scenerii"
+
+msgid "Lowest tree (m)##zielsko"
+msgstr "Najniższe drzewo (m)##zielsko"
+
+msgid "Spacing (m)##zielsko"
+msgstr "Odstęp (m)##zielsko"
+
+msgid "A wood thinned out: no two trees nearer than this, the taller kept"
+msgstr "Przerzedzony las: żadne dwa drzewa bliżej niż tyle, zostaje wyższe"
+
+msgid "At most##zielsko"
+msgstr "Najwyżej##zielsko"
+
+msgid "The trees nearest to the tracks first; each one is a model of the scenery"
+msgstr "Najpierw drzewa najbliżej torów; każde z nich to model w scenerii"
+
+msgid "The water bodies of the terrain stay free of trees"
+msgstr "Woda terenu zostaje bez drzew"
+
+msgid "3. The models"
+msgstr "3. Modele"
+
+msgid "Group of the node bank, trees##zielsko"
+msgstr "Grupa banku węzłów, drzewa##zielsko"
+
+msgid "Group of the node bank, low ones##zielsko"
+msgstr "Grupa banku węzłów, niskie##zielsko"
+
+msgid "Low ones below (m)##zielsko"
+msgstr "Niskie poniżej (m)##zielsko"
+
+msgid "Height of the models (m)##zielsko"
+msgstr "Wysokość modeli (m)##zielsko"
+
+msgid "from the model"
+msgstr "z modelu"
+
+msgid "How tall the models of the groups are at the scale of 1, so a tree of the data gets its own height.\nFrom the model: about the radius of the model, which suits the models standing on their foot"
+msgstr "Jak wysokie są modele grup w skali 1, żeby drzewo z danych dostało swoją wysokość.\nZ modelu: mniej więcej promień modelu, co pasuje do modeli stojących na swojej podstawie"
+
+msgid "Scatter of the size##zielsko"
+msgstr "Rozrzut wielkości##zielsko"
+
+msgid "Count and show##zielsko"
+msgstr "Policz i pokaż##zielsko"
+
+msgid "Sifting the trees"
+msgstr "Przesiewanie drzew"
+
+msgid "The trees which would be planted, as dots up to 1.5 km from the camera: yellow low, green tall"
+msgstr "Drzewa, które zostałyby posadzone, jako kropki do 1,5 km od kamery: żółte niskie, zielone wysokie"
+
+msgid "Plant"
+msgstr "Posadź"
+
+msgid "Planting the trees"
+msgstr "Sadzenie drzew"
+
+msgid "The trees planted before by ZIELSKO go first, then the ones through the sieve are planted"
+msgstr "Najpierw znikają drzewa posadzone wcześniej przez ZIELSKO, potem sadzone są te, które przeszły przez sito"
+
+msgid "Clear the trees planted##zielsko"
+msgstr "Wykarczuj posadzone##zielsko"
+
+msgid "Taken away: %zu trees planted by ZIELSKO"
+msgstr "Wykarczowano %zu drzew posadzonych przez ZIELSKO"
+
+msgid "The source: GUGiK, 3D tree models (geoportal.gov.pl), CC BY 4.0: name it with the scenery"
+msgstr "Źródło: GUGiK, modele 3D drzew (geoportal.gov.pl), CC BY 4.0: podaj je w opisie scenerii"
+
+msgid "Asking which counties lie under the scenery: %zu of %zu points, %zu counties"
+msgstr "Sprawdzanie, które powiaty leżą pod scenerią: %zu z %zu punktów, %zu powiatów"
+
+msgid "Stopped"
+msgstr "Przerwano"
+
+msgid "County %s (%zu of %zu): %.0f of %.0f MB read, %zu sheets, %zu trees kept"
+msgstr "Powiat %s (%zu z %zu): wczytano %.0f z %.0f MB, %zu arkuszy, zachowano %zu drzew"
+
+msgid "Done: %zu of %zu counties read, %zu trees kept now"
+msgstr "Gotowe: wczytano %zu z %zu powiatów, teraz zachowano %zu drzew"
+
+msgid "The trees of the 3D tree models of geoportal.gov.pl, where they stand and as tall as they are, planted along the tracks"
+msgstr "Drzewa z modeli 3D drzew geoportal.gov.pl, tam gdzie stoją i tak wysokie jak są, sadzone wzdłuż torów"
+
+msgid "Finding the band along the tracks"
+msgstr "Wyznaczanie pasa wzdłuż torów"

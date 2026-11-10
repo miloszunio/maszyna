@@ -284,6 +284,12 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 			                   m_feature_tool = feature_tool::track_bed;
 			                   m_terrain_tool = terrain_tool::none;
 		                   }});
+		Buttons.push_back({icon::grass, STR_C("ZIELSKO from space"), nullptr,
+		                   STR_C("The trees of the 3D tree models of geoportal.gov.pl, where they stand and as tall as they are, planted along the tracks"),
+		                   m_feature_tool == feature_tool::zielsko, [this]() {
+			                   m_feature_tool = feature_tool::zielsko;
+			                   m_terrain_tool = terrain_tool::fill;
+		                   }});
 		Buttons.push_back({icon::orthophoto, STR_C("Go to"), nullptr, STR_C("The map with the camera on it, a search of the towns and villages, the places of the camera kept"),
 		                   m_feature_tool == feature_tool::go_to, [this]() {
 			                   m_feature_tool = feature_tool::go_to;

@@ -32,6 +32,10 @@ class client
 	client &operator=(client const &) = delete;
 
 	bool get(std::string const &Url, std::vector<std::uint8_t> &Out, std::string &Error, stop_check const &Stop);
+	// the same for a body too big to be kept whole: its bytes handed to Sink as they come (false from it gives the transfer up),
+	// Length set to the length the server gives (0 if it gives none) before the first of them
+	using sink = std::function<bool(std::uint8_t const *Data, std::size_t Size)>;
+	bool get_stream(std::string const &Url, sink const &Sink, std::uint64_t &Length, std::string &Error, stop_check const &Stop);
 
   private:
 	struct platform;

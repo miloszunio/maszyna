@@ -53,8 +53,46 @@
 	{
 		cut_out, // an outline drawn as with Fill, painted into the terrain as a surface of its own
 		track_bed, // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
-		go_to // the map with the camera on it, a search of towns and the places of the camera kept
+		go_to, // the map with the camera on it, a search of towns and the places of the camera kept
+		zielsko // ZIELSKO z kosmosu: the trees of the 3D tree models of geoportal.gov.pl planted along the tracks
 	};
+	// ZIELSKO z kosmosu (editormodezielsko.cpp, editor/editorZielsko.cpp)
+	struct zielsko_settings
+	{
+		float reach{300.0f}; // m from a rail track: the trees kept of the counties read
+		float nearest{8.0f}; // m from the axis of a rail track
+		float farthest{150.0f};
+		float road{2.0f}; // m off the edge of a road
+		float lowest{4.0f};
+		float spacing{0.0f};
+		int limit{20000};
+		int scope{0}; // 0 around the camera, 1 the whole scenery, 2 within the outline
+		float radius{1500.0f};
+		char tall[64]{"Duze drzewka"};
+		char small[64]{"Krzaki"};
+		float small_below{8.0f};
+		float model_height{0.0f}; // 0: from the model
+		float jitter{0.08f};
+		bool again{false};
+	};
+	struct zielsko_candidate
+	{
+		glm::dvec2 at; // x, z of the scene
+		float height;
+		float track; // m from the nearest rail track
+	};
+	zielsko_settings m_zielsko;
+	zielsko::harvest m_zielsko_harvest;
+	std::vector<zielsko_candidate> m_zielsko_preview;
+	std::string m_zielsko_status;
+	std::string zielsko_folder() const;
+	void zielsko_harvest_start();
+	std::vector<zielsko_candidate> zielsko_candidates(std::size_t &Counties, std::size_t &Read);
+	void zielsko_count();
+	void zielsko_plant();
+	std::size_t zielsko_remove();
+	void draw_zielsko_preview(ImDrawList *Drawlist);
+	void render_zielsko_ui();
 	// the transition the surfaces cut out blend over, and the noise their edge is shifted by
 	float m_cut_feather{1.0f};
 	float m_cut_noise{0.3f};
