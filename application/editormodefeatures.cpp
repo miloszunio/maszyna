@@ -1245,13 +1245,13 @@ struct crop_preset
 std::array<crop_preset, 15> const &crop_presets()
 {
 	static std::array<crop_preset, 15> const presets{{
-	    {"Ploughed", "Turned over in autumn or before sowing: dark furrows of soil, clods, the lands with their dead furrows; no grass", "farm08", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+	    {"Ploughed", "Turned over in autumn or before sowing: dark furrows of soil, clods, the lands with their dead furrows; no grass", "uprawy/zaorane", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
 	     true, 0.16f, 1.5f, 0.5f, 0.f, 30.f, 12.f},
-	    {"Harrowed and sown", "Smooth, crumbly soil just sown, the tramlines already driven", "farm03", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, true, 0.03f, 1.5f,
+	    {"Harrowed and sown", "Smooth, crumbly soil just sown, the tramlines already driven", "uprawy/zbronowane", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, true, 0.03f, 1.5f,
 	     0.15f, 24.f, 30.f, 18.f},
-	    {"Winter crop, young", "Wheat, rye or barley sown in autumn: a low green carpet in rows over the soil, from October till April", "farm05", 6.f, {0.17f, 0.30f, 0.08f},
+	    {"Winter crop, young", "Wheat, rye or barley sown in autumn: a low green carpet in rows over the soil, from October till April", "uprawy/ozimina", 6.f, {0.17f, 0.30f, 0.08f},
 	     {0.34f, 0.55f, 0.15f}, 0.12f, 0.3f, 0.006f, 220.f, 0.25f, 0.3f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Cereal, green", "A cereal grown up but still green, May and June: dense knee-high stalks", "farm01", 6.f, {0.15f, 0.29f, 0.07f}, {0.37f, 0.57f, 0.17f}, 0.55f, 0.15f,
+	    {"Cereal, green", "A cereal grown up but still green, May and June: dense knee-high stalks", "uprawy/zboze_zielone", 6.f, {0.15f, 0.29f, 0.07f}, {0.37f, 0.57f, 0.17f}, 0.55f, 0.15f,
 	     0.010f, 180.f, 0.15f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
 	    {"Cereal, heading", "Ears out, the green going yellow: the end of June", "uprawy/zboze_klos", 6.f, {0.24f, 0.35f, 0.12f}, {0.66f, 0.68f, 0.32f}, 0.85f, 0.12f, 0.010f, 180.f,
 	     0.12f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
@@ -1269,11 +1269,11 @@ std::array<crop_preset, 15> const &crop_presets()
 	     0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
 	    {"Stubble", "After the harvest: short straw in rows over the soil, the tramlines still there", "uprawy/sciernisko", 6.f, {0.60f, 0.50f, 0.30f}, {0.85f, 0.76f, 0.50f}, 0.12f,
 	     0.3f, 0.004f, 200.f, 0.05f, 0.f, true, 0.02f, 1.5f, 0.15f, 24.f, 30.f, 18.f},
-	    {"High meadow", "Mown once or twice a year, the grass and the herbs up to the knees, the ground gently uneven", "grassdarkgreen3", 0.f, {0.20f, 0.32f, 0.09f},
+	    {"High meadow", "Mown once or twice a year, the grass and the herbs up to the knees, the ground gently uneven", "uprawy/laka_wysoka", 5.f, {0.20f, 0.32f, 0.09f},
 	     {0.55f, 0.62f, 0.28f}, 0.6f, 0.5f, 0.010f, 200.f, 0.45f, 1.f, false, 0.4f, 40.f, 0.3f, 0.f, 0.f, 0.f},
-	    {"Low meadow, pasture", "Grazed or mown often: short dense grass, tussocks and trodden places", "grass", 0.f, {0.20f, 0.33f, 0.09f}, {0.45f, 0.60f, 0.22f}, 0.1f, 0.4f,
+	    {"Low meadow, pasture", "Grazed or mown often: short dense grass, tussocks and trodden places", "uprawy/pastwisko", 5.f, {0.20f, 0.33f, 0.09f}, {0.45f, 0.60f, 0.22f}, 0.1f, 0.4f,
 	     0.006f, 260.f, 0.3f, 1.f, false, 0.3f, 30.f, 0.45f, 0.f, 0.f, 0.f},
-	    {"Fallow", "Left unsown: grass, weeds and dry stalks of last year, tussocks", "grassdead3", 0.f, {0.30f, 0.33f, 0.15f}, {0.62f, 0.58f, 0.35f}, 0.45f, 0.6f, 0.010f, 150.f,
+	    {"Fallow", "Left unsown: grass, weeds and dry stalks of last year, tussocks", "uprawy/ugor", 5.f, {0.30f, 0.33f, 0.15f}, {0.62f, 0.58f, 0.35f}, 0.45f, 0.6f, 0.010f, 150.f,
 	     0.45f, 1.f, false, 0.3f, 25.f, 0.45f, 0.f, 0.f, 0.f},
 	}};
 	return presets;
@@ -1338,7 +1338,7 @@ void editor_mode::cut_out_surface()
 		}
 	}
 	if (m_waves.on && m_waves.kind == terrain_waves::field && m_waves.tramlines >= 1.0f && patch.paint)
-		patch.field = format("tram=%g angle=%g head=%g drift=%g soil=farm03", m_waves.tramlines, m_waves.angle, m_waves.headland, m_waves.drift);
+		patch.field = format("tram=%g angle=%g head=%g drift=%g soil=uprawy/zbronowane", m_waves.tramlines, m_waves.angle, m_waves.headland, m_waves.drift);
 	auto patches{m_streamer.patches()};
 	// a name not taken yet
 	for (int number = static_cast<int>(patches.size()) + 1;; ++number)
@@ -1991,7 +1991,7 @@ void editor_mode::paint_tramlines(heightmap::surface_patch const &Patch)
 	field_layout const layout{Patch.outline, spec.angle, spec.drift, spec.headland, spec.tramlines};
 	glm::dvec2 low, high;
 	Patch.bounds(low, high);
-	// the soil in the ruts, as wide as the paint samples let it be; the grass taken away from them
+	// the soil in the ruts, as wide as the paint samples let it be, half of the way
 	auto const soil{m_streamer.layer(spec.soil, 0.f, Patch.rotation)};
 	auto const in_rut = [&](double const Width, double const Strength) {
 		return [&layout, &Patch, Width, Strength](double const X, double const Z) {
@@ -2001,8 +2001,9 @@ void editor_mode::paint_tramlines(heightmap::surface_patch const &Patch)
 			return layout.rut({X, Z}, edge, Width) * Strength;
 		};
 	};
-	m_streamer.paint_where(low, high, soil, in_rut(0.75, 0.8));
-	m_streamer.grass_where(low, high, 0, true, in_rut(0.6, 1.0));
+	m_streamer.paint_where(low, high, soil, in_rut(0.75, 0.5));
+	// thinned, not bare: from afar a darker stripe through the crop, not holes in it
+	m_streamer.grass_where(low, high, 0, true, in_rut(0.5, 0.65));
 }
 
 bool editor_mode::grass_choice(char const *Label, int &Choice)

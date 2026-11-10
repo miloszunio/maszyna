@@ -155,6 +155,32 @@ vec3 white_balance(vec3 rgb, vec3 gains)
 	return lms_to_rgb * (gains * (rgb_to_lms * rgb));
 }
 
+// the grade of the tonemapped image (linear 0..1): Grade.x saturation, .y vibrance (the dull colours more saturated than
+// the vivid), .z contrast (an s-curve of the perceived brightness); neutral at (1, 0, 1)
+vec3 grade(vec3 rgb, vec3 Grade)
+{
+	if (Grade == vec3(1.0, 0.0, 1.0))
+		return rgb;
+	rgb = clamp(rgb, 0.0, 1.0);
+	vec3 perceived = pow(rgb, vec3(1.0 / 2.2));
+	vec3 curve = perceived * perceived * (3.0 - 2.0 * perceived);
+	perceived = clamp(mix(perceived, curve, Grade.z - 1.0), 0.0, 1.0);
+	rgb = pow(perceived, vec3(2.2));
+	float luma = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+	float chroma = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
+	float amount = Grade.x * (1.0 + Grade.y * (1.0 - clamp(chroma * 2.0, 0.0, 1.0)));
+	return clamp(vec3(luma) + (rgb - vec3(luma)) * amount, 0.0, 1.0);
+}
+
+// the tonemapping with the grade of the post-processing (grade() above) before the colour goes out
+vec4 tonemap_graded(vec4 x, vec3 Grade)
+{
+	vec3 hdr = x.rgb;
+	hdr = mix(hdr, vec3(0.0), vec3(any(isnan(hdr)) || any(isinf(hdr))));
+	hdr = max(hdr, vec3(0.0));
+	return FBOUT(vec4(grade(ApplyAgX(hdr), Grade), x.a));
+}
+
 vec4 tonemap(vec4 x)
 {
 	// Use AgX by default. Reinhard and ACES above are kept for reference.

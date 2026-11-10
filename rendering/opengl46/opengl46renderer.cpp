@@ -9,6 +9,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "rendering/opengl46/opengl46renderer.h"
+#include "rendering/common/exposure.h"
 #include "utilities/color.h"
 #include "utilities/Globals.h"
 #include "utilities/Timer.h"
@@ -2102,6 +2103,7 @@ if (!Global.gfx_skippipeline)
 			model_ubs.param[0] = m_exposure.tonemap_params(bloomlevels);
 			// the dither goes to the last pass before the window: the chromatic aberration, when it follows
 			model_ubs.param[1] = glm::vec4{Global.gfx_postfx_chromaticaberration_enabled ? 0.f : 1.f, m_exposure.white_balance()};
+			model_ubs.param[2] = gfx::exposure_settings::grade_params();
 			model_ubo->update(model_ubs);
 			std::vector<opengl_texture *> tonemapinput{vp.main2_tex.get()};
 			if (bloomtexture != nullptr)

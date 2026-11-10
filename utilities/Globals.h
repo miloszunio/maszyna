@@ -504,6 +504,11 @@ struct global_settings {
     bool gfx_postfx_whitebalance { true }; // white balance of the camera, applied to the image before the tonemapping
     float gfx_postfx_whitebalance_temperature { 7500.f }; // colour temperature of the light taken as white, K; 6500 = none, more = warmer image
     float gfx_postfx_whitebalance_tint { 0.f }; // -1..1, shift off the daylight locus: + magenta image, - green image
+    // the grade of the image after the tonemapping (the agx of the tonemapping leaves it flat on purpose): all neutral by default
+    float gfx_postfx_grade_saturation { 1.f }; // 0..2, 1: as the tonemapping gives it
+    float gfx_postfx_grade_vibrance { 0.f }; // -1..1, the saturation of the dull colours (grass, soil) raised, the vivid ones left
+    float gfx_postfx_grade_contrast { 1.f }; // 0.5..2, an s-curve over the image, 1: none
+    float gfx_postfx_sharpen { 0.f }; // 0..1, the image sharpened against the blur of the temporal antialiasing, within its neighbours
     // screen space ambient occlusion of the opengl 4.6 renderer, applied to the image (debug window "Sky and exposure").
     // 0 off, 1 the older ssao, 2 ground truth ambient occlusion; when 0 at the start the targets are not made at all
     int gfx_postfx_ao { 2 };

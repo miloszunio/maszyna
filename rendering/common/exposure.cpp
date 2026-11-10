@@ -150,6 +150,11 @@ glm::vec3 exposure_settings::white_balance()
 	return glm::vec3{gains};
 }
 
+glm::vec4 exposure_settings::grade_params()
+{
+	return glm::vec4{Global.gfx_postfx_grade_saturation, Global.gfx_postfx_grade_vibrance, Global.gfx_postfx_grade_contrast, Global.gfx_postfx_sharpen};
+}
+
 void exposure_settings::draw_debug_ui(float const *Readback)
 {
 	ImGui::Checkbox("automatic exposure (gfx.postfx.autoexposure)", &Global.gfx_postfx_autoexposure);
@@ -167,6 +172,10 @@ void exposure_settings::draw_debug_ui(float const *Readback)
 	ImGui::Checkbox("white balance (gfx.postfx.whitebalance)", &Global.gfx_postfx_whitebalance);
 	ImGui::SliderFloat("temperature K, 6500 = none, more = warmer", &Global.gfx_postfx_whitebalance_temperature, 4000.f, 12000.f, "%.0f");
 	ImGui::SliderFloat("tint, + magenta, - green", &Global.gfx_postfx_whitebalance_tint, -1.f, 1.f, "%.2f");
+	ImGui::SliderFloat("saturation (gfx.postfx.grade.saturation)", &Global.gfx_postfx_grade_saturation, 0.f, 2.f, "%.2f");
+	ImGui::SliderFloat("vibrance, the dull colours (gfx.postfx.grade.vibrance)", &Global.gfx_postfx_grade_vibrance, -1.f, 1.f, "%.2f");
+	ImGui::SliderFloat("contrast (gfx.postfx.grade.contrast)", &Global.gfx_postfx_grade_contrast, 0.5f, 2.f, "%.2f");
+	ImGui::SliderFloat("sharpening (gfx.postfx.sharpen)", &Global.gfx_postfx_sharpen, 0.f, 1.f, "%.2f");
 }
 
 } // namespace gfx

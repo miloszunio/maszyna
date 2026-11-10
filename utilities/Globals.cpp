@@ -1980,6 +1980,10 @@ global_settings::ConfigParse_gfx_sky( cParser &Parser, std::string_view const To
     else if( Token == "gfx.postfx.whitebalance" ) { readswitch( gfx_postfx_whitebalance ); }
     else if( Token == "gfx.postfx.whitebalance.temperature" ) { readvalue( gfx_postfx_whitebalance_temperature, 4000.f, 25000.f ); }
     else if( Token == "gfx.postfx.whitebalance.tint" ) { readvalue( gfx_postfx_whitebalance_tint, -1.f, 1.f ); }
+    else if( Token == "gfx.postfx.grade.saturation" ) { readvalue( gfx_postfx_grade_saturation, 0.f, 2.f ); }
+    else if( Token == "gfx.postfx.grade.vibrance" ) { readvalue( gfx_postfx_grade_vibrance, -1.f, 1.f ); }
+    else if( Token == "gfx.postfx.grade.contrast" ) { readvalue( gfx_postfx_grade_contrast, 0.5f, 2.f ); }
+    else if( Token == "gfx.postfx.sharpen" ) { readvalue( gfx_postfx_sharpen, 0.f, 1.f ); }
     else if( Token == "gfx.postfx.ao" ) {
         // yes/gtao: ground truth ambient occlusion, ssao: the older one, anything else: off
         Parser.getTokens( 1 );
@@ -2518,6 +2522,10 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "gfx.postfx.whitebalance", gfx_postfx_whitebalance );
     export_as_text( Output, "gfx.postfx.whitebalance.temperature", gfx_postfx_whitebalance_temperature );
     export_as_text( Output, "gfx.postfx.whitebalance.tint", gfx_postfx_whitebalance_tint );
+    export_as_text( Output, "gfx.postfx.grade.saturation", gfx_postfx_grade_saturation );
+    export_as_text( Output, "gfx.postfx.grade.vibrance", gfx_postfx_grade_vibrance );
+    export_as_text( Output, "gfx.postfx.grade.contrast", gfx_postfx_grade_contrast );
+    export_as_text( Output, "gfx.postfx.sharpen", gfx_postfx_sharpen );
     export_as_text( Output, "gfx.postfx.ao", std::string{ gfx_postfx_ao == 2 ? "gtao" : gfx_postfx_ao == 1 ? "ssao" : "no" } );
     export_as_text( Output, "gfx.postfx.ao.radius", gfx_postfx_ao_radius );
     export_as_text( Output, "gfx.postfx.ao.strength", gfx_postfx_ao_strength );

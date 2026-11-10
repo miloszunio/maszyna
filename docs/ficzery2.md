@@ -1,5 +1,17 @@
 Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrrycho leżą najnowsze zmiany maj00ra, a na tym wszystkie nasze wdrożenia.
 
+## Zmiany w tym wydaniu (nr 84)
+
+- **Obraz „PRO” w ustawieniach** (renderer GL 4.6 i Vulkan, domyślnie bez zmian, włączane w `eu07.ini` albo suwakami w oknie ekspozycji, tam gdzie balans bieli):
+  - `gfx.postfx.grade.saturation` (1 = bez zmian), `gfx.postfx.grade.vibrance` (podbija nasycenie bladych kolorów: trawy, zboża, ziemi; nieba i żywych kolorów prawie nie rusza), `gfx.postfx.grade.contrast` (krzywa S jasności);
+  - `gfx.postfx.sharpen` (0–1): wyostrzenie po TAA, w granicach sąsiednich pikseli, bez obwódek.
+  - Tonemapper AgX daje celowo płaski obraz (nasycenie 0,9); te ustawienia go „wywołują”.
+- **Uprawy bez jesieni:** pod zielonym zbożem w listopadzie leżała zaorana ziemia, bo `.mat` z `farm01` itd. ma jesienny wariant „zaorane”. Wszystkie uprawy mają teraz własne `.mat` w `textures/uprawy/` (zimą tylko śnieg).
+- **Kolor pola za granicą trawy 3D:** tekstura każdej uprawy i łąki ma średni kolor jej trawy 3D, więc za 60–250 m pole nie zmienia barwy (nowe: `zboze_zielone`, `laka_wysoka`, `pastwisko`, `ugor`, `ozimina`).
+- **Ziemia cieplejsza:** zaorane i zbronowane mają brązowe, nie sine tekstury (`zaorane`, `zbronowane`).
+- **Ścieżki technologiczne:** trawa w koleinach przerzedzona, nie zabrana do gołej ziemi, ziemia namalowana słabiej: z daleka ciemniejszy pas w zbożu zamiast kropek.
+- Pola wycięte w nr 83 mają stare materiały: zmień je na liście pól albo wytnij jeszcze raz.
+
 ## Skąd jest kod
 
 - **Hirek:** `feat/gl46-migration` (OpenGL 4.6 i Vulkan, mieszanie tekstur torów, sieć trakcyjna, raporty awarii, `eu07_starter`).
@@ -234,3 +246,35 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
 - Ścieżki zapisane w powierzchni (nowa kolumna `tram=… angle=… head=… drift=… soil=…` w pliku powierzchni), więc przemalowanie i Ctrl+Z je odtwarzają.
 - `tools/zielsko/uprawy.py`: tekstury upraw z `farm00`/`farm01` (przekolorowanie, plamy dojrzewania, kwiaty rzepaku, słoma ścierniska), kafelkowane, z `.mat` jak `farm00.mat`.
 - `terrain_streamer::paint_where` / `grass_where`: malowanie i trawa według funkcji miejsca.
+
+## Uprawy: kolory, ścieżki, obraz (nr 84)
+
+Opis w „Zmiany w tym wydaniu” na górze.
+
+## Historia wersji
+
+Od pierwszego buildu `ficzery2`. Numery to kolejne buildy CI (wspólna numeracja z innymi gałęziami, dlatego są dziury). Wcześniejsza gałąź `ficzery` (pierwsza generacja) jest opisana w części „Dział Ficzery”.
+
+- **nr 29–31** (5.11): pierwsze składanie `ficzery2` z kodu Hirka, mastera, jerrrrycho i maj00ra; buildy nieudane (błędy po scaleniu).
+- **nr 32** (5.11): pierwszy działający. Paleta terenu z kolejnością i usuwaniem pozycji, falowanie terenu pod wycinaną powierzchnią, widok z góry bez mgły, tory IRT jako warstwy `.scm`; poprawki po scaleniu: podkłady 3D w GL 4.6 i Vulkanie, parametry materiałów.
+- **nr 33** (6.11): profile fal (ostre grzbiety, doliny, tarasy, płaskie wierzchy), kratka garbów, pasy pól, chropowatość; teren tak jasny jak model z tym samym materiałem.
+- **nr 35** (6.11): siatka terenu zagęszczana pod falami i grudami (do 1 m).
+- **nr 38** (7.11): rozmieszczanie z filmu z kabiny (powierzchnie, drzewa, krzaki), magiczna różdżka na ortofoto.
+- **nr 39–40** (7.11): drzewa z filmu na ziemi i odsunięte od toru, ciemna trawa pod krzakami.
+- **nr 41** (8.11): Tab/Ctrl+Tab dla ortofoto; profil pionowy drogi i teren dociągany do drogi.
+- **nr 42–43** (8.11): tunel tam, gdzie droga wchodzi w nasyp, okno profilu drogi z tunelami jako konstrukcją, zakres przy każdym przycisku, asfalt skrzyżowań bez szwów, kursor w streamie.
+- **nr 44–45** (8.11): nowa paleta tekstur (kafelki w grupach, pędzel Mieszaj/Kryj/Zmazuj, pipeta), zamiana materiału w obrysie, czyszczenie malowania z kopią.
+- **nr 46** (8.11): usunięty Kapelusz; „Przemaluj w teren” zawsze widoczne.
+- **nr 47** (8.11): profil drogi na węzłach, punkty dróg łapane pod terenem, obrót bez skoków, klepsydra przy ciężkiej pracy (Esc przerywa), przyciski zmieniające scenerię na żółto.
+- **nr 49** (8.11): obiekty pod torami (przepust łukowy, wiadukt ramowy, przepust skrzynkowy) zamiast tunelu z progu; poradnik dołączany do każdego wydania.
+- **nr 51** (9.11): wciągnięte nowe zmiany mastera (tryb testów, AI, kabiny, alpha to coverage).
+- **nr 52** (9.11): nasze narzędzia wydzielone do własnych plików (łatwiejsze scalanie z Hirkiem).
+- **nr 54** (9.11): SonarCloud dla forka.
+- **nr 60** (9.11): ortofoto pod ~ i Ctrl+~ (Tab wrócił do kładzenia torów, jak w masterze).
+- **nr 69** (9.11): shadery materiałów GL 4.6 z własnym alpha testem (poprawka zawieszania).
+- **nr 70** (10.11): poprawki z Sonara.
+- **nr 72** (10.11): ZIELSKO z kosmosu: drzewa z modeli 3D drzew Geoportalu sadzone wzdłuż torów.
+- **nr 80** (10.11): wycinanie powierzchni przeniesione do Teren → Pola (jak w PR #315 do Hirka), osobna powierzchnia.
+- **nr 82** (10.11): ZIELSKO przebudowane: jeden zasięg czytania i sadzenia, arkusze doczytywane do ostatniego potrzebnego.
+- **nr 83** (10.11): uprawy na polach (15 upraw z trawą 3D i teksturami), fala „Pole uprawne” (rzędy, zagony, uwrocia, ścieżki technologiczne).
+- **nr 84** (11.11): korekcja obrazu i wyostrzanie, uprawy bez jesieni, kolor pola zgodny z trawą, cieplejsza ziemia, miękkie ścieżki technologiczne.

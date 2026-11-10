@@ -42,7 +42,21 @@ W panelu Pól jest **„Obsiane”**: wybierz uprawę, a pole dostanie jej tekst
 - Fala **„Pole uprawne”**: rzędy wzdłuż najdłuższego boku obrysu (albo kierunek ręcznie), lekko falujące („Rzędy falują”, 0,5–1 m na ~100 m), **zagony** z grzbietem i bruzdami rozorywkowymi, **uwrocie** wzdłuż brzegu z rzędami dookoła i poszarpaną wewnętrzną krawędzią, **ścieżki technologiczne** (dwie koleiny co 18/24/36 m i dookoła środkiem uwrocia: ziemia namalowana, trawa zabrana, płytkie zagłębienie).
 - Teren ma punkt co metr (malowanie też), więc pojedyncze rzędy zbóż robi tekstura, a rzeźba robi to, co widać z pociągu: zagony, uwrocia, koleiny.
 - Tekstura sama kładzie się wzdłuż rzędów; „Tekstura obrócona o” to już tylko poprawka.
-- Trawa 3D zbóż jest gęsta i wysoka, a rysuje się do 60 m od kamery. Gdyby gubiło klatki, zmniejsz gęstość tej trawy w palecie traw.
+- Trawa 3D zbóż jest gęsta i wysoka. Zasięg trawy: `gfx.grass.distance` (pełna gęstość, domyślnie 60 m) i `gfx.grass.fadedistance` (do tej odległości się przerzedza) w `eu07.ini`. Gdyby gubiło klatki, zmniejsz `gfx.grass.density` albo gęstość trawy uprawy w palecie traw.
+- Od nr 84 tekstury upraw mają kolor swojej trawy (pole nie zmienia barwy tam, gdzie kończy się trawa) i nie zamieniają się jesienią w zaorane pole. Pola z nr 83: zmień materiał na liście albo wytnij je jeszcze raz.
+
+### Ładniejszy obraz (od nr 84)
+
+W `eu07.ini` (albo suwakami w oknie ekspozycji, obok balansu bieli):
+
+```
+gfx.atmosphere.haze 0.4          // mniej zamglenia w pogodny dzień (domyślnie 1)
+gfx.postfx.grade.saturation 1.1  // nasycenie (1 bez zmian)
+gfx.postfx.grade.vibrance 0.35   // żywsze blade kolory: trawa, zboże, ziemia
+gfx.postfx.grade.contrast 1.15   // kontrast (1 bez zmian)
+gfx.postfx.sharpen 0.4           // wyostrzenie po TAA (0 wyłączone)
+```
+Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzędy i zagony rzucają cień.
 
 ## Torowisko i skarpy
 
