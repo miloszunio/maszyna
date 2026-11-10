@@ -32,6 +32,7 @@ http://mozilla.org/MPL/2.0/.
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <sstream>
 #include <map>
 #include <regex>
 #include <sstream>
@@ -647,6 +648,7 @@ void editor_mode::render_fields_ui()
 		ImGui::SetTooltip("%s", STR_C("The ground is cut away within the outline and the field drawn over the hole as a mesh of its own, following the heights of the terrain:\n"
 		                              "it doesn't take one of the 8 materials of a chunk, but its edge is sharp and the seam can show"));
 	m_cut_separate = kind == 1;
+	render_crop_options();
 	ImGui::SeparatorText(STR_C("Shape of the outline"));
 	render_outline_options();
 	ImGui::SeparatorText(STR_C("Edge"));
@@ -668,7 +670,10 @@ void editor_mode::render_fields_ui()
 		ImGui::SetTooltip("%s", STR_C("About how long the waves of the edge are: small - frayed, large - gently wavy"));
 	ImGui::SetNextItemWidth(120.0f);
 	ImGui::SliderFloat(STR_C("Texture turned by (deg)"), &m_paint_rotation, -180.0f, 180.0f, "%.0f");
-	grass_choice(STR_C("3D grass under it##cut"), m_cut_grass);
+	if (m_crop > 0)
+		item_tooltip("With a crop: turned from along the rows by this much (0: the rows of the texture along the rows of the field)");
+	else
+		grass_choice(STR_C("3D grass under it##cut"), m_cut_grass);
 	render_waves_options();
 	ImGui::Spacing();
 	ImGui::BeginDisabled(m_paint_outline.size() < 3 || layers.empty());
@@ -1208,6 +1213,73 @@ void editor_mode::go_to_plan(glm::dvec2 const &Plan)
 	fly_to(target, look, 150.0);
 }
 
+namespace
+{
+// what can be sown in a field cut out: its texture, its 3D grass, the shape of the ground under it
+struct crop_preset
+{
+	char const *name;
+	char const *about;
+	char const *material; // of the textures of the simulator (uprawy/: made by tools/zielsko/uprawy.py from them)
+	float size; // metres the texture repeats at
+	// the 3D grass; a height of 0: none, the ground bare
+	glm::vec3 base;
+	glm::vec3 tip;
+	float height;
+	float variation;
+	float width;
+	float density;
+	float bend;
+	float seasonal;
+	// the ground
+	bool field; // the cultivated field of terrain_waves, or rolling hills
+	float rows; // metres, of the rows from the furrow to the ridge
+	float row_length; // metres, from a row to the next
+	float roughness;
+	float tramlines;
+	float lands;
+	float headland;
+};
+
+
+std::array<crop_preset, 15> const &crop_presets()
+{
+	static std::array<crop_preset, 15> const presets{{
+	    {"Ploughed", "Turned over in autumn or before sowing: dark furrows of soil, clods, the lands with their dead furrows; no grass", "farm08", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
+	     true, 0.16f, 1.5f, 0.5f, 0.f, 30.f, 12.f},
+	    {"Harrowed and sown", "Smooth, crumbly soil just sown, the tramlines already driven", "farm03", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, true, 0.03f, 1.5f,
+	     0.15f, 24.f, 30.f, 18.f},
+	    {"Winter crop, young", "Wheat, rye or barley sown in autumn: a low green carpet in rows over the soil, from October till April", "farm05", 6.f, {0.17f, 0.30f, 0.08f},
+	     {0.34f, 0.55f, 0.15f}, 0.12f, 0.3f, 0.006f, 220.f, 0.25f, 0.3f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Cereal, green", "A cereal grown up but still green, May and June: dense knee-high stalks", "farm01", 6.f, {0.15f, 0.29f, 0.07f}, {0.37f, 0.57f, 0.17f}, 0.55f, 0.15f,
+	     0.010f, 180.f, 0.15f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Cereal, heading", "Ears out, the green going yellow: the end of June", "uprawy/zboze_klos", 6.f, {0.24f, 0.35f, 0.12f}, {0.66f, 0.68f, 0.32f}, 0.85f, 0.12f, 0.010f, 180.f,
+	     0.12f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Wheat, ripe", "Golden, waist-high, ears upright: July and August till the harvest", "uprawy/pszenica_dojrzala", 6.f, {0.52f, 0.42f, 0.20f}, {0.90f, 0.77f, 0.42f}, 0.85f,
+	     0.10f, 0.010f, 180.f, 0.08f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Barley, ripe", "Paler than wheat, lower, the ears bowed: ripe from the start of July", "uprawy/jeczmien_dojrzaly", 6.f, {0.60f, 0.52f, 0.32f}, {0.93f, 0.86f, 0.60f}, 0.7f,
+	     0.12f, 0.010f, 180.f, 0.35f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Rye, ripe", "The tallest of them, greyish straw: a man's height, the poorer sandy soils", "uprawy/zyto_dojrzale", 6.f, {0.45f, 0.42f, 0.30f}, {0.80f, 0.72f, 0.50f}, 1.3f,
+	     0.15f, 0.010f, 160.f, 0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Oats, ripe", "Light, loose panicles instead of ears, a greenish straw", "uprawy/owies_dojrzaly", 6.f, {0.50f, 0.48f, 0.33f}, {0.88f, 0.84f, 0.60f}, 0.9f, 0.15f, 0.010f,
+	     150.f, 0.3f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Rape in flower", "Yellow over the whole field, high: the end of April and May", "uprawy/rzepak_kwitnacy", 6.f, {0.20f, 0.35f, 0.10f}, {1.00f, 0.88f, 0.15f}, 1.3f, 0.15f,
+	     0.020f, 110.f, 0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Rape, ripe", "Brown pods on dry stalks: July before the harvest", "uprawy/rzepak_dojrzaly", 6.f, {0.35f, 0.32f, 0.18f}, {0.55f, 0.48f, 0.25f}, 1.3f, 0.15f, 0.015f, 110.f,
+	     0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	    {"Stubble", "After the harvest: short straw in rows over the soil, the tramlines still there", "uprawy/sciernisko", 6.f, {0.60f, 0.50f, 0.30f}, {0.85f, 0.76f, 0.50f}, 0.12f,
+	     0.3f, 0.004f, 200.f, 0.05f, 0.f, true, 0.02f, 1.5f, 0.15f, 24.f, 30.f, 18.f},
+	    {"High meadow", "Mown once or twice a year, the grass and the herbs up to the knees, the ground gently uneven", "grassdarkgreen3", 0.f, {0.20f, 0.32f, 0.09f},
+	     {0.55f, 0.62f, 0.28f}, 0.6f, 0.5f, 0.010f, 200.f, 0.45f, 1.f, false, 0.4f, 40.f, 0.3f, 0.f, 0.f, 0.f},
+	    {"Low meadow, pasture", "Grazed or mown often: short dense grass, tussocks and trodden places", "grass", 0.f, {0.20f, 0.33f, 0.09f}, {0.45f, 0.60f, 0.22f}, 0.1f, 0.4f,
+	     0.006f, 260.f, 0.3f, 1.f, false, 0.3f, 30.f, 0.45f, 0.f, 0.f, 0.f},
+	    {"Fallow", "Left unsown: grass, weeds and dry stalks of last year, tussocks", "grassdead3", 0.f, {0.30f, 0.33f, 0.15f}, {0.62f, 0.58f, 0.35f}, 0.45f, 0.6f, 0.010f, 150.f,
+	     0.45f, 1.f, false, 0.3f, 25.f, 0.45f, 0.f, 0.f, 0.f},
+	}};
+	return presets;
+}
+} // namespace
+
 void editor_mode::cut_out_surface()
 {
 	auto const &layers{m_streamer.manifest().layers};
@@ -1228,6 +1300,45 @@ void editor_mode::cut_out_surface()
 	patch.shape = outline_controls();
 	if (patch.outline.size() < 3)
 		return;
+	// the rows along the longest side, the texture along the rows (the rows of the textures of the fields run up the picture)
+	if (m_waves.on && m_waves.kind == terrain_waves::field && m_waves.auto_direction)
+		m_waves.angle = longest_side(patch.outline);
+	auto const &presets{crop_presets()};
+	if (m_crop > 0 && m_crop <= static_cast<int>(presets.size()))
+	{
+		auto const &preset{presets[m_crop - 1]};
+		patch.material = preset.material;
+		patch.size = preset.size;
+		if (preset.field)
+			patch.rotation = static_cast<float>(std::remainder(static_cast<double>(m_waves.angle) + 90.0 + m_paint_rotation, 360.0));
+		patch.grass = -1;
+		if (preset.height > 0.f)
+		{
+			// its grass from the palette, added the first time
+			auto const grass_name{STR(preset.name)};
+			auto const &kinds{m_streamer.grass_kinds()};
+			auto const found{std::find_if(kinds.begin(), kinds.end(), [&](heightmap::grass_def const &Kind) { return Kind.name == grass_name; })};
+			if (found != kinds.end())
+				patch.grass = static_cast<int>(found - kinds.begin());
+			else
+			{
+				heightmap::grass_def kind;
+				kind.name = grass_name;
+				kind.base = preset.base;
+				kind.tip = preset.tip;
+				kind.height = preset.height;
+				kind.variation = preset.variation;
+				kind.width = preset.width;
+				kind.density = preset.density;
+				kind.bend = preset.bend;
+				kind.dry = preset.tip;
+				kind.seasonal = preset.seasonal;
+				patch.grass = m_streamer.add_grass_kind(std::move(kind));
+			}
+		}
+	}
+	if (m_waves.on && m_waves.kind == terrain_waves::field && m_waves.tramlines >= 1.0f && patch.paint)
+		patch.field = format("tram=%g angle=%g head=%g drift=%g soil=farm03", m_waves.tramlines, m_waves.angle, m_waves.headland, m_waves.drift);
 	auto patches{m_streamer.patches()};
 	// a name not taken yet
 	for (int number = static_cast<int>(patches.size()) + 1;; ++number)
@@ -1237,6 +1348,7 @@ void editor_mode::cut_out_surface()
 			break;
 	}
 	auto const name{patch.name};
+	auto const material{patch.material};
 	// the waves of the ground and the paint are one step of the undo
 	terrain_history_step();
 	auto const waved{m_waves.on && apply_waves(patch.outline)};
@@ -1258,7 +1370,7 @@ void editor_mode::cut_out_surface()
 	terrain_history_step();
 	m_patch_selected = static_cast<int>(index);
 	m_paint_outline.clear();
-	m_terrain_status = format(STR_C("Cut out as %s with %s, Ctrl+Z puts it back"), name.c_str(), chosen.material.c_str());
+	m_terrain_status = format(STR_C("Cut out as %s with %s, Ctrl+Z puts it back"), name.c_str(), material.c_str());
 }
 
 namespace
@@ -1302,6 +1414,125 @@ double wave_fractal(double const X, double const Z, int const Octaves)
 	}
 	return sum / total;
 }
+
+// true if Point lies within Outline; Distance: metres from it to the nearest side
+bool within_outline(std::vector<glm::dvec2> const &Outline, glm::dvec2 const &Point, double &Distance)
+{
+	bool inside{false};
+	auto nearest{std::numeric_limits<double>::max()};
+	for (std::size_t i = 0, j = Outline.size() - 1; i < Outline.size(); j = i++)
+	{
+		auto const &a{Outline[i]};
+		auto const &b{Outline[j]};
+		if ((a.y > Point.y) != (b.y > Point.y) && Point.x < (b.x - a.x) * (Point.y - a.y) / (b.y - a.y) + a.x)
+			inside = !inside;
+		auto const run{b - a};
+		auto const run2{glm::dot(run, run)};
+		auto const t{run2 > 1e-12 ? std::clamp(glm::dot(Point - a, run) / run2, 0.0, 1.0) : 0.0};
+		nearest = std::min(nearest, glm::length(Point - (a + run * t)));
+	}
+	Distance = nearest;
+	return inside;
+}
+
+double smooth01(double T)
+{
+	T = std::clamp(T, 0.0, 1.0);
+	return T * T * (3.0 - 2.0 * T);
+}
+
+// the layout of a cultivated field, the same for its relief and for its paint: the rows driven along the angle, never quite
+// straight, the headland along the edge with its ragged inner side, the tramlines of the sprayer
+struct field_layout
+{
+	glm::dvec2 centre{0.0};
+	glm::dvec2 along{1.0, 0.0};
+	glm::dvec2 across{0.0, 1.0};
+	double drift{0.8};
+	double headland{18.0};
+	double tramlines{24.0};
+
+	field_layout(std::vector<glm::dvec2> const &Outline, double const Angle, double const Drift, double const Headland, double const Tramlines)
+	    : drift{std::max(0.0, Drift)}, headland{std::max(0.0, Headland)}, tramlines{std::max(0.0, Tramlines)}
+	{
+		glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
+		for (auto const &point : Outline)
+		{
+			low = glm::min(low, point);
+			high = glm::max(high, point);
+		}
+		centre = (low + high) * 0.5;
+		auto const radians{glm::radians(Angle)};
+		along = {std::cos(radians), std::sin(radians)};
+		across = {-along.y, along.x};
+	}
+	// metres across the rows, the rows wandering sideways as they were driven: a slow bend over a hundred metres or so
+	double across_rows(glm::dvec2 const &Point) const
+	{
+		auto const u{glm::dot(Point - centre, across)};
+		auto const v{glm::dot(Point - centre, along)};
+		return u + drift * (wave_fractal(v / 110.0 + 0.31, u / 600.0 + 7.7, 2) * 2.0 - 1.0) * 1.6;
+	}
+	// how far in from the edge the headland goes here: its inner side ragged, where the rows end
+	double headland_at(glm::dvec2 const &Point) const
+	{
+		return headland > 0.0 ? headland + 1.5 * (wave_noise(Point.x / 7.0 + 3.3, Point.y / 7.0 - 1.1) * 2.0 - 1.0) : 0.0;
+	}
+	// 0 in the headland, 1 in the body of the field, over 3 m between them
+	double body(glm::dvec2 const &Point, double const Edge) const
+	{
+		return headland > 0.0 ? smooth01((Edge - headland_at(Point)) / 3.0 + 0.5) : 1.0;
+	}
+	// 0..1, how much of a rut of the tramlines lies at Point, Edge metres in from the outline: the two ruts 1.8 m apart, each
+	// Width metres from its middle to where it ends; in the headland the tramline goes round the field in its middle
+	double rut(glm::dvec2 const &Point, double const Edge, double const Width) const
+	{
+		if (tramlines <= 0.0)
+			return 0.0;
+		auto const ring{headland > 0.0 ? Edge - headland * 0.5 : 1e9};
+		auto const u{across_rows(Point)};
+		auto const line{u - tramlines * (std::floor(u / tramlines) + 0.5)};
+		auto const at = [&](double const D) { return smooth01(1.0 - std::abs(std::abs(D) - 0.9) / std::max(0.05, Width)); };
+		auto const inner{body(Point, Edge)};
+		return std::max(at(ring) * (1.0 - inner), Edge > headland ? at(line) * inner : 0.0);
+	}
+};
+
+// the field of a surface, as heightmap::surface_patch::field keeps it: "tram=24 angle=12.5 head=18 drift=0.8 soil=farm03"
+struct field_spec
+{
+	double tramlines{0.0};
+	double angle{0.0};
+	double headland{0.0};
+	double drift{0.0};
+	std::string soil{"farm03"};
+};
+
+field_spec read_field(std::string const &Text)
+{
+	field_spec spec;
+	std::istringstream words{Text};
+	std::string word;
+	while (words >> word)
+	{
+		auto const equals{word.find('=')};
+		if (equals == std::string::npos)
+			continue;
+		auto const key{word.substr(0, equals)};
+		auto const value{word.substr(equals + 1)};
+		if (key == "soil")
+			spec.soil = value;
+		else if (key == "tram")
+			spec.tramlines = std::atof(value.c_str());
+		else if (key == "angle")
+			spec.angle = std::atof(value.c_str());
+		else if (key == "head")
+			spec.headland = std::atof(value.c_str());
+		else if (key == "drift")
+			spec.drift = std::atof(value.c_str());
+	}
+	return spec;
+}
 } // namespace
 
 void editor_mode::render_waves_options()
@@ -1313,12 +1544,14 @@ void editor_mode::render_waves_options()
 	if (false == waves.on)
 		return;
 	char const *const kinds[]{STR_C("Rolling hills"), STR_C("Furrows of a field"), STR_C("Bumps and molehills"), STR_C("Long waves"), STR_C("A hollow or a mound"),
-	                          STR_C("A grid of hummocks"), STR_C("Strips of fields")};
+	                          STR_C("A grid of hummocks"), STR_C("Strips of fields"), STR_C("A cultivated field")};
 	char const *const tips[]{STR_C("Gentle hills of all sizes, as a meadow or a pasture has them"), STR_C("Ridges and furrows side by side, along the angle below, as a ploughed field or the beds of a garden"),
 	                         STR_C("Small mounds scattered about, as molehills or tussocks"), STR_C("Long even waves across the angle below, as a field rolling over a hill or dunes"),
 	                         STR_C("The middle lowered (a negative height raises it): a hollow by a pond, a dip in a field, or a mound"),
 	                         STR_C("Waves along the angle and across it at once: hummocks in rows, as a drained meadow or an orchard on ridges"),
-	                         STR_C("Long strips along the angle, each a little higher or lower than the next, with banks between them: the fields of a village cut up between farms")};
+	                         STR_C("Long strips along the angle, each a little higher or lower than the next, with banks between them: the fields of a village cut up between farms"),
+	                         STR_C("A field as it's worked: the rows never quite straight, the lands with a crown and dead furrows, the headland along the edge "
+	                               "with the rows going round, the ruts of the tramlines; the direction along the longest side")};
 	ImGui::SetNextItemWidth(180.0f);
 	if (ImGui::BeginCombo(STR_C("Kind##waves"), kinds[std::clamp(waves.kind, 0, static_cast<int>(terrain_waves::count) - 1)]))
 	{
@@ -1328,8 +1561,8 @@ void editor_mode::render_waves_options()
 			{
 				waves.kind = i;
 				// the sizes a kind usually has
-				static float const heights[]{0.6f, 0.25f, 0.2f, 1.0f, -0.8f, 0.3f, 0.6f};
-				static float const lengths[]{40.0f, 1.5f, 3.0f, 60.0f, 0.0f, 6.0f, 25.0f};
+				static float const heights[]{0.6f, 0.25f, 0.2f, 1.0f, -0.8f, 0.3f, 0.6f, 0.0f};
+				static float const lengths[]{40.0f, 1.5f, 3.0f, 60.0f, 0.0f, 6.0f, 25.0f, 1.5f};
 				waves.height = heights[i];
 				if (lengths[i] > 0.0f)
 					waves.length = lengths[i];
@@ -1349,7 +1582,10 @@ void editor_mode::render_waves_options()
 		waves.length = std::clamp(waves.length, 0.5f, 300.0f);
 		item_tooltip("From one top to the next: furrows 0.7-2 m, the beds of a garden 1.5-3 m, hills 20-100 m");
 	}
-	if (waves.kind == terrain_waves::furrows || waves.kind == terrain_waves::waves || waves.kind == terrain_waves::grid || waves.kind == terrain_waves::strips)
+	if (waves.kind == terrain_waves::field)
+		render_field_layout();
+	if (waves.kind == terrain_waves::furrows || waves.kind == terrain_waves::waves || waves.kind == terrain_waves::grid || waves.kind == terrain_waves::strips ||
+	    (waves.kind == terrain_waves::field && false == waves.auto_direction))
 	{
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::SliderFloat(STR_C("Direction (deg)##waves"), &waves.angle, -180.0f, 180.0f, "%.0f");
@@ -1406,7 +1642,9 @@ void editor_mode::render_waves_options()
 
 bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 {
-	if (Outline.size() < 3 || (std::abs(m_waves.height) < 0.001f && m_waves.roughness < 0.001f))
+	auto const flat{std::abs(m_waves.height) < 0.001f && m_waves.roughness < 0.001f};
+	auto const field_flat{m_waves.kind != terrain_waves::field || ((m_waves.land_height < 0.001f || m_waves.lands < 1.0f) && (m_waves.ruts < 0.001f || m_waves.tramlines < 1.0f))};
+	if (Outline.size() < 3 || (flat && field_flat))
 		return false;
 	auto const waves{m_waves};
 	glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
@@ -1424,23 +1662,7 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 	auto const edge{std::max(0.0, static_cast<double>(waves.edge))};
 	// for the hollow: how far in the middle of it is, the most distance from the edge found in the outline
 	double deepest{edge};
-	auto const inside_by = [&](glm::dvec2 const &Point, double &Distance) {
-		bool inside{false};
-		auto nearest{std::numeric_limits<double>::max()};
-		for (std::size_t i = 0, j = Outline.size() - 1; i < Outline.size(); j = i++)
-		{
-			auto const &a{Outline[i]};
-			auto const &b{Outline[j]};
-			if ((a.y > Point.y) != (b.y > Point.y) && Point.x < (b.x - a.x) * (Point.y - a.y) / (b.y - a.y) + a.x)
-				inside = !inside;
-			auto const run{b - a};
-			auto const run2{glm::dot(run, run)};
-			auto const t{run2 > 1e-12 ? std::clamp(glm::dot(Point - a, run) / run2, 0.0, 1.0) : 0.0};
-			nearest = std::min(nearest, glm::length(Point - (a + run * t)));
-		}
-		Distance = nearest;
-		return inside;
-	};
+	auto const inside_by = [&](glm::dvec2 const &Point, double &Distance) { return within_outline(Outline, Point, Distance); };
 	if (waves.kind == terrain_waves::hollow)
 	{
 		// a coarse look for the middle, every few metres
@@ -1569,8 +1791,8 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 		auto finest{5.0};
 		if (waves.kind != terrain_waves::hollow && std::abs(waves.height) >= 0.001f)
 			finest = std::min(finest, length / 3.0);
-		if (rough > 0.0)
-			finest = std::min(finest, 1.0);
+		if (rough > 0.0 || (waves.kind == terrain_waves::field && waves.tramlines >= 1.0f && waves.ruts >= 0.001f))
+			finest = std::min(finest, 1.0); // a clod of 3 m, a tramline: a point a metre
 		float target{heightmap::spacings.front()};
 		for (auto const spacing : heightmap::spacings)
 			if (spacing <= finest + 1e-6)
@@ -1591,6 +1813,28 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 			forget_ground_in(heightmap::chunk_corner(first), heightmap::chunk_corner(last) + glm::dvec2{heightmap::chunk_size});
 		}
 	}
+	// the cultivated field: the rows across the body, round the headland along the edge, the lands, the ruts of the tramlines
+	field_layout const layout{Outline, static_cast<double>(waves.angle), static_cast<double>(waves.drift), static_cast<double>(waves.headland),
+	                          static_cast<double>(waves.tramlines)};
+	auto const lands{static_cast<double>(waves.lands)};
+	auto const field_relief = [&](glm::dvec2 const &Point, double const Edge) -> double {
+		auto const inner{layout.body(Point, Edge)};
+		auto const u{layout.across_rows(Point)};
+		auto const row = [&](double const Across) {
+			auto const depth{1.0 - variation * 0.5 * wave_noise(Point.x / (length * 30.0) + 3.1, Point.y / (length * 30.0))};
+			return profile(std::sin(glm::two_pi<double>() * Across / length) * depth);
+		};
+		auto value{(row(u) * inner + row(Edge) * (1.0 - inner)) * half};
+		if (lands >= 1.0)
+		{
+			// a crown in the middle of every land, the dead furrows between them, a little uneven along
+			auto const crown{0.5 + 0.5 * std::cos(glm::two_pi<double>() * u / lands)};
+			auto const uneven{1.0 + variation * 0.4 * (wave_noise(Point.x / 40.0, Point.y / 40.0 + 2.2) * 2.0 - 1.0)};
+			value += (crown - 0.5) * static_cast<double>(waves.land_height) * uneven * inner;
+		}
+		value -= static_cast<double>(waves.ruts) * layout.rut(Point, Edge, 0.45);
+		return value;
+	};
 	return m_streamer.reshape(low, high, [&](double const X, double const Z, float &Height) {
 		glm::dvec2 const point{X, Z};
 		double distance;
@@ -1607,6 +1851,8 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 			auto const uneven{1.0 + variation * 0.3 * (wave_noise(X / 10.0, Z / 10.0) * 2.0 - 1.0)};
 			offset = -static_cast<double>(waves.height) * t * uneven;
 		}
+		else if (waves.kind == terrain_waves::field)
+			offset = field_relief(point, distance) * fade;
 		else
 			offset = shaped(point) * half * fade;
 		// clods and hummocks of about 3 m, up to 20 cm, whatever the waves (the grid made a point a metre for them)
@@ -1617,6 +1863,102 @@ bool editor_mode::apply_waves(std::vector<glm::dvec2> const &Outline)
 		Height += static_cast<float>(offset);
 		return true;
 	});
+}
+
+
+float editor_mode::longest_side(std::vector<glm::dvec2> const &Outline)
+{
+	double longest{0.0};
+	double angle{0.0};
+	for (std::size_t i = 0, j = Outline.size() - 1; i < Outline.size(); j = i++)
+	{
+		auto const run{Outline[i] - Outline[j]};
+		if (auto const length{glm::length(run)}; length > longest)
+		{
+			longest = length;
+			angle = glm::degrees(std::atan2(run.y, run.x));
+		}
+	}
+	// the rows run either way along it: kept within -90..90
+	return static_cast<float>(std::remainder(angle, 180.0));
+}
+
+void editor_mode::choose_crop(int const Crop)
+{
+	m_crop = Crop;
+	if (Crop <= 0 || Crop > static_cast<int>(crop_presets().size()))
+		return;
+	auto const &preset{crop_presets()[Crop - 1]};
+	auto &waves{m_waves};
+	waves.on = true;
+	waves.kind = preset.field ? terrain_waves::field : terrain_waves::hills;
+	waves.height = preset.rows;
+	waves.length = preset.row_length;
+	waves.roughness = preset.roughness;
+	waves.tramlines = preset.tramlines;
+	waves.lands = preset.lands;
+	waves.land_height = preset.lands > 0.f ? 0.12f : 0.f;
+	waves.headland = preset.headland;
+	waves.shape = terrain_waves::smooth;
+	waves.variation = 0.35f;
+	waves.edge = preset.field ? 2.0f : 6.0f;
+	m_cut_feather = preset.field ? 1.0f : 3.0f;
+	m_cut_noise = preset.field ? 0.4f : 1.5f;
+}
+
+void editor_mode::render_crop_options()
+{
+	auto const &presets{crop_presets()};
+	auto const name = [&](int const Crop) { return Crop <= 0 ? STR_C("none: the material of the palette") : STR_C(presets[Crop - 1].name); };
+	ImGui::SeparatorText(STR_C("Crop##fields"));
+	ImGui::SetNextItemWidth(220.0f);
+	if (ImGui::BeginCombo(STR_C("Sown with##fields"), name(m_crop)))
+	{
+		for (int crop = 0; crop <= static_cast<int>(presets.size()); ++crop)
+		{
+			if (ImGui::Selectable(name(crop), crop == m_crop))
+				choose_crop(crop);
+			if (crop > 0 && ImGui::IsItemHovered())
+				ImGui::SetTooltip("%s", STR_C(presets[crop - 1].about));
+		}
+		ImGui::EndCombo();
+	}
+	item_tooltip("The field gets the texture of the crop instead of the material of the palette, its 3D grass (added to the grass palette the first time) "
+	             "and the shape of the ground below; the texture lies along the rows. Each of them can be changed below before cutting out");
+	if (m_crop > 0)
+		ImGui::TextColored(ImVec4(0.96f, 0.79f, 0.24f, 1.0f), STR_C("Texture: %s"), presets[m_crop - 1].material);
+}
+
+void editor_mode::render_field_layout()
+{
+	auto &waves{m_waves};
+	ImGui::Checkbox(STR_C("Rows along the longest side##waves"), &waves.auto_direction);
+	item_tooltip("The direction of the rows taken from the outline when it's cut out, as a farmer drives along the longest side; off: the direction below");
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Rows wander (m)##waves"), &waves.drift, 0.05f, 0.0f, 5.0f, "%.2f");
+	item_tooltip("How far the rows bend sideways over a hundred metres or so: nothing in a field is drawn with a ruler. 0.5-1 m looks driven by hand");
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Lands (m)##waves"), &waves.lands, 0.5f, 0.0f, 100.0f, waves.lands > 0.0f ? "%.1f" : STR_C("none"));
+	item_tooltip("The width of a land: ploughed towards its middle for years it has a crown, the dead furrows lie between them. 20-40 m; 0: none");
+	if (waves.lands > 0.0f)
+	{
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::DragFloat(STR_C("Crown of a land (m)##waves"), &waves.land_height, 0.01f, 0.0f, 1.0f, "%.2f");
+	}
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Headland (m)##waves"), &waves.headland, 0.5f, 0.0f, 50.0f, waves.headland > 0.0f ? "%.1f" : STR_C("none"));
+	item_tooltip("The strip along the edge where the tractor turns: its rows go round the field, its inner side ragged where the rows end. 12-24 m; 0: none");
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Tramlines every (m)##waves"), &waves.tramlines, 0.5f, 0.0f, 48.0f, waves.tramlines > 0.0f ? "%.1f" : STR_C("none"));
+	item_tooltip("The two ruts of the sprayer, 1.8 m apart, across the field every 18, 24 or 36 m and round it in the middle of the headland: "
+	             "the soil painted in them, the grass taken away. 0: none");
+	if (waves.tramlines > 0.0f)
+	{
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::DragFloat(STR_C("Ruts deep (m)##waves"), &waves.ruts, 0.005f, 0.0f, 0.3f, "%.3f");
+		item_tooltip("How deep the ruts go into the ground; the terrain gets a point every metre under the field for them, so they come out as shallow wide "
+		             "dips; the paint does the rest. 0: painted only");
+	}
 }
 
 bool editor_mode::paint_patch(heightmap::surface_patch const &Patch)
@@ -1636,7 +1978,31 @@ bool editor_mode::paint_patch(heightmap::surface_patch const &Patch)
 		if (Patch.grass >= 0 && Patch.grass < static_cast<int>(m_streamer.grass_kinds().size()))
 			m_streamer.grass(Patch.outline, static_cast<std::uint16_t>(Patch.grass), false);
 	}
+	if (Patch.paint && false == Patch.field.empty())
+		paint_tramlines(Patch);
 	return painted;
+}
+
+void editor_mode::paint_tramlines(heightmap::surface_patch const &Patch)
+{
+	auto const spec{read_field(Patch.field)};
+	if (spec.tramlines < 1.0)
+		return;
+	field_layout const layout{Patch.outline, spec.angle, spec.drift, spec.headland, spec.tramlines};
+	glm::dvec2 low, high;
+	Patch.bounds(low, high);
+	// the soil in the ruts, as wide as the paint samples let it be; the grass taken away from them
+	auto const soil{m_streamer.layer(spec.soil, 0.f, Patch.rotation)};
+	auto const in_rut = [&](double const Width, double const Strength) {
+		return [&layout, &Patch, Width, Strength](double const X, double const Z) {
+			double edge;
+			if (false == within_outline(Patch.outline, {X, Z}, edge) || edge < 1.0)
+				return 0.0;
+			return layout.rut({X, Z}, edge, Width) * Strength;
+		};
+	};
+	m_streamer.paint_where(low, high, soil, in_rut(0.75, 0.8));
+	m_streamer.grass_where(low, high, 0, true, in_rut(0.6, 1.0));
 }
 
 bool editor_mode::grass_choice(char const *Label, int &Choice)

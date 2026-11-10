@@ -1574,6 +1574,8 @@ bool load_patches(std::string const &Path, std::vector<surface_patch> &Patches)
 			patch.shape = fields[11];
 		if (kinded && fields.size() >= 13)
 			patch.grass = std::max(-2, std::atoi(fields[12].c_str()));
+		if (kinded && fields.size() >= 14)
+			patch.field = fields[13];
 		double x{0.0};
 		double z{0.0};
 		while (points >> x >> z)
@@ -1589,7 +1591,7 @@ bool save_patches(std::string const &Path, std::vector<surface_patch> const &Pat
 	std::ofstream file{Path, std::ios::trunc};
 	if (false == file.is_open())
 		return false;
-	file << "# surfaces cut out of the terrain: name, material, repeat, rotation, lift, spacing, kind (paint/surface), transition, noise, waves of the noise, outline x z ... (tabs between the fields)\n";
+	file << "# surfaces cut out of the terrain: name, material, repeat, rotation, lift, spacing, kind (paint/surface), transition, noise, waves of the noise, outline x z ..., the shape drawn, the grass, the field (tabs between the fields)\n";
 	char number[64];
 	for (auto const &patch : Patches)
 	{
@@ -1602,10 +1604,12 @@ bool save_patches(std::string const &Path, std::vector<surface_patch> const &Pat
 			std::snprintf(number, sizeof(number), "%s%.2f %.2f", i > 0 ? " " : "", patch.outline[i].x, patch.outline[i].y);
 			file << number;
 		}
-		if (false == patch.shape.empty() || patch.grass != -2)
+		if (false == patch.shape.empty() || patch.grass != -2 || false == patch.field.empty())
 			file << '\t' << patch.shape;
-		if (patch.grass != -2)
+		if (patch.grass != -2 || false == patch.field.empty())
 			file << '\t' << patch.grass;
+		if (false == patch.field.empty())
+			file << '\t' << patch.field;
 		file << '\n';
 	}
 	return static_cast<bool>(file);

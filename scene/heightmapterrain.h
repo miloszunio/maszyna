@@ -185,6 +185,9 @@ struct surface_patch
 	std::string shape;
 	// the 3D grass under a painted surface: -2 left as it grows, -1 taken away, 0 or more: that kind of the grass palette grown there
 	int grass{-2};
+	// a cultivated field: the tramlines and the headland painted over it, as the Fields of the editor laid them out,
+	// "tram=24 angle=12.5 head=18 drift=0.8 soil=farm03"; empty: not a field
+	std::string field;
 
 	// height kept at specified point, interpolated between the points of the grid; false out of the grid
 	bool height(double X, double Z, double &Height) const;

@@ -227,3 +227,10 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
 - Lista pól i naturalne skarpy dostępne w panelu Pól; w Ficzerach zostały Torowisko i skarpy, ZIELSKO i Idź do.
 - **ZIELSKO przebudowane:** jeden zasięg (kamera, obrys, cała sceneria) dla czytania i sadzenia. „Posadź” sam doczytuje brakujące arkusze mapy (nazwy arkuszy liczone z PUWG 1992 przez współrzędne geograficzne, siatka mapy 1:1 000 000), czyta paczkę powiatu tylko do ostatniego potrzebnego arkusza i zapisuje wszystkie drzewa każdego minionego arkusza (format `.drz` w wersji 2: lista arkuszy, znacznik „cały powiat”; wersja 1 czytana jako pas). Odpowiedzi WMS o powiatach zapamiętane w `zielsko/counties.txt`. Sadzenie i karczowanie dotyczą tylko zasięgu, numery `zielsko_<n>` idą dalej zamiast od zera.
 
+## Uprawy na polach (nr 83)
+
+- **Teren → Pola → „Obsiane”**: 15 upraw (zaorane, zbronowane, ozimina, zboże zielone i w kłoszeniu, dojrzała pszenica, jęczmień, żyto, owies, rzepak kwitnący i dojrzały, ściernisko, łąka wysoka, łąka niska, ugór). Każda daje materiał, rodzaj trawy 3D i ustawienia rzeźby.
+- **Nowa fala „Pole uprawne”**: kierunek z najdłuższego boku, rzędy wędrujące na boki, zagony z grzbietem, uwrocia z rzędami dookoła i poszarpanym końcem rzędów, ścieżki technologiczne (koleiny w rzeźbie, ziemia w malowaniu, bez trawy).
+- Ścieżki zapisane w powierzchni (nowa kolumna `tram=… angle=… head=… drift=… soil=…` w pliku powierzchni), więc przemalowanie i Ctrl+Z je odtwarzają.
+- `tools/zielsko/uprawy.py`: tekstury upraw z `farm00`/`farm01` (przekolorowanie, plamy dojrzewania, kwiaty rzepaku, słoma ścierniska), kafelkowane, z `.mat` jak `farm00.mat`.
+- `terrain_streamer::paint_where` / `grass_where`: malowanie i trawa według funkcji miejsca.

@@ -33,6 +33,17 @@ Od nr 80 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wyp
 6. Lista „Pola i wycięte powierzchnie”: zmiana materiału, „Idź do”, „Obrysuj ponownie”. Powierzchnie z dziurą (osobne albo stare z IRT) zamienia na malowane „Przemaluj je w teren”.
 7. „Naturalne skarpy” są w tym samym panelu (i dalej w Ficzery → Torowisko i skarpy).
 
+### Uprawy (od nr 83)
+
+W panelu Pól jest **„Obsiane”**: wybierz uprawę, a pole dostanie jej teksturę, trawę 3D (dopisaną do palety traw przy pierwszym użyciu) i kształt ziemi:
+
+- **Zaorane**, **Zbronowane i obsiane**, **Ozimina młoda**, **Zboże zielone**, **Zboże kłoszenie**, **Pszenica / Jęczmień / Żyto / Owies dojrzałe**, **Rzepak kwitnący / dojrzały**, **Ściernisko**, **Łąka wysoka**, **Łąka niska, pastwisko**, **Ugór**. Kukurydzy nie ma.
+- Tekstury dojrzałych zbóż, kłoszenia, rzepaku i ścierniska są w `textures/uprawy/` (zrobione z `farm00`/`farm01` Maszyny skryptem `tools/zielsko/uprawy.py`, nic z sieci). Zima jak w `farm00.mat` (śnieg na polu), jesień zaorana.
+- Fala **„Pole uprawne”**: rzędy wzdłuż najdłuższego boku obrysu (albo kierunek ręcznie), lekko falujące („Rzędy falują”, 0,5–1 m na ~100 m), **zagony** z grzbietem i bruzdami rozorywkowymi, **uwrocie** wzdłuż brzegu z rzędami dookoła i poszarpaną wewnętrzną krawędzią, **ścieżki technologiczne** (dwie koleiny co 18/24/36 m i dookoła środkiem uwrocia: ziemia namalowana, trawa zabrana, płytkie zagłębienie).
+- Teren ma punkt co metr (malowanie też), więc pojedyncze rzędy zbóż robi tekstura, a rzeźba robi to, co widać z pociągu: zagony, uwrocia, koleiny.
+- Tekstura sama kładzie się wzdłuż rzędów; „Tekstura obrócona o” to już tylko poprawka.
+- Trawa 3D zbóż jest gęsta i wysoka, a rysuje się do 60 m od kamery. Gdyby gubiło klatki, zmniejsz gęstość tej trawy w palecie traw.
+
 ## Torowisko i skarpy
 
 1. Ficzery → **Torowisko i skarpy**. Wybierz materiały torowiska i skarpy w palecie, długość kawałka, zasięg skarpy, przejścia.

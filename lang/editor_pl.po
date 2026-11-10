@@ -17262,3 +17262,153 @@ msgstr "Przerwano; to, co doszło, zostało zapisane"
 
 msgid "Done: %zu counties under the area, %zu read now"
 msgstr "Gotowe: %zu powiatów pod zasięgiem, teraz wczytano %zu"
+
+msgid "Ploughed"
+msgstr "Zaorane"
+
+msgid "Turned over in autumn or before sowing: dark furrows of soil, clods, the lands with their dead furrows; no grass"
+msgstr "Odwrócone jesienią albo przed siewem: ciemne skiby ziemi, grudy, zagony z bruzdami rozorywkowymi; bez trawy"
+
+msgid "Harrowed and sown"
+msgstr "Zbronowane i obsiane"
+
+msgid "Smooth, crumbly soil just sown, the tramlines already driven"
+msgstr "Gładka, gruzełkowata ziemia tuż po siewie, ścieżki technologiczne już przejechane"
+
+msgid "Winter crop, young"
+msgstr "Ozimina, młoda"
+
+msgid "Wheat, rye or barley sown in autumn: a low green carpet in rows over the soil, from October till April"
+msgstr "Pszenica, żyto albo jęczmień siane jesienią: niski zielony dywanik w rzędach na ziemi, od października do kwietnia"
+
+msgid "Cereal, green"
+msgstr "Zboże, zielone"
+
+msgid "A cereal grown up but still green, May and June: dense knee-high stalks"
+msgstr "Zboże wyrośnięte, ale jeszcze zielone, maj i czerwiec: gęste źdźbła do kolan"
+
+msgid "Cereal, heading"
+msgstr "Zboże, kłoszenie"
+
+msgid "Ears out, the green going yellow: the end of June"
+msgstr "Kłosy wyszły, zieleń żółknie: koniec czerwca"
+
+msgid "Wheat, ripe"
+msgstr "Pszenica, dojrzała"
+
+msgid "Golden, waist-high, ears upright: July and August till the harvest"
+msgstr "Złota, do pasa, kłosy prosto: lipiec i sierpień do żniw"
+
+msgid "Barley, ripe"
+msgstr "Jęczmień, dojrzały"
+
+msgid "Paler than wheat, lower, the ears bowed: ripe from the start of July"
+msgstr "Jaśniejszy od pszenicy, niższy, kłosy pochylone: dojrzały od początku lipca"
+
+msgid "Rye, ripe"
+msgstr "Żyto, dojrzałe"
+
+msgid "The tallest of them, greyish straw: a man's height, the poorer sandy soils"
+msgstr "Najwyższe z nich, szarawa słoma: na wysokość człowieka, słabsze piaszczyste gleby"
+
+msgid "Oats, ripe"
+msgstr "Owies, dojrzały"
+
+msgid "Light, loose panicles instead of ears, a greenish straw"
+msgstr "Lekkie, luźne wiechy zamiast kłosów, zielonkawa słoma"
+
+msgid "Rape in flower"
+msgstr "Rzepak kwitnący"
+
+msgid "Yellow over the whole field, high: the end of April and May"
+msgstr "Żółto na całym polu, wysoki: koniec kwietnia i maj"
+
+msgid "Rape, ripe"
+msgstr "Rzepak, dojrzały"
+
+msgid "Brown pods on dry stalks: July before the harvest"
+msgstr "Brązowe łuszczyny na suchych łodygach: lipiec przed żniwami"
+
+msgid "Stubble"
+msgstr "Ściernisko"
+
+msgid "After the harvest: short straw in rows over the soil, the tramlines still there"
+msgstr "Po żniwach: krótka słoma w rzędach na ziemi, ścieżki technologiczne wciąż widać"
+
+msgid "High meadow"
+msgstr "Łąka wysoka"
+
+msgid "Mown once or twice a year, the grass and the herbs up to the knees, the ground gently uneven"
+msgstr "Koszona raz czy dwa razy w roku, trawa i zioła do kolan, ziemia lekko nierówna"
+
+msgid "Low meadow, pasture"
+msgstr "Łąka niska, pastwisko"
+
+msgid "Grazed or mown often: short dense grass, tussocks and trodden places"
+msgstr "Wypasana albo często koszona: krótka gęsta trawa, kępy i wydeptane miejsca"
+
+msgid "Fallow"
+msgstr "Ugór"
+
+msgid "Left unsown: grass, weeds and dry stalks of last year, tussocks"
+msgstr "Nieobsiany: trawa, chwasty i suche zeszłoroczne łodygi, kępy"
+
+msgid "A cultivated field"
+msgstr "Pole uprawne"
+
+msgid "A field as it's worked: the rows never quite straight, the lands with a crown and dead furrows, the headland along the edge with the rows going round, the ruts of the tramlines; the direction along the longest side"
+msgstr "Pole tak, jak się je uprawia: rzędy nigdy całkiem proste, zagony z grzbietem i bruzdami rozorywkowymi, uwrocia wzdłuż brzegu z rzędami dookoła, koleiny ścieżek technologicznych; kierunek wzdłuż najdłuższego boku"
+
+msgid "Crop##fields"
+msgstr "Uprawa##fields"
+
+msgid "Sown with##fields"
+msgstr "Obsiane##fields"
+
+msgid "none: the material of the palette"
+msgstr "brak: materiał z palety"
+
+msgid "The field gets the texture of the crop instead of the material of the palette, its 3D grass (added to the grass palette the first time) and the shape of the ground below; the texture lies along the rows. Each of them can be changed below before cutting out"
+msgstr "Pole dostaje teksturę uprawy zamiast materiału z palety, jej trawę 3D (dodaną do palety traw za pierwszym razem) i kształt ziemi poniżej; tekstura leży wzdłuż rzędów. Każde z nich można zmienić niżej przed wycięciem"
+
+msgid "Rows along the longest side##waves"
+msgstr "Rzędy wzdłuż najdłuższego boku##waves"
+
+msgid "The direction of the rows taken from the outline when it's cut out, as a farmer drives along the longest side; off: the direction below"
+msgstr "Kierunek rzędów wzięty z obrysu przy wycinaniu, tak jak rolnik jeździ wzdłuż najdłuższego boku; wyłączone: kierunek poniżej"
+
+msgid "Rows wander (m)##waves"
+msgstr "Rzędy falują (m)##waves"
+
+msgid "How far the rows bend sideways over a hundred metres or so: nothing in a field is drawn with a ruler. 0.5-1 m looks driven by hand"
+msgstr "Jak daleko rzędy uciekają na boki na mniej więcej stu metrach: nic na polu nie jest od linijki. 0,5-1 m wygląda jak jechane ręcznie"
+
+msgid "Lands (m)##waves"
+msgstr "Zagony (m)##waves"
+
+msgid "The width of a land: ploughed towards its middle for years it has a crown, the dead furrows lie between them. 20-40 m; 0: none"
+msgstr "Szerokość zagonu: orany latami do środka ma grzbiet, między zagonami leżą bruzdy rozorywkowe. 20-40 m; 0: brak"
+
+msgid "Crown of a land (m)##waves"
+msgstr "Grzbiet zagonu (m)##waves"
+
+msgid "Headland (m)##waves"
+msgstr "Uwrocie (m)##waves"
+
+msgid "The strip along the edge where the tractor turns: its rows go round the field, its inner side ragged where the rows end. 12-24 m; 0: none"
+msgstr "Pas wzdłuż brzegu, na którym zawraca ciągnik: jego rzędy idą dookoła pola, wewnętrzna krawędź poszarpana tam, gdzie kończą się rzędy. 12-24 m; 0: brak"
+
+msgid "Tramlines every (m)##waves"
+msgstr "Ścieżki technologiczne co (m)##waves"
+
+msgid "The two ruts of the sprayer, 1.8 m apart, across the field every 18, 24 or 36 m and round it in the middle of the headland: the soil painted in them, the grass taken away. 0: none"
+msgstr "Dwie koleiny opryskiwacza, 1,8 m od siebie, przez pole co 18, 24 albo 36 m i dookoła niego środkiem uwrocia: ziemia namalowana w nich, trawa zabrana. 0: brak"
+
+msgid "Ruts deep (m)##waves"
+msgstr "Głębokość kolein (m)##waves"
+
+msgid "How deep the ruts go into the ground; the terrain gets a point every metre under the field for them, so they come out as shallow wide dips; the paint does the rest. 0: painted only"
+msgstr "Jak głęboko koleiny wchodzą w ziemię; teren dostaje pod polem punkt co metr, więc wychodzą jako płytkie szerokie zagłębienia; resztę robi malowanie. 0: tylko namalowane"
+
+msgid "With a crop: turned from along the rows by this much (0: the rows of the texture along the rows of the field)"
+msgstr "Z uprawą: obrót względem rzędów o tyle (0: rzędy tekstury wzdłuż rzędów pola)"

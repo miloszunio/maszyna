@@ -108,7 +108,7 @@
 	// the ground under a surface cut out made wavy: rolling hills, furrows of a field, bumps, long waves, a hollow or a mound
 	struct terrain_waves
 	{
-		enum kind { hills, furrows, bumps, waves, hollow, grid, strips, count };
+		enum kind { hills, furrows, bumps, waves, hollow, grid, strips, field, count };
 		// the profile of a wave: rounded as a sine, sharp ridges, sharp valleys, terraces, flat tops; how sharp it goes
 		enum profile { smooth, ridges, valleys, terraces, plateaus, profiles };
 		bool on{false};
@@ -122,9 +122,26 @@
 		float sharpness{0.5f}; // 0..1: 0 the profile still rounded, 1 its corners and edges as sharp as it gets
 		int steps{4}; // of the terraces, from the bottom of a wave to its top
 		float roughness{0.0f}; // 0..1, small bumps over the whole surface, as clods of a field
+		// the cultivated field: the rows (height and length above) along the angle, or along the longest side of the outline
+		bool auto_direction{true};
+		float drift{0.8f}; // metres the rows wander sideways over a hundred, as a tractor drives them
+		float lands{30.0f}; // metres, of the lands ploughed with a crown in the middle and a dead furrow between them; 0: none
+		float land_height{0.12f}; // metres, of the crown of a land over its dead furrows
+		float headland{18.0f}; // metres, of the headland along the edge, where the tractor turns and the rows go round; 0: none
+		float tramlines{24.0f}; // metres between the tramlines, the two ruts of the sprayer; 0: none
+		float ruts{0.07f}; // metres, how deep the ruts of the tramlines go
 	};
 	terrain_waves m_waves;
 	void render_waves_options();
+	// the crop sown in the field cut out: 0 none (the material of the palette, the grass chosen), else a preset of
+	// editormodefeatures.cpp which gives the material, the 3D grass and the layout of the field
+	int m_crop{0};
+	void render_crop_options();
+	void render_field_layout();
+	// the preset Crop put in the settings of the Fields: the waves of the ground, the turn of the texture
+	void choose_crop(int Crop);
+	// the angle of the longest side of Outline, degrees as terrain_waves::angle
+	static float longest_side(std::vector<glm::dvec2> const &Outline);
 	// the ground within Outline made wavy as m_waves says; returns true if it changed
 	bool apply_waves(std::vector<glm::dvec2> const &Outline);
 	// the 3D grass under the surfaces painted: -2 left, -1 taken away, 0 or more: that kind grown (heightmap::surface_patch::grass)
@@ -153,6 +170,8 @@
 	};
 	// the surfaces painted into the terrain: the material of one, with its transition and noise; true if anything was painted
 	bool paint_patch(heightmap::surface_patch const &Patch);
+	// the tramlines of a field painted (heightmap::surface_patch::field): the soil in the ruts, the grass taken away
+	void paint_tramlines(heightmap::surface_patch const &Patch);
 	// the list given to the terrain, the changed ones painted anew and then the ones over them that they touch (the track bed over
 	// the slopes, the surfaces drawn by hand over both), so the transitions are made again; the Cleared outlines painted first
 	// with the first material of the palette, as the ground was

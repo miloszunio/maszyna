@@ -145,6 +145,17 @@ class terrain_streamer
 	bool grass(double X, double Z, double Radius, double Strength, std::uint16_t Kind, bool Erase);
 	// the same within Outline (x, z), fully; the chunks are loaded where needed
 	bool grass(std::vector<glm::dvec2> const &Outline, std::uint16_t Kind, bool Erase);
+	// the material of the palette entry Layer painted within the rectangle, Amount (0..1) of the way at each paint sample as
+	// Amount gives it for its place; the chunks are loaded where needed
+	bool paint_where(glm::dvec2 const &Min, glm::dvec2 const &Max, std::uint16_t Layer, std::function<double(double X, double Z)> const &Amount)
+	{
+		return paint_area(Min, Max, Layer, true, Amount);
+	}
+	// the grass of the kind Kind grown (or all grass taken away, Erase) within the rectangle as Amount gives it
+	bool grass_where(glm::dvec2 const &Min, glm::dvec2 const &Max, std::uint16_t Kind, bool Erase, std::function<double(double X, double Z)> const &Amount)
+	{
+		return grass_area(Min, Max, Kind, Erase, true, Amount);
+	}
 	// the grass palette
 	std::vector<heightmap::grass_def> const &grass_kinds() const { return m_manifest.grass; }
 	// adds a kind to the grass palette; returns: its index
