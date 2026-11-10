@@ -59,7 +59,6 @@
 	// ZIELSKO z kosmosu (editormodezielsko.cpp, editor/editorZielsko.cpp)
 	struct zielsko_settings
 	{
-		float reach{300.0f}; // m from a rail track: the trees kept of the counties read
 		float nearest{8.0f}; // m from the axis of a rail track
 		float farthest{150.0f};
 		float road{2.0f}; // m off the edge of a road
@@ -73,7 +72,6 @@
 		float small_below{8.0f};
 		float model_height{0.0f}; // 0: from the model
 		float jitter{0.08f};
-		bool again{false};
 	};
 	struct zielsko_candidate
 	{
@@ -86,11 +84,21 @@
 	std::vector<zielsko_candidate> m_zielsko_preview;
 	std::string m_zielsko_status;
 	std::string zielsko_folder() const;
-	void zielsko_harvest_start();
+	// the area of ZIELSKO (around the camera, the outline kept, the whole scenery) holds the point of the scene
+	bool zielsko_in_scope(glm::dvec2 const &At) const;
+	// the counties under the area asked for and their sheets not read yet read (Whole: the counties read to the end), the trees
+	// planted then if PlantAfter
+	void zielsko_harvest_start(bool Whole, bool PlantAfter);
+	void zielsko_refresh_counties();
+	std::vector<glm::dvec2> m_zielsko_outline;
+	std::vector<std::string> m_zielsko_counties; // what's kept beside the terrain, a line a county
+	bool m_zielsko_counties_read{false};
+	bool m_zielsko_plant_after{false};
 	std::vector<zielsko_candidate> zielsko_candidates(std::size_t &Counties, std::size_t &Read);
 	void zielsko_count();
 	void zielsko_plant();
-	std::size_t zielsko_remove();
+	// the trees planted by ZIELSKO taken away, within its area if InScope
+	std::size_t zielsko_remove(bool InScope);
 	void draw_zielsko_preview(ImDrawList *Drawlist);
 	void render_zielsko_ui();
 	// the transition the surfaces cut out blend over, and the noise their edge is shifted by

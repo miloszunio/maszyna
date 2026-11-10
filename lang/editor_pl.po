@@ -17169,3 +17169,96 @@ msgstr "Pola i wycięte powierzchnie##fields"
 
 msgid "Natural slopes##fields"
 msgstr "Naturalne skarpy##fields"
+
+msgid "Draw the outline first"
+msgstr "Najpierw narysuj obrys"
+
+msgid "The area has no terrain"
+msgstr "Pod tym zasięgiem nie ma terenu"
+
+msgid "%s: read whole, %zu trees"
+msgstr "%s: wczytany w całości, %zu drzew"
+
+msgid "%s: only the band along the tracks (the first version), %zu trees"
+msgstr "%s: tylko pas wzdłuż torów (pierwsza wersja), %zu drzew"
+
+msgid "%s: %zu sheets read, %zu trees"
+msgstr "%s: wczytano %zu arkuszy, %zu drzew"
+
+msgid "Nothing read yet: Plant reads what the area needs first"
+msgstr "Nic jeszcze nie wczytano: Posadź najpierw wczyta to, czego potrzebuje zasięg"
+
+msgid "Planted %zu trees (%zu planted before within the area taken away). The source: GUGiK, 3D tree models, CC BY 4.0"
+msgstr "Posadzono %zu drzew (usunięto %zu posadzonych wcześniej w tym zasięgu). Źródło: GUGiK, modele 3D drzew, CC BY 4.0"
+
+msgid "The trees of the 3D tree models of geoportal.gov.pl (GUGiK, from airborne laser scanning, trees over 4 m): where each stands and how tall it is. What the area needs is read over the network when planting, only once: every sheet of the map read is kept beside the terrain, all its trees"
+msgstr "Drzewa z modeli 3D drzew geoportal.gov.pl (GUGiK, z lotniczego skanowania laserowego, drzewa powyżej 4 m): gdzie stoi każde z nich i jak jest wysokie. To, czego potrzebuje zasięg, jest czytane z sieci przy sadzeniu i tylko raz: każdy wczytany arkusz mapy zostaje zapisany obok terenu, ze wszystkimi drzewami"
+
+msgid "1. The area"
+msgstr "1. Zasięg"
+
+msgid "LMB adds a point of the outline, Shift+LMB takes the last one back (%zu points)"
+msgstr "LPM dodaje punkt obrysu, Shift+LPM cofa ostatni (%zu punktów)"
+
+msgid "The counties under the whole terrain are read to the end: tens of gigabytes for a large scenery"
+msgstr "Powiaty pod całym terenem są czytane do końca: dla dużej scenerii to dziesiątki GB"
+
+msgid "Finding what the area needs"
+msgstr "Sprawdzanie, czego potrzebuje zasięg"
+
+msgid "The sheets of the map of the area not read yet are read first, in the background (the package of a county is read only as far as they come); then the trees planted before within the area go and the ones through the sieve are planted"
+msgstr "Najpierw w tle są wczytywane arkusze mapy z zasięgu, których jeszcze nie ma (paczka powiatu jest czytana tylko do miejsca, gdzie się pojawią); potem znikają drzewa posadzone wcześniej w zasięgu i sadzone są te, które przeszły przez sito"
+
+msgid "From what's read already: the trees which would be planted, as dots up to 1.5 km from the camera, yellow low, green tall"
+msgstr "Z tego, co już wczytane: drzewa, które zostałyby posadzone, jako kropki do 1,5 km od kamery, żółte niskie, zielone wysokie"
+
+msgid "Clear the trees planted within the area##zielsko"
+msgstr "Wykarczuj posadzone w zasięgu##zielsko"
+
+msgid "4. The data"
+msgstr "4. Dane"
+
+msgid "What has come is kept; nothing is planted"
+msgstr "To, co doszło, zostaje zapisane; nic nie jest sadzone"
+
+msgid "The trees are planted when the reading ends"
+msgstr "Drzewa zostaną posadzone, gdy wczytywanie się skończy"
+
+msgid "County %s: read before"
+msgstr "Powiat %s: wczytany wcześniej"
+
+msgid "County %s: %zu sheets to read, the package up to %.0f MB"
+msgstr "Powiat %s: %zu arkuszy do wczytania, paczka do %.0f MB"
+
+msgid "Kept beside the terrain##zielsko"
+msgstr "Zapisane obok terenu##zielsko"
+
+msgid "Nothing yet"
+msgstr "Jeszcze nic"
+
+msgid "Refresh##zielsko"
+msgstr "Odśwież##zielsko"
+
+msgid "Read the whole scenery in the background##zielsko"
+msgstr "Wczytaj całą scenerię w tle##zielsko"
+
+msgid "Finding the counties under the terrain"
+msgstr "Szukanie powiatów pod terenem"
+
+msgid "All the counties under the terrain read to the end, the ones read whole before passed over: for a night, tens of gigabytes for a large scenery. Nothing is planted"
+msgstr "Wszystkie powiaty pod terenem czytane do końca, te wczytane wcześniej w całości są pomijane: na noc, dla dużej scenerii dziesiątki GB. Nic nie jest sadzone"
+
+msgid "Asking which counties lie under the area: %zu of %zu points, %zu counties"
+msgstr "Sprawdzanie, które powiaty leżą pod zasięgiem: %zu z %zu punktów, %zu powiatów"
+
+msgid "County %s (%zu of %zu): %.0f of %.0f MB read, %zu sheets, %zu trees"
+msgstr "Powiat %s (%zu z %zu): wczytano %.0f z %.0f MB, %zu arkuszy, %zu drzew"
+
+msgid "County %s (%zu of %zu): %.0f of up to %.0f MB read, %zu sheets passed, %zu wanted still to come"
+msgstr "Powiat %s (%zu z %zu): wczytano %.0f z najwyżej %.0f MB, minęło %zu arkuszy, brakuje jeszcze %zu potrzebnych"
+
+msgid "Stopped; what came is kept"
+msgstr "Przerwano; to, co doszło, zostało zapisane"
+
+msgid "Done: %zu counties under the area, %zu read now"
+msgstr "Gotowe: %zu powiatów pod zasięgiem, teraz wczytano %zu"

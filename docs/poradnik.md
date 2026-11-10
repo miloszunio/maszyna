@@ -21,7 +21,7 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 
 ## Pola: wycinanie powierzchni (pola, łąki, place)
 
-Od nr 73 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wypełnienia), tak samo jak w PR-ze do gałęzi Hirka. Z Ficzerów zniknęło.
+Od nr 80 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wypełnienia), tak samo jak w PR-ze do gałęzi Hirka. Z Ficzerów zniknęło.
 
 1. Teren → **Pola**. Rysuj obrys: LPM punkt, Shift+LPM cofa. Kształt obrysu: zaokrąglenia, gładka krzywa, Bézier, z ręki, wzdłuż toru (tego u Hirka jeszcze nie ma).
 2. Albo **magiczna różdżka**: włącz i kliknij na ortofoto w pole, obrys zrobi się sam z obszaru o podobnym kolorze.
@@ -80,18 +80,17 @@ Od nr 73 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wyp
 Ficzery → **ZIELSKO z kosmosu** (ikona trawy). Drzewa z modeli 3D drzew GUGiK: każde stoi tam, gdzie w rzeczywistości, i ma swoją wysokość.
 Dane nie mówią nic o gatunku i koronie (korona jest szablonem skalowanym do wysokości), więc modele bierzesz z banku węzłów.
 
-1. **Dane.** Ustaw, do ilu metrów od torów zachowywać drzewa (domyślnie 300 m), i kliknij żółte „Znajdź powiaty i wczytaj ich drzewa”.
-   Edytor pyta Geoportal, które powiaty leżą pod scenerią, i w tle czyta ich paczki prosto z sieci (powiat to 1,5–5 GB; na dysk nic z tego nie trafia).
-   Zostają tylko drzewa nad terenem w pasie wzdłuż torów, zapisane w `terrain/<teren>/zielsko/<TERYT>.drz`. Wczytany powiat jest pomijany przy następnym razie,
-   chyba że zaznaczysz „Wczytaj ponownie”. Można w tym czasie pracować dalej; „Przerwij wczytywanie” zatrzymuje.
-2. **Sito.** Zasięg: wokół kamery, cała sceneria albo w obrysie (LPM stawia punkty jak przy wycinaniu powierzchni).
-   Najbliżej i najdalej od osi toru, odstęp od krawędzi dróg, najniższe drzewo, odstęp między drzewami (przerzedzenie lasu, zostaje wyższe), limit liczby.
-   Woda terenu zawsze zostaje pusta. Gdy jest więcej drzew niż limit, idą najpierw te najbliżej torów.
-3. **Modele.** Grupa banku węzłów na drzewa (domyślnie „Duze drzewka”) i na niskie (domyślnie „Krzaki”, poniżej 8 m).
-   Wysokość modeli w skali 1: „z modelu” bierze promień modelu, a jeśli drzewa wychodzą za duże albo za małe, wpisz ją ręcznie.
-4. „Policz i pokaż” rysuje kropki do 1,5 km od kamery (żółte niskie, zielone wysokie) i podaje liczbę. Żółte **„Posadź”** stawia modele `zielsko_<n>`
-   (wcześniej posadzone przez ZIELSKO najpierw znikają). „Wykarczuj posadzone” je zdejmuje.
-5. W opisie scenerii podaj źródło: **GUGiK, modele 3D drzew (geoportal.gov.pl), CC BY 4.0**.
+1. **Zasięg** (jeden dla wszystkiego): wokół kamery (promień), w obrysie (LPM stawia punkty) albo cała sceneria.
+2. **Sito**: najbliżej i najdalej od osi toru, odstęp od krawędzi dróg, najniższe drzewo, przerzedzenie (zostaje wyższe), limit (najpierw najbliżej torów). Woda terenu zostaje pusta.
+3. **Modele**: grupa banku węzłów na drzewa (domyślnie „Duze drzewka”) i na niskie (domyślnie „Krzaki”, poniżej 8 m); wysokość modeli w skali 1 („z modelu” albo wpisana ręcznie).
+4. Żółte **„Posadź”**: edytor sprawdza (raz, odpowiedzi zapamiętuje), które powiaty leżą pod zasięgiem i których arkuszy mapy jeszcze nie ma,
+   i w tle czyta paczki powiatów tylko do miejsca, gdzie te arkusze się pojawią. Serwer daje paczkę tylko od początku, więc ile trzeba przeczytać, zależy od tego, gdzie w paczce leżą potrzebne arkusze.
+   Każdy arkusz, który po drodze przejdzie, zostaje zapisany ze wszystkimi drzewami w `terrain/<teren>/zielsko/<TERYT>.drz` i nigdy więcej nie jest pobierany.
+   Gdy dane dojdą, znikają drzewa ZIELSKA posadzone wcześniej **w tym zasięgu** i sadzone są nowe (`zielsko_<n>`). Drzewa w innych miejscach zostają.
+5. „Policz i pokaż” liczy z tego, co już jest na dysku, i rysuje kropki. „Wykarczuj posadzone w zasięgu” zdejmuje drzewa z zasięgu.
+6. **Dane**: postęp, przerwanie (to, co doszło, zostaje), lista zapisanych powiatów i „Wczytaj całą scenerię w tle” (na noc, dziesiątki GB, bez sadzenia).
+   Pliki z pierwszej wersji (tylko pas przy torach) dalej działają; brakujące arkusze zostaną doczytane.
+7. W opisie scenerii podaj źródło: **GUGiK, modele 3D drzew (geoportal.gov.pl), CC BY 4.0**.
 
 ## Idź do
 

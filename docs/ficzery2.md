@@ -219,10 +219,11 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
 - **Shadery ogl46:** cofnięta zmiana z mastera (alpha to coverage), która przy scalaniu trafiła do shaderów GL 4.6 bez swoich funkcji i zawieszała ładowanie scenerii.
 - **Sonar:** „Idź do” nie sięga za listę miejscowości; wysokość wczytywanego chunka bez pętli.
 
-## Pola w trybie Teren (po nr 72)
+## Pola w trybie Teren (nr 80)
 
 - Wycinanie powierzchni przeniesione z zakładki Ficzery do **Teren → Pola**, w to samo miejsce co w PR [MaSzyna-EU07 #315](https://github.com/MaSzyna-EU07/maszyna/pull/315) do `feat/gl46-migration`.
   U nas zostają nasze obrysy (łuki, Bézier, z ręki, wzdłuż toru, różdżka), których w PR-ze nie ma.
 - Nowy wariant **osobnej powierzchni** (dziura i własna siatka, poza limitem 8 materiałów chunka), jak w PR-ze.
 - Lista pól i naturalne skarpy dostępne w panelu Pól; w Ficzerach zostały Torowisko i skarpy, ZIELSKO i Idź do.
+- **ZIELSKO przebudowane:** jeden zasięg (kamera, obrys, cała sceneria) dla czytania i sadzenia. „Posadź” sam doczytuje brakujące arkusze mapy (nazwy arkuszy liczone z PUWG 1992 przez współrzędne geograficzne, siatka mapy 1:1 000 000), czyta paczkę powiatu tylko do ostatniego potrzebnego arkusza i zapisuje wszystkie drzewa każdego minionego arkusza (format `.drz` w wersji 2: lista arkuszy, znacznik „cały powiat”; wersja 1 czytana jako pas). Odpowiedzi WMS o powiatach zapamiętane w `zielsko/counties.txt`. Sadzenie i karczowanie dotyczą tylko zasięgu, numery `zielsko_<n>` idą dalej zamiast od zera.
 

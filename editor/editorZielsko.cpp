@@ -16,14 +16,13 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/translation.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <limits>
-#include <map>
-#include <set>
 #include <string_view>
 
 namespace zielsko
@@ -35,7 +34,7 @@ namespace
 char const *const wms{"https://mapy.geoportal.gov.pl/wss/service/PZGIK/FOTO/WMS/ModeleDrzew3D"};
 char const *const layer{"Modele_3D_drzew_LoD1_2023"};
 std::uint32_t constexpr cache_magic{0x4b534c5a}; // ZLSK
-std::uint32_t constexpr cache_version{1};
+std::uint32_t constexpr cache_version{2};
 
 std::uint32_t read32(std::uint8_t const *P)
 {
@@ -52,16 +51,6 @@ std::uint64_t read64(std::uint8_t const *P)
 	return static_cast<std::uint64_t>(read32(P)) | (static_cast<std::uint64_t>(read32(P + 4)) << 32);
 }
 
-// the metre of the plan a tree stands on, to tell the trunk and the crown of one tree, and a tree on two sheets, as one
-std::uint64_t metre_of(double const East, double const North)
-{
-	auto const e{static_cast<std::int64_t>(std::llround(East))};
-	auto const n{static_cast<std::int64_t>(std::llround(North))};
-	return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(e)) << 32) | static_cast<std::uint32_t>(n);
-}
-
-// a zip read as it comes: the entries are taken one after another by their local headers, the sizes of which the packages give
-// (no data descriptors), each handed over whole
 class zip_stream
 {
   public:
@@ -142,35 +131,87 @@ class zip_stream
 	std::string m_error;
 };
 
-std::string_view next_tag(std::string_view const Text, std::size_t &At, std::string_view const Tag)
+// the sheet of the name of a file of a package: 0265/0265_M-33-45-A-d-4-4-4.gml
+std::string sheet_of_file(std::string const &Name)
 {
-	auto const found{Text.find(Tag, At)};
-	if (found == std::string_view::npos)
-	{
-		At = Text.size();
-		return {};
-	}
-	At = found;
-	return Text.substr(found);
+	auto start{Name.find_last_of('/')};
+	start = start == std::string::npos ? 0 : start + 1;
+	auto const underscore{Name.find('_', start)};
+	if (underscore != std::string::npos)
+		start = underscore + 1;
+	auto const end{Name.rfind('.')};
+	return Name.substr(start, end == std::string::npos || end < start ? std::string::npos : end - start);
 }
 
 } // namespace
 
-std::vector<std::pair<double, double>> area::sample(double const Step) const
+void geographic(double const East, double const North, double &Latitude, double &Longitude)
 {
-	std::set<std::pair<std::int64_t, std::int64_t>> taken;
-	std::vector<std::pair<double, double>> result;
-	for (auto const key : m_cells)
+	// the transverse Mercator of PUWG 1992 (GRS 80, meridian 19, scale 0.9993, 500 000 east, -5 300 000 north), inverted by the
+	// series of Krueger
+	constexpr double a{6378137.0};
+	constexpr double f{1.0 / 298.257222101};
+	constexpr double k0{0.9993};
+	double const n{f / (2.0 - f)};
+	double const A{a / (1.0 + n) * (1.0 + n * n / 4.0 + n * n * n * n / 64.0)};
+	std::array<double, 3> const beta{n / 2.0 - 2.0 * n * n / 3.0 + 37.0 * n * n * n / 96.0, n * n / 48.0 + n * n * n / 15.0, 17.0 * n * n * n / 480.0};
+	std::array<double, 3> const delta{2.0 * n - 2.0 * n * n / 3.0 - 2.0 * n * n * n, 7.0 * n * n / 3.0 - 8.0 * n * n * n / 5.0, 56.0 * n * n * n / 15.0};
+	double const xi{(North + 5300000.0) / (k0 * A)};
+	double const eta{(East - 500000.0) / (k0 * A)};
+	double xi_{xi};
+	double eta_{eta};
+	for (int j = 1; j <= 3; ++j)
 	{
-		auto const e{static_cast<std::int32_t>(key >> 32)};
-		auto const n{static_cast<std::int32_t>(key & 0xffffffffu)};
-		auto const east{(e + 0.5) * cell};
-		auto const north{(n + 0.5) * cell};
-		auto const coarse{std::make_pair(static_cast<std::int64_t>(std::floor(east / Step)), static_cast<std::int64_t>(std::floor(north / Step)))};
-		if (taken.insert(coarse).second)
-			result.emplace_back(east, north);
+		xi_ -= beta[j - 1] * std::sin(2.0 * j * xi) * std::cosh(2.0 * j * eta);
+		eta_ -= beta[j - 1] * std::cos(2.0 * j * xi) * std::sinh(2.0 * j * eta);
+	}
+	double const chi{std::asin(std::sin(xi_) / std::cosh(eta_))};
+	double latitude{chi};
+	for (int j = 1; j <= 3; ++j)
+		latitude += delta[j - 1] * std::sin(2.0 * j * chi);
+	constexpr double degrees{180.0 / 3.14159265358979323846};
+	Latitude = latitude * degrees;
+	Longitude = 19.0 + std::atan2(std::sinh(eta_), std::cos(xi_)) * degrees;
+}
+
+std::string sheet_of(double const East, double const North)
+{
+	double latitude, longitude;
+	geographic(East, North, latitude, longitude);
+	// the sheet of 1:1 000 000 (4 x 6 degrees), of 1:100 000 (12 x 12 in it), then halved five times: A-D, a-d, 1-4, 1-4, 1-4
+	auto const row{static_cast<int>(std::floor(latitude / 4.0))};
+	auto const zone{static_cast<int>(std::floor((longitude + 180.0) / 6.0)) + 1};
+	std::string result{static_cast<char>('A' + row)};
+	result += '-' + std::to_string(zone);
+	double top{(row + 1) * 4.0};
+	double left{(zone - 31) * 6.0};
+	double height{4.0 / 12.0};
+	double width{6.0 / 12.0};
+	auto r{std::clamp(static_cast<int>(std::floor((top - latitude) / height)), 0, 11)};
+	auto c{std::clamp(static_cast<int>(std::floor((longitude - left) / width)), 0, 11)};
+	result += '-' + std::to_string(r * 12 + c + 1);
+	top -= r * height;
+	left += c * width;
+	static char const *const names[]{"ABCD", "abcd", "1234", "1234", "1234"};
+	for (auto const *quarter : names)
+	{
+		height /= 2.0;
+		width /= 2.0;
+		r = std::clamp(static_cast<int>(std::floor((top - latitude) / height)), 0, 1);
+		c = std::clamp(static_cast<int>(std::floor((longitude - left) / width)), 0, 1);
+		result += '-';
+		result += quarter[r * 2 + c];
+		top -= r * height;
+		left += c * width;
 	}
 	return result;
+}
+
+std::uint64_t metre_of(double const East, double const North)
+{
+	auto const e{static_cast<std::int64_t>(std::llround(East))};
+	auto const n{static_cast<std::int64_t>(std::llround(North))};
+	return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(e)) << 32) | static_cast<std::uint32_t>(n);
 }
 
 std::string county_query(double const East, double const North)
@@ -198,7 +239,7 @@ bool county_of_answer(std::string const &Answer, county &Out)
 	return false == Out.teryt.empty();
 }
 
-std::size_t read_sheet(char const *Text, std::size_t const Size, area const &Area, std::unordered_set<std::uint64_t> &Seen, std::vector<tree> &Out)
+std::size_t read_sheet(char const *Text, std::size_t const Size, std::unordered_set<std::uint64_t> &Seen, std::vector<tree> &Out)
 {
 	std::string_view const text{Text, Size};
 	std::string_view const open{"<veg:SolitaryVegetationObject"};
@@ -238,9 +279,11 @@ std::size_t read_sheet(char const *Text, std::size_t const Size, area const &Are
 		std::string const numbers{object.substr(listvalue + 1, listend - listvalue - 1)};
 		char const *p{numbers.c_str()};
 		char *next{nullptr};
-		double sum_e{0.0}, sum_n{0.0};
+		double sum_e{0.0};
+		double sum_n{0.0};
 		int count{0};
-		double first_e{0.0}, first_n{0.0};
+		double first_e{0.0};
+		double first_n{0.0};
 		for (int i = 0;; ++i)
 		{
 			auto const e{std::strtod(p, &next)};
@@ -270,8 +313,6 @@ std::size_t read_sheet(char const *Text, std::size_t const Size, area const &Are
 			continue;
 		auto const east{sum_e / count};
 		auto const north{sum_n / count};
-		if (false == Area.contains(east, north))
-			continue;
 		if (false == Seen.insert(metre_of(east, north)).second)
 			continue;
 		Out.push_back({east, north, static_cast<float>(height)});
@@ -280,19 +321,28 @@ std::size_t read_sheet(char const *Text, std::size_t const Size, area const &Are
 	return added;
 }
 
-bool write_cache(std::string const &Path, std::vector<tree> const &Trees)
+bool write_cache(std::string const &Path, county_cache const &Cache)
 {
-	std::filesystem::create_directories(std::filesystem::path{Path}.parent_path());
+	std::error_code error;
+	std::filesystem::create_directories(std::filesystem::path{Path}.parent_path(), error);
 	auto const temporary{Path + ".tmp"};
 	{
 		std::ofstream out{temporary, std::ios::binary | std::ios::trunc};
 		if (false == out.good())
 			return false;
-		auto const put32 = [&](std::uint32_t const Value) { out.write(reinterpret_cast<char const *>(&Value), 4); };
+		auto const put32 = [&out](std::uint32_t const Value) { out.write(reinterpret_cast<char const *>(&Value), 4); };
 		put32(cache_magic);
 		put32(cache_version);
-		put32(static_cast<std::uint32_t>(Trees.size()));
-		for (auto const &t : Trees)
+		put32((Cache.complete ? 1u : 0u) | (Cache.band ? 2u : 0u));
+		put32(static_cast<std::uint32_t>(Cache.sheets.size()));
+		for (auto const &sheet : Cache.sheets)
+		{
+			auto const length{static_cast<std::uint8_t>(std::min<std::size_t>(sheet.size(), 255))};
+			out.put(static_cast<char>(length));
+			out.write(sheet.data(), length);
+		}
+		put32(static_cast<std::uint32_t>(Cache.trees.size()));
+		for (auto const &t : Cache.trees)
 		{
 			// decimetres of the plan, centimetres of the height
 			std::int32_t const e{static_cast<std::int32_t>(std::lround(t.east * 10.0))};
@@ -305,7 +355,6 @@ bool write_cache(std::string const &Path, std::vector<tree> const &Trees)
 		if (false == out.good())
 			return false;
 	}
-	std::error_code error;
 	std::filesystem::rename(temporary, Path, error);
 	if (error)
 	{
@@ -315,48 +364,73 @@ bool write_cache(std::string const &Path, std::vector<tree> const &Trees)
 	return false == static_cast<bool>(error);
 }
 
-bool read_cache(std::string const &Path, std::vector<tree> &Trees)
+bool read_cache(std::string const &Path, county_cache &Cache)
 {
+	Cache = {};
 	std::ifstream in{Path, std::ios::binary};
 	if (false == in.good())
 		return false;
-	std::uint32_t magic{0}, version{0}, count{0};
-	in.read(reinterpret_cast<char *>(&magic), 4);
-	in.read(reinterpret_cast<char *>(&version), 4);
-	in.read(reinterpret_cast<char *>(&count), 4);
-	if (false == in.good() || magic != cache_magic || version != cache_version)
+	auto const get32 = [&in]() {
+		std::uint32_t value{0};
+		in.read(reinterpret_cast<char *>(&value), 4);
+		return value;
+	};
+	auto const magic{get32()};
+	auto const version{get32()};
+	if (false == in.good() || magic != cache_magic || (version != 1 && version != cache_version))
+		return false;
+	if (version == 1)
+		// the first version: the trees near the tracks only, the sheets not known
+		Cache.band = true;
+	else
+	{
+		auto const flags{get32()};
+		Cache.complete = (flags & 1u) != 0;
+		Cache.band = (flags & 2u) != 0;
+		auto const sheets{get32()};
+		for (std::uint32_t i = 0; i < sheets && in.good(); ++i)
+		{
+			auto const length{static_cast<std::size_t>(static_cast<unsigned char>(in.get()))};
+			std::string sheet(length, '\0');
+			in.read(sheet.data(), static_cast<std::streamsize>(length));
+			Cache.sheets.insert(std::move(sheet));
+		}
+	}
+	auto const count{get32()};
+	if (false == in.good())
 		return false;
 	std::vector<char> data(static_cast<std::size_t>(count) * 10);
 	in.read(data.data(), static_cast<std::streamsize>(data.size()));
 	if (static_cast<std::size_t>(in.gcount()) != data.size())
 		return false;
-	Trees.reserve(Trees.size() + count);
+	Cache.trees.reserve(count);
 	for (std::uint32_t i = 0; i < count; ++i)
 	{
-		std::int32_t e, n;
+		std::int32_t e;
+		std::int32_t n;
 		std::uint16_t h;
 		std::memcpy(&e, data.data() + i * 10, 4);
 		std::memcpy(&n, data.data() + i * 10 + 4, 4);
 		std::memcpy(&h, data.data() + i * 10 + 8, 2);
-		Trees.push_back({e / 10.0, n / 10.0, h / 100.0f});
+		Cache.trees.push_back({e / 10.0, n / 10.0, h / 100.0f});
 	}
 	return true;
 }
 
-void harvest::start(std::string Folder, area Area, std::vector<std::pair<double, double>> Probes, bool const Again)
+void harvest::start(std::string Folder, std::vector<probe> Probes, bool const Whole)
 {
 	stop();
 	m_stop = false;
+	m_finished = false;
 	m_running = true;
 	m_progress = 0.0;
-	m_done = 0;
 	{
 		std::lock_guard<std::mutex> lock{m_mutex};
 		m_counties.clear();
 		m_status.clear();
 	}
-	m_thread = std::thread([this, Folder = std::move(Folder), Area = std::move(Area), Probes = std::move(Probes), Again]() mutable {
-		run(std::move(Folder), std::move(Area), std::move(Probes), Again);
+	m_thread = std::thread([this, Folder = std::move(Folder), Probes = std::move(Probes), Whole]() mutable {
+		run(std::move(Folder), std::move(Probes), Whole);
 		m_running = false;
 	});
 }
@@ -387,106 +461,198 @@ void harvest::set_status(std::string Text)
 	m_status = std::move(Text);
 }
 
-void harvest::run(std::string Folder, area Area, std::vector<std::pair<double, double>> Probes, bool const Again)
+void harvest::run(std::string Folder, std::vector<probe> Probes, bool const Whole)
 {
 	editor_http::client client;
 	auto const stopped = [this]() { return m_stop.load(); };
-	// the counties under the area: the WMS asked about a point every few kilometres of it
+	// 1. the counties under the points, asked of the WMS, and the sheets each of them has to give. The answers are kept beside the
+	// files of the counties (a line a point: east north teryt url), so a point asked once isn't asked again
 	std::map<std::string, county> found;
+	std::map<std::string, std::set<std::string>> wanted;
+	std::map<std::pair<long long, long long>, county> answers;
+	auto const answers_path{Folder + "counties.txt"};
+	{
+		std::ifstream in{answers_path};
+		long long east, north;
+		county c;
+		while (in >> east >> north >> c.teryt >> c.url)
+			answers[{east, north}] = c;
+	}
+	std::size_t asked{0};
 	for (std::size_t i = 0; i < Probes.size() && false == stopped(); ++i)
 	{
-		m_progress = static_cast<double>(i) / std::max<std::size_t>(1, Probes.size());
-		set_status(format(STR_C("Asking which counties lie under the scenery: %zu of %zu points, %zu counties"), i, Probes.size(), found.size()));
-		std::vector<std::uint8_t> answer;
-		std::string error;
-		if (false == client.get(county_query(Probes[i].first, Probes[i].second), answer, error, stopped))
-			continue;
+		m_progress = 0.05 * static_cast<double>(i) / static_cast<double>(std::max<std::size_t>(1, Probes.size()));
+		std::pair<long long, long long> const key{std::llround(Probes[i].east), std::llround(Probes[i].north)};
 		county c;
-		if (county_of_answer(std::string(answer.begin(), answer.end()), c))
-			found.emplace(c.teryt, c);
+		if (auto const known{answers.find(key)}; known != answers.end())
+			c = known->second;
+		else
+		{
+			set_status(format(STR_C("Asking which counties lie under the area: %zu of %zu points, %zu counties"), i, Probes.size(), found.size()));
+			std::vector<std::uint8_t> answer;
+			std::string error;
+			if (false == client.get(county_query(Probes[i].east, Probes[i].north), answer, error, stopped))
+				continue;
+			if (false == county_of_answer(std::string(answer.begin(), answer.end()), c))
+				// no county of the models there (abroad): kept as such
+				c = county{"-", "-"};
+			answers[key] = c;
+			++asked;
+		}
+		if (c.teryt == "-")
+			continue;
+		found.emplace(c.teryt, c);
+		wanted[c.teryt].insert(Probes[i].sheet);
 	}
+	if (asked > 0)
 	{
-		std::lock_guard<std::mutex> lock{m_mutex};
-		for (auto const &[teryt, c] : found)
-			m_counties.push_back(c);
+		std::error_code error;
+		std::filesystem::create_directories(Folder, error);
+		std::ofstream out{answers_path, std::ios::trunc};
+		for (auto const &[key, c] : answers)
+			out << key.first << ' ' << key.second << ' ' << c.teryt << ' ' << c.url << '\n';
 	}
 	if (stopped())
 	{
 		set_status(STR_C("Stopped"));
 		return;
 	}
-	WriteLog("ZIELSKO: " + std::to_string(found.size()) + " counties under the scenery");
-	std::size_t index{0};
-	std::size_t total_trees{0};
-	for (auto const &[teryt, c] : found)
+	// 2. the sheets read before taken away; the sizes of the packages still to be read
+	std::map<std::string, county_cache> caches;
+	for (auto &[teryt, c] : found)
 	{
-		++index;
+		auto &cache{caches[teryt]};
+		read_cache(Folder + teryt + ".drz", cache);
+		auto &sheets{wanted[teryt]};
+		if (cache.complete)
+			sheets.clear();
+		else
+			for (auto const &sheet : cache.sheets)
+				sheets.erase(sheet);
+		c.needed = Whole ? (cache.complete ? 0 : 1) : sheets.size();
+		if (c.needed > 0)
+		{
+			// the length of the package: the transfer given up at its first bytes
+			std::uint64_t length{0};
+			std::string error;
+			client.get_stream(c.url, [](std::uint8_t const *, std::size_t) { return false; }, length, error, stopped);
+			c.size = length;
+		}
+	}
+	{
+		std::lock_guard<std::mutex> lock{m_mutex};
+		for (auto const &[teryt, c] : found)
+			m_counties.push_back(c);
+	}
+	std::uint64_t total{0};
+	std::size_t todo{0};
+	for (auto const &[teryt, c] : found)
+		if (c.needed > 0)
+		{
+			total += c.size;
+			++todo;
+		}
+	WriteLog("ZIELSKO: " + std::to_string(found.size()) + " counties under the area, " + std::to_string(todo) + " to be read, up to " +
+	         std::to_string(total / 1048576) + " MB");
+	// 3. the packages read until all the sheets wanted have come (or to the end), each sheet passed kept
+	std::uint64_t before{0};
+	std::size_t index{0};
+	for (auto &[teryt, c] : found)
+	{
 		if (stopped())
 			break;
-		auto const path{Folder + teryt + ".drz"};
-		if (false == Again && std::filesystem::exists(path))
-		{
-			++m_done;
+		if (c.needed == 0)
 			continue;
-		}
-		std::vector<tree> trees;
+		++index;
+		auto &cache{caches[teryt]};
+		auto &sheets{wanted[teryt]};
+		auto const path{Folder + teryt + ".drz"};
 		std::unordered_set<std::uint64_t> seen;
-		std::size_t sheets{0};
-		std::uint64_t length{0}, received{0};
+		for (auto const &t : cache.trees)
+			seen.insert(metre_of(t.east, t.north));
+		std::size_t passed{0};
+		std::size_t added{0};
+		bool all_come{false};
+		std::uint64_t length{0};
+		std::uint64_t received{0};
 		zip_stream zip{[&](std::string const &Name, std::uint16_t const Method, std::uint8_t const *Data, std::size_t const Size) {
 			if (Name.size() < 4 || Name.compare(Name.size() - 4, 4, ".gml") != 0)
 				return;
-			++sheets;
+			++passed;
+			auto const sheet{sheet_of_file(Name)};
+			if (cache.sheets.count(sheet) != 0)
+				return;
 			if (Method == 0)
+				added += read_sheet(reinterpret_cast<char const *>(Data), Size, seen, cache.trees);
+			else if (Method == 8 && Size <= static_cast<std::size_t>(std::numeric_limits<int>::max()))
 			{
-				read_sheet(reinterpret_cast<char const *>(Data), Size, Area, seen, trees);
-				return;
+				int length_out{0};
+				auto *text{stbi_zlib_decode_noheader_malloc(reinterpret_cast<char const *>(Data), static_cast<int>(Size), &length_out)};
+				if (text == nullptr)
+				{
+					WriteLog("ZIELSKO: can't unpack " + Name);
+					return;
+				}
+				added += read_sheet(text, static_cast<std::size_t>(length_out), seen, cache.trees);
+				std::free(text);
 			}
-			if (Method != 8 || Size > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+			else
 				return;
-			int length_out{0};
-			auto *text{stbi_zlib_decode_noheader_malloc(reinterpret_cast<char const *>(Data), static_cast<int>(Size), &length_out)};
-			if (text == nullptr)
-			{
-				WriteLog("ZIELSKO: can't unpack " + Name);
-				return;
-			}
-			read_sheet(text, static_cast<std::size_t>(length_out), Area, seen, trees);
-			std::free(text);
+			cache.sheets.insert(sheet);
+			sheets.erase(sheet);
+			if (false == Whole && sheets.empty())
+				all_come = true;
 		}};
 		std::string error;
 		auto const ok{client.get_stream(
 		    c.url,
 		    [&](std::uint8_t const *Data, std::size_t const Size) {
 			    received += Size;
-			    auto const part{length > 0 ? static_cast<double>(received) / static_cast<double>(length) : 0.0};
-			    m_progress = (static_cast<double>(index - 1) + part) / static_cast<double>(found.size());
-			    set_status(format(STR_C("County %s (%zu of %zu): %.0f of %.0f MB read, %zu sheets, %zu trees kept"), teryt.c_str(), index, found.size(),
-			                      received / 1048576.0, length / 1048576.0, sheets, trees.size()));
-			    return zip.feed(Data, Size);
+			    auto const part{static_cast<double>(before + received) / static_cast<double>(std::max<std::uint64_t>(1, total))};
+			    m_progress = 0.05 + 0.95 * std::min(1.0, part);
+			    if (Whole)
+				    set_status(format(STR_C("County %s (%zu of %zu): %.0f of %.0f MB read, %zu sheets, %zu trees"), teryt.c_str(), index, todo,
+				                      received / 1048576.0, length / 1048576.0, passed, cache.trees.size()));
+			    else
+				    set_status(format(STR_C("County %s (%zu of %zu): %.0f of up to %.0f MB read, %zu sheets passed, %zu wanted still to come"), teryt.c_str(), index,
+				                      todo, received / 1048576.0, length / 1048576.0, passed, sheets.size()));
+			    if (false == zip.feed(Data, Size))
+				    return false;
+			    // all the sheets wanted have come: the rest of the package isn't needed
+			    return false == all_come;
 		    },
 		    length, error, stopped)};
-		if (false == ok)
+		before += c.size;
+		if (ok)
+			cache.complete = true;
+		else if (false == all_come)
 		{
 			if (false == zip.error().empty())
 				error = zip.error();
-			WriteLog("ZIELSKO: county " + teryt + " not read: " + error);
-			if (stopped())
-				break;
-			continue;
+			WriteLog("ZIELSKO: county " + teryt + " not read to the end: " + error);
 		}
-		if (false == write_cache(path, trees))
-		{
+		if (cache.complete && cache.band)
+			cache.band = false;
+		// what's come is kept, also when stopped
+		if (false == write_cache(path, cache))
 			WriteLog("ZIELSKO: can't write " + path);
-			continue;
+		WriteLog("ZIELSKO: county " + teryt + ": " + std::to_string(passed) + " sheets passed, " + std::to_string(added) + " trees added, " +
+		         std::to_string(received / 1048576) + " MB read");
+		{
+			std::lock_guard<std::mutex> lock{m_mutex};
+			for (auto &entry : m_counties)
+				if (entry.teryt == teryt)
+					entry.needed = sheets.size();
 		}
-		total_trees += trees.size();
-		++m_done;
-		WriteLog("ZIELSKO: county " + teryt + ": " + std::to_string(sheets) + " sheets, " + std::to_string(trees.size()) + " trees kept");
 	}
 	m_progress = 1.0;
-	set_status(stopped() ? std::string{STR_C("Stopped")}
-	                     : format(STR_C("Done: %zu of %zu counties read, %zu trees kept now"), m_done.load(), found.size(), total_trees));
+	if (stopped())
+	{
+		set_status(STR_C("Stopped; what came is kept"));
+		return;
+	}
+	m_finished = true;
+	set_status(format(STR_C("Done: %zu counties under the area, %zu read now"), found.size(), todo));
 }
 
 } // namespace zielsko

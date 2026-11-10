@@ -116,7 +116,20 @@ std::string editor_mode::zielsko_folder() const
 	return m_streamer.directory() + "zielsko/";
 }
 
-void editor_mode::zielsko_harvest_start()
+bool editor_mode::zielsko_in_scope(glm::dvec2 const &At) const
+{
+	auto const &settings{m_zielsko};
+	if (settings.scope == 0)
+		return glm::distance(At, glm::dvec2{Camera.Pos.x, Camera.Pos.z}) <= settings.radius;
+	if (settings.scope == 2)
+	{
+		auto const &outline{m_zielsko_outline};
+		return outline.size() >= 3 && geometry::point_in_polygon(outline, At);
+	}
+	return true;
+}
+
+void editor_mode::zielsko_harvest_start(bool const Whole, bool const PlantAfter)
 {
 	auto const &manifest{m_streamer.manifest()};
 	if (false == manifest.georeferenced)
@@ -126,46 +139,109 @@ void editor_mode::zielsko_harvest_start()
 	}
 	auto const east0{manifest.origin_east};
 	auto const north0{manifest.origin_north};
-	// the chunks of the terrain on the disk and in memory
-	std::set<heightmap::chunk_key> chunks;
-	for (auto const &[key, cells] : m_streamer.stored_chunks())
-		chunks.insert(key);
-	// the cells of 50 m within the reach of a rail track, over the terrain
-	zielsko::area area;
-	track_points rails;
-	rails.gather(1, 25.0);
-	auto const reach{static_cast<double>(m_zielsko.reach)};
-	auto const span{static_cast<int>(std::ceil(reach / zielsko::area::cell))};
-	for (auto const &[key, points] : rails.buckets)
-		for (auto const &p : points)
-		{
-			// the cell of the point in PUWG 1992, and those around it
-			auto const east{east0 - p.x};
-			auto const north{north0 + p.z};
-			auto const ce{std::floor(east / zielsko::area::cell)};
-			auto const cn{std::floor(north / zielsko::area::cell)};
-			for (int de = -span; de <= span; ++de)
-				for (int dn = -span; dn <= span; ++dn)
-				{
-					auto const e{(ce + de + 0.5) * zielsko::area::cell};
-					auto const n{(cn + dn + 0.5) * zielsko::area::cell};
-					if (std::hypot(e - east, n - north) > reach + zielsko::area::cell * 0.71)
-						continue;
-					if (area.contains(e, n))
-						continue;
-					if (chunks.count(heightmap::chunk_at(east0 - e, n - north0)) == 0)
-						continue;
-					area.add(e, n);
-				}
-		}
-	if (area.empty())
+	auto const &settings{m_zielsko};
+	if (settings.scope == 2)
+		m_zielsko_outline = shaped_outline();
+	if (settings.scope == 2 && m_zielsko_outline.size() < 3)
 	{
-		m_zielsko_status = STR_C("No rail track over the terrain: nothing to look for");
+		m_zielsko_status = STR_C("Draw the outline first");
 		return;
 	}
-	auto probes{area.sample(2500.0)};
-	m_zielsko_harvest.start(zielsko_folder(), std::move(area), std::move(probes), m_zielsko.again);
+	// the points to be covered: every 400 m of the area (the sheets are about 1.1 km; a sheet across the border of two counties
+	// is in the packages of both); the whole scenery: every kilometre over the chunks of the terrain
+	std::vector<zielsko::probe> probes;
+	auto const add = [&probes, east0, north0](double const X, double const Z) {
+		auto const east{east0 - X};
+		auto const north{north0 + Z};
+		probes.push_back({east, north, zielsko::sheet_of(east, north)});
+	};
+	auto const whole{Whole || settings.scope == 1};
+	if (whole)
+	{
+		std::set<std::pair<long long, long long>> cells;
+		for (auto const &[key, info] : m_streamer.stored_chunks())
+		{
+			auto const corner{heightmap::chunk_corner(key)};
+			auto const centre{corner + glm::dvec2{heightmap::chunk_size * 0.5, heightmap::chunk_size * 0.5}};
+			// on a grid of 1 km in PUWG 1992, so the answers of the WMS kept come back for the same points
+			auto const e{std::floor((east0 - centre.x) / 1000.0) * 1000.0 + 500.0};
+			auto const n{std::floor((north0 + centre.y) / 1000.0) * 1000.0 + 500.0};
+			if (cells.insert({std::llround(e), std::llround(n)}).second)
+				add(east0 - e, n - north0);
+		}
+	}
+	else
+	{
+		// the box of the area, on a grid of 400 m in PUWG 1992
+		glm::dvec2 low, high;
+		if (settings.scope == 0)
+		{
+			low = glm::dvec2{Camera.Pos.x, Camera.Pos.z} - static_cast<double>(settings.radius);
+			high = glm::dvec2{Camera.Pos.x, Camera.Pos.z} + static_cast<double>(settings.radius);
+		}
+		else
+		{
+			low = high = m_zielsko_outline.front();
+			for (auto const &p : m_zielsko_outline)
+			{
+				low = glm::min(low, p);
+				high = glm::max(high, p);
+			}
+		}
+		constexpr double step{400.0};
+		for (auto e = std::floor((east0 - high.x) / step) * step; e <= east0 - low.x + step; e += step)
+			for (auto n = std::floor((north0 + low.y) / step) * step; n <= north0 + high.y + step; n += step)
+			{
+				// the point of the grid, or for a cell on the edge the nearest point of the area in it
+				glm::dvec2 at{east0 - e, n - north0};
+				if (false == zielsko_in_scope(at))
+				{
+					auto const nearest{glm::clamp(at, low, high)};
+					auto inside{false};
+					for (int i = -1; i <= 1 && false == inside; ++i)
+						for (int j = -1; j <= 1 && false == inside; ++j)
+						{
+							glm::dvec2 const near{at.x + i * step * 0.5, at.y + j * step * 0.5};
+							if (zielsko_in_scope(near))
+								inside = true;
+						}
+					if (false == inside && false == zielsko_in_scope(nearest))
+						continue;
+				}
+				add(at.x, at.y);
+			}
+	}
+	if (probes.empty())
+	{
+		m_zielsko_status = STR_C("The area has no terrain");
+		return;
+	}
+	m_zielsko_plant_after = PlantAfter;
+	m_zielsko_harvest.start(zielsko_folder(), std::move(probes), whole);
 	m_zielsko_status.clear();
+}
+
+void editor_mode::zielsko_refresh_counties()
+{
+	m_zielsko_counties.clear();
+	std::error_code error;
+	for (auto const &entry : std::filesystem::directory_iterator{zielsko_folder(), error})
+		if (entry.path().extension() == ".drz")
+		{
+			zielsko::county_cache cache;
+			if (false == zielsko::read_cache(entry.path().string(), cache))
+				continue;
+			auto const teryt{entry.path().stem().string()};
+			std::string state;
+			if (cache.complete)
+				state = format(STR_C("%s: read whole, %zu trees"), teryt.c_str(), cache.trees.size());
+			else if (cache.band && cache.sheets.empty())
+				state = format(STR_C("%s: only the band along the tracks (the first version), %zu trees"), teryt.c_str(), cache.trees.size());
+			else
+				state = format(STR_C("%s: %zu sheets read, %zu trees"), teryt.c_str(), cache.sheets.size(), cache.trees.size());
+			m_zielsko_counties.push_back(std::move(state));
+		}
+	std::sort(m_zielsko_counties.begin(), m_zielsko_counties.end());
 }
 
 std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std::size_t &Counties, std::size_t &Read)
@@ -179,25 +255,30 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 	auto const east0{manifest.origin_east};
 	auto const north0{manifest.origin_north};
 	auto const &settings{m_zielsko};
-	// the trees kept, all the counties
+	// the trees kept, all the counties; a tree of a sheet across a border, given by both, once
 	std::vector<zielsko::tree> trees;
+	std::unordered_set<std::uint64_t> seen;
 	std::error_code error;
 	for (auto const &entry : std::filesystem::directory_iterator{zielsko_folder(), error})
 		if (entry.path().extension() == ".drz")
 		{
 			++Counties;
-			if (zielsko::read_cache(entry.path().string(), trees))
-				++Read;
+			zielsko::county_cache cache;
+			if (false == zielsko::read_cache(entry.path().string(), cache))
+				continue;
+			++Read;
+			for (auto const &t : cache.trees)
+				if (seen.insert(zielsko::metre_of(t.east, t.north)).second)
+					trees.push_back(t);
 		}
 	if (trees.empty())
 		return result;
 	track_points rails, roads;
 	rails.gather(1, 4.0);
 	roads.gather(2, 4.0);
-	auto const &outline{shaped_outline()};
-	auto const in_outline{settings.scope == 2 && outline.size() >= 3};
+	if (settings.scope == 2)
+		m_zielsko_outline = shaped_outline();
 	auto const &water{m_streamer.water()};
-	auto const camera{glm::dvec2{Camera.Pos.x, Camera.Pos.z}};
 	auto const farthest{static_cast<double>(settings.farthest)};
 	// the spacing kept between the trees, the taller first
 	std::sort(trees.begin(), trees.end(), [](zielsko::tree const &A, zielsko::tree const &B) { return A.height > B.height; });
@@ -216,9 +297,7 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 		if (t.height < settings.lowest)
 			continue;
 		glm::dvec2 const at{east0 - t.east, t.north - north0};
-		if (settings.scope == 0 && glm::distance(at, camera) > settings.radius)
-			continue;
-		if (in_outline && false == geometry::point_in_polygon(outline, at))
+		if (false == zielsko_in_scope(at))
 			continue;
 		auto const track{rails.distance(at.x, at.y, farthest)};
 		if (track > farthest || track < settings.nearest)
@@ -271,16 +350,19 @@ void editor_mode::zielsko_count()
 	std::size_t counties, read;
 	m_zielsko_preview = zielsko_candidates(counties, read);
 	if (counties == 0)
-		m_zielsko_status = STR_C("No county read yet: find and read them first");
+		m_zielsko_status = STR_C("Nothing read yet: Plant reads what the area needs first");
 	else
 		m_zielsko_status = format(STR_C("%zu trees would be planted (from %zu of %zu counties read)"), m_zielsko_preview.size(), read, counties);
 }
 
-std::size_t editor_mode::zielsko_remove()
+std::size_t editor_mode::zielsko_remove(bool const InScope)
 {
+	if (InScope && m_zielsko.scope == 2)
+		m_zielsko_outline = shaped_outline();
 	std::vector<TAnimModel *> found;
 	for (auto *model : simulation::Instances.sequence())
-		if (model != nullptr && starts_with(model->name(), zielsko_prefix))
+		if (model != nullptr && starts_with(model->name(), zielsko_prefix) &&
+		    (false == InScope || zielsko_in_scope(glm::dvec2{model->location().x, model->location().z})))
 			found.push_back(model);
 	for (auto *model : found)
 	{
@@ -330,10 +412,15 @@ void editor_mode::zielsko_plant()
 	m_zielsko_preview.clear();
 	if (candidates.empty())
 	{
-		m_zielsko_status = counties == 0 ? std::string{STR_C("No county read yet: find and read them first")} : std::string{STR_C("No tree passes the sieve")};
+		m_zielsko_status = counties == 0 ? std::string{STR_C("Nothing read yet: Plant reads what the area needs first")} : std::string{STR_C("No tree passes the sieve")};
 		return;
 	}
-	auto const removed{zielsko_remove()};
+	// the trees planted before within the area go first; the names go on after the highest one taken
+	auto const removed{zielsko_remove(true)};
+	std::size_t number{0};
+	for (auto *model : simulation::Instances.sequence())
+		if (model != nullptr && starts_with(model->name(), zielsko_prefix))
+			number = std::max<std::size_t>(number, std::strtoull(model->name().c_str() + std::strlen(zielsko_prefix), nullptr, 10) + 1);
 	std::mt19937 random{1992u};
 	auto const uniform = [&](double const Low, double const High) { return std::uniform_real_distribution<double>{Low, High}(random); };
 	// the height of each template: given, or about the radius of its model, which stands on its foot
@@ -352,7 +439,7 @@ void editor_mode::zielsko_plant()
 			continue;
 		auto const &pool{c.height < settings.small_below ? low_pool : tall_pool};
 		auto const &src{pool[std::min(pool.size() - 1, static_cast<std::size_t>(uniform(0.0, 1.0) * pool.size()))]};
-		auto *model{simulation::State.create_model(src, zielsko_prefix + std::to_string(planted), location)};
+		auto *model{simulation::State.create_model(src, zielsko_prefix + std::to_string(number + planted), location)};
 		if (model == nullptr)
 			continue;
 		auto own{static_cast<double>(settings.model_height)};
@@ -375,7 +462,7 @@ void editor_mode::zielsko_plant()
 		model->Scale(glm::vec3{static_cast<float>(width), static_cast<float>(scale), static_cast<float>(width)});
 		++planted;
 	}
-	m_zielsko_status = format(STR_C("Planted %zu trees (%zu planted before taken away). The source: GUGiK, 3D tree models, CC BY 4.0"), planted, removed);
+	m_zielsko_status = format(STR_C("Planted %zu trees (%zu planted before within the area taken away). The source: GUGiK, 3D tree models, CC BY 4.0"), planted, removed);
 	WriteLog("ZIELSKO: " + m_zielsko_status);
 }
 
@@ -407,108 +494,145 @@ void editor_mode::draw_zielsko_preview(ImDrawList *Drawlist)
 void editor_mode::render_zielsko_ui()
 {
 	auto &settings{m_zielsko};
-	if (ImGui::CollapsingHeader(STR_C("ZIELSKO from space"), ImGuiTreeNodeFlags_DefaultOpen))
+	// Plant waiting for the data of the area: planted once they've come
+	if (m_zielsko_plant_after && false == m_zielsko_harvest.running())
 	{
-		ImGui::TextWrapped("%s", STR_C("The trees of the 3D tree models of geoportal.gov.pl (GUGiK, from airborne laser scanning, trees over 4 m): where each "
-		                               "stands and how tall it is. The counties under the scenery are found and their packages (gigabytes each) read over the "
-		                               "network in the background; only the trees near the tracks are kept, beside the terrain"));
-		ImGui::SeparatorText(STR_C("1. The data"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Kept up to (m from the tracks)##zielsko"), &settings.reach, 10.0f, 50.0f, 2000.0f, "%.0f");
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("The trees further from a rail track aren't kept at all; a wider band means reading the counties again"));
-		ImGui::Checkbox(STR_C("Read again the counties read before##zielsko"), &settings.again);
-		auto const running{m_zielsko_harvest.running()};
-		if (false == running)
-		{
-			if (main_button(STR_C("Find the counties and read their trees"), ImVec2(-FLT_MIN, tall_button_height())))
-				run_busy(STR_C("Finding the band along the tracks"), [this]() { zielsko_harvest_start(); });
-		}
-		else
-		{
-			ImGui::ProgressBar(static_cast<float>(m_zielsko_harvest.progress()), ImVec2(-FLT_MIN, 0.0f));
-			if (ImGui::Button(STR_C("Stop reading##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
-				m_zielsko_harvest.stop();
-		}
-		auto const status{m_zielsko_harvest.status()};
-		if (false == status.empty())
-			ImGui::TextWrapped("%s", status.c_str());
-		auto const counties{m_zielsko_harvest.counties()};
-		if (false == counties.empty())
-		{
-			std::string list;
-			for (auto const &c : counties)
-				list += (list.empty() ? "" : ", ") + c.teryt;
-			ImGui::TextDisabled(STR_C("Counties (TERYT): %s"), list.c_str());
-		}
-
-		ImGui::SeparatorText(STR_C("2. The sieve"));
-		ImGui::RadioButton(STR_C("Around the camera##zielsko"), &settings.scope, 0);
-		ImGui::SameLine();
-		ImGui::RadioButton(STR_C("The whole scenery##zielsko"), &settings.scope, 1);
-		ImGui::SameLine();
-		ImGui::RadioButton(STR_C("Within the outline##zielsko"), &settings.scope, 2);
-		if (settings.scope == 0)
-		{
-			ImGui::SetNextItemWidth(120.0f);
-			ImGui::DragFloat(STR_C("Radius (m)##zielsko"), &settings.radius, 10.0f, 100.0f, 20000.0f, "%.0f");
-		}
-		if (settings.scope == 2)
-			ImGui::TextDisabled("%s", STR_C("LMB adds a point of the outline, Shift+LMB takes the last one back"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Nearest to a track (m)##zielsko"), &settings.nearest, 0.1f, 0.0f, 100.0f, "%.1f");
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("From the axis of a rail track: the clearance, the poles and the cess stay free"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Farthest from a track (m)##zielsko"), &settings.farthest, 1.0f, 10.0f, 2000.0f, "%.0f");
-		settings.farthest = std::max(settings.farthest, settings.nearest + 1.0f);
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Off the roads (m)##zielsko"), &settings.road, 0.1f, 0.0f, 30.0f, "%.1f");
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("From the edge of a road of the scenery"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Lowest tree (m)##zielsko"), &settings.lowest, 0.1f, 4.0f, 40.0f, "%.1f");
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Spacing (m)##zielsko"), &settings.spacing, 0.1f, 0.0f, 30.0f, settings.spacing > 0.0f ? "%.1f" : STR_C("none"));
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("A wood thinned out: no two trees nearer than this, the taller kept"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragInt(STR_C("At most##zielsko"), &settings.limit, 100.0f, 100, 1000000);
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("The trees nearest to the tracks first; each one is a model of the scenery"));
-		ImGui::TextDisabled("%s", STR_C("The water bodies of the terrain stay free of trees"));
-
-		ImGui::SeparatorText(STR_C("3. The models"));
-		ImGui::SetNextItemWidth(180.0f);
-		ImGui::InputText(STR_C("Group of the node bank, trees##zielsko"), settings.trees_group, sizeof(settings.trees_group));
-		ImGui::SetNextItemWidth(180.0f);
-		ImGui::InputText(STR_C("Group of the node bank, low ones##zielsko"), settings.low_group, sizeof(settings.low_group));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Low ones below (m)##zielsko"), &settings.small_below, 0.1f, 4.0f, 30.0f, "%.1f");
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::DragFloat(STR_C("Height of the models (m)##zielsko"), &settings.model_height, 0.1f, 0.0f, 60.0f, settings.model_height > 0.0f ? "%.1f" : STR_C("from the model"));
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("How tall the models of the groups are at the scale of 1, so a tree of the data gets its own height.\n"
-			                              "From the model: about the radius of the model, which suits the models standing on their foot"));
-		ImGui::SetNextItemWidth(120.0f);
-		ImGui::SliderFloat(STR_C("Scatter of the size##zielsko"), &settings.jitter, 0.0f, 0.3f, "%.2f");
-		ImGui::Spacing();
-		if (ImGui::Button(STR_C("Count and show##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
-			run_busy(STR_C("Sifting the trees"), [this]() { zielsko_count(); });
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("The trees which would be planted, as dots up to 1.5 km from the camera: yellow low, green tall"));
-		if (main_button(STR_C("Plant"), ImVec2(-FLT_MIN, tall_button_height())))
+		m_zielsko_plant_after = false;
+		zielsko_refresh_counties();
+		if (m_zielsko_harvest.finished())
 			run_busy(STR_C("Planting the trees"), [this]() { zielsko_plant(); });
-		if (ImGui::IsItemHovered())
-			ImGui::SetTooltip("%s", STR_C("The trees planted before by ZIELSKO go first, then the ones through the sieve are planted"));
-		if (change_button(STR_C("Clear the trees planted##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
-		{
-			auto const removed{zielsko_remove()};
-			m_zielsko_preview.clear();
-			m_zielsko_status = format(STR_C("Taken away: %zu trees planted by ZIELSKO"), removed);
-		}
-		if (false == m_zielsko_status.empty())
-			ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.24f, 1.0f), "%s", m_zielsko_status.c_str());
-		ImGui::TextDisabled("%s", STR_C("The source: GUGiK, 3D tree models (geoportal.gov.pl), CC BY 4.0: name it with the scenery"));
 	}
+	if (false == m_zielsko_counties_read)
+	{
+		m_zielsko_counties_read = true;
+		zielsko_refresh_counties();
+	}
+	if (false == ImGui::CollapsingHeader(STR_C("ZIELSKO from space"), ImGuiTreeNodeFlags_DefaultOpen))
+		return;
+	ImGui::TextWrapped("%s", STR_C("The trees of the 3D tree models of geoportal.gov.pl (GUGiK, from airborne laser scanning, trees over 4 m): where each "
+	                               "stands and how tall it is. What the area needs is read over the network when planting, only once: every sheet of "
+	                               "the map read is kept beside the terrain, all its trees"));
+	auto const running{m_zielsko_harvest.running()};
+
+	ImGui::SeparatorText(STR_C("1. The area"));
+	ImGui::BeginDisabled(running);
+	ImGui::RadioButton(STR_C("Around the camera##zielsko"), &settings.scope, 0);
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("Within the outline##zielsko"), &settings.scope, 2);
+	ImGui::SameLine();
+	ImGui::RadioButton(STR_C("The whole scenery##zielsko"), &settings.scope, 1);
+	ImGui::EndDisabled();
+	if (settings.scope == 0)
+	{
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::DragFloat(STR_C("Radius (m)##zielsko"), &settings.radius, 10.0f, 100.0f, 20000.0f, "%.0f");
+	}
+	if (settings.scope == 2)
+		ImGui::TextDisabled(STR_C("LMB adds a point of the outline, Shift+LMB takes the last one back (%zu points)"), m_paint_outline.size());
+	if (settings.scope == 1)
+		ImGui::TextDisabled("%s", STR_C("The counties under the whole terrain are read to the end: tens of gigabytes for a large scenery"));
+
+	ImGui::SeparatorText(STR_C("2. The sieve"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Nearest to a track (m)##zielsko"), &settings.nearest, 0.1f, 0.0f, 100.0f, "%.1f");
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("From the axis of a rail track: the clearance, the poles and the cess stay free"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Farthest from a track (m)##zielsko"), &settings.farthest, 1.0f, 10.0f, 20000.0f, "%.0f");
+	settings.farthest = std::max(settings.farthest, settings.nearest + 1.0f);
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Off the roads (m)##zielsko"), &settings.road, 0.1f, 0.0f, 30.0f, "%.1f");
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("From the edge of a road of the scenery"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Lowest tree (m)##zielsko"), &settings.lowest, 0.1f, 4.0f, 40.0f, "%.1f");
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Spacing (m)##zielsko"), &settings.spacing, 0.1f, 0.0f, 30.0f, settings.spacing > 0.0f ? "%.1f" : STR_C("none"));
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("A wood thinned out: no two trees nearer than this, the taller kept"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragInt(STR_C("At most##zielsko"), &settings.limit, 100.0f, 100, 1000000);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("The trees nearest to the tracks first; each one is a model of the scenery"));
+	ImGui::TextDisabled("%s", STR_C("The water bodies of the terrain stay free of trees"));
+
+	ImGui::SeparatorText(STR_C("3. The models"));
+	ImGui::SetNextItemWidth(180.0f);
+	ImGui::InputText(STR_C("Group of the node bank, trees##zielsko"), settings.trees_group, sizeof(settings.trees_group));
+	ImGui::SetNextItemWidth(180.0f);
+	ImGui::InputText(STR_C("Group of the node bank, low ones##zielsko"), settings.low_group, sizeof(settings.low_group));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Low ones below (m)##zielsko"), &settings.small_below, 0.1f, 4.0f, 30.0f, "%.1f");
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Height of the models (m)##zielsko"), &settings.model_height, 0.1f, 0.0f, 60.0f, settings.model_height > 0.0f ? "%.1f" : STR_C("from the model"));
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("How tall the models of the groups are at the scale of 1, so a tree of the data gets its own height.\n"
+		                              "From the model: about the radius of the model, which suits the models standing on their foot"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::SliderFloat(STR_C("Scatter of the size##zielsko"), &settings.jitter, 0.0f, 0.3f, "%.2f");
+
+	ImGui::Spacing();
+	ImGui::BeginDisabled(running);
+	if (main_button(STR_C("Plant"), ImVec2(-FLT_MIN, tall_button_height())))
+		run_busy(STR_C("Finding what the area needs"), [this]() { zielsko_harvest_start(false, true); });
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", STR_C("The sheets of the map of the area not read yet are read first, in the background (the package of a county is read only "
+		                              "as far as they come); then the trees planted before within the area go and the ones through the sieve are planted"));
+	if (ImGui::Button(STR_C("Count and show##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
+		run_busy(STR_C("Sifting the trees"), [this]() { zielsko_count(); });
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", STR_C("From what's read already: the trees which would be planted, as dots up to 1.5 km from the camera, yellow low, green tall"));
+	if (change_button(STR_C("Clear the trees planted within the area##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
+	{
+		auto const removed{zielsko_remove(true)};
+		m_zielsko_preview.clear();
+		m_zielsko_status = format(STR_C("Taken away: %zu trees planted by ZIELSKO"), removed);
+	}
+	ImGui::EndDisabled();
+	if (false == m_zielsko_status.empty())
+		ImGui::TextColored(ImVec4(1.0f, 0.82f, 0.24f, 1.0f), "%s", m_zielsko_status.c_str());
+
+	ImGui::SeparatorText(STR_C("4. The data"));
+	if (running)
+	{
+		ImGui::ProgressBar(static_cast<float>(m_zielsko_harvest.progress()), ImVec2(-FLT_MIN, 0.0f));
+		if (ImGui::Button(STR_C("Stop reading##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
+		{
+			m_zielsko_plant_after = false;
+			m_zielsko_harvest.stop();
+			zielsko_refresh_counties();
+		}
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", STR_C("What has come is kept; nothing is planted"));
+		if (m_zielsko_plant_after)
+			ImGui::TextDisabled("%s", STR_C("The trees are planted when the reading ends"));
+	}
+	auto const status{m_zielsko_harvest.status()};
+	if (false == status.empty())
+		ImGui::TextWrapped("%s", status.c_str());
+	for (auto const &c : m_zielsko_harvest.counties())
+	{
+		if (c.needed == 0)
+			ImGui::TextDisabled(STR_C("County %s: read before"), c.teryt.c_str());
+		else
+			ImGui::TextDisabled(STR_C("County %s: %zu sheets to read, the package up to %.0f MB"), c.teryt.c_str(), c.needed, c.size / 1048576.0);
+	}
+	if (ImGui::TreeNode(STR_C("Kept beside the terrain##zielsko")))
+	{
+		if (m_zielsko_counties.empty())
+			ImGui::TextDisabled("%s", STR_C("Nothing yet"));
+		for (auto const &line : m_zielsko_counties)
+			ImGui::TextUnformatted(line.c_str());
+		if (ImGui::SmallButton(STR_C("Refresh##zielsko")))
+			zielsko_refresh_counties();
+		ImGui::TreePop();
+	}
+	ImGui::BeginDisabled(running);
+	if (ImGui::Button(STR_C("Read the whole scenery in the background##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
+		run_busy(STR_C("Finding the counties under the terrain"), [this]() { zielsko_harvest_start(true, false); });
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", STR_C("All the counties under the terrain read to the end, the ones read whole before passed over: for a night, tens of gigabytes "
+		                              "for a large scenery. Nothing is planted"));
+	ImGui::EndDisabled();
+	ImGui::TextDisabled("%s", STR_C("The source: GUGiK, 3D tree models (geoportal.gov.pl), CC BY 4.0: name it with the scenery"));
 }
