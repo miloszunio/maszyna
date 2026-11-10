@@ -68,8 +68,8 @@
 		int limit{20000};
 		int scope{0}; // 0 around the camera, 1 the whole scenery, 2 within the outline
 		float radius{1500.0f};
-		char tall[64]{"Duze drzewka"};
-		char small[64]{"Krzaki"};
+		char trees_group[64]{"Duze drzewka"};
+		char low_group[64]{"Krzaki"};
 		float small_below{8.0f};
 		float model_height{0.0f}; // 0: from the model
 		float jitter{0.08f};

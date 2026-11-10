@@ -316,13 +316,13 @@ void editor_mode::zielsko_plant()
 		}
 		return result;
 	};
-	auto const tall{templates(settings.tall)};
-	auto small{templates(settings.small)};
-	if (small.empty())
-		small = tall;
-	if (tall.empty())
+	auto const tall_pool{templates(settings.trees_group)};
+	auto low_pool{templates(settings.low_group)};
+	if (low_pool.empty())
+		low_pool = tall_pool;
+	if (tall_pool.empty())
 	{
-		m_zielsko_status = format(STR_C("No group %s in the node bank: nothing to plant with"), settings.tall);
+		m_zielsko_status = format(STR_C("No group %s in the node bank: nothing to plant with"), settings.trees_group);
 		return;
 	}
 	std::size_t counties, read;
@@ -350,7 +350,7 @@ void editor_mode::zielsko_plant()
 		glm::dvec3 const location{c.at.x, ground, c.at.y};
 		if (false == simulation::Region->point_inside(location))
 			continue;
-		auto const &pool{c.height < settings.small_below ? small : tall};
+		auto const &pool{c.height < settings.small_below ? low_pool : tall_pool};
 		auto const &src{pool[std::min(pool.size() - 1, static_cast<std::size_t>(uniform(0.0, 1.0) * pool.size()))]};
 		auto *model{simulation::State.create_model(src, zielsko_prefix + std::to_string(planted), location)};
 		if (model == nullptr)
@@ -480,9 +480,9 @@ void editor_mode::render_zielsko_ui()
 
 		ImGui::SeparatorText(STR_C("3. The models"));
 		ImGui::SetNextItemWidth(180.0f);
-		ImGui::InputText(STR_C("Group of the node bank, trees##zielsko"), settings.tall, sizeof(settings.tall));
+		ImGui::InputText(STR_C("Group of the node bank, trees##zielsko"), settings.trees_group, sizeof(settings.trees_group));
 		ImGui::SetNextItemWidth(180.0f);
-		ImGui::InputText(STR_C("Group of the node bank, low ones##zielsko"), settings.small, sizeof(settings.small));
+		ImGui::InputText(STR_C("Group of the node bank, low ones##zielsko"), settings.low_group, sizeof(settings.low_group));
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::DragFloat(STR_C("Low ones below (m)##zielsko"), &settings.small_below, 0.1f, 4.0f, 30.0f, "%.1f");
 		ImGui::SetNextItemWidth(120.0f);
