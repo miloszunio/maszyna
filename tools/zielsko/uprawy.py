@@ -60,8 +60,7 @@ def save(rgb, folder, name):
     Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8)).save(os.path.join(folder, name + '.png'))
 
 
-MAT = """// ZIELSKO (ficzery2): {about}; made by tools/zielsko/uprawy.py from the textures of MaSzyna
-winter: {{ shader: parallax
+MAT = """winter: {{ shader: parallax
 texture_diffuse: zima/pole
 texture_normalmap: zima/normals/pole_normal
 param_height_scale: 0.03
@@ -119,7 +118,7 @@ def main(source, out):
 
     for name, about, autumn in made:
         with open(os.path.join(folder, name + '.mat'), 'w', newline='\n') as file:
-            file.write(MAT.format(about=about, autumn=autumn, name=name))
+            file.write(MAT.format(autumn=autumn, name=name))
     print('\n'.join(name for name, _, _ in made))
 
 
