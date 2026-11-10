@@ -1864,7 +1864,8 @@ void editor_mode::render_go_to_ui()
 		else if (query.size() >= 2)
 			ImGui::TextDisabled("%s", STR_C("Nothing found in the area of the network"));
 		ImGui::BeginDisabled(m_goto_found < 0 || false == located);
-		if (main_button(STR_C("Go to the place found"), ImVec2(-FLT_MIN, tall_button_height())) || (entered && m_goto_found >= 0 && located))
+		if ((main_button(STR_C("Go to the place found"), ImVec2(-FLT_MIN, tall_button_height())) || entered) && m_goto_found >= 0 &&
+			m_goto_found < static_cast<int>(std::size(places)) && located)
 			go_to_plan(to_plan({static_cast<double>(places[m_goto_found].east), static_cast<double>(places[m_goto_found].north)}));
 		ImGui::EndDisabled();
 		ImGui::TextDisabled("%s", STR_C("The towns and villages of the area of the IRT network (Lower Silesia), PRNG 2021"));

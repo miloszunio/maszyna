@@ -932,12 +932,11 @@ bool terrain_streamer::height_at(double X, double Z, double &Height, bool const 
 	if (false == Load || false == m_active)
 		return false;
 	glm::dvec2 const point{X, Z};
-	for (auto *chunk : chunks_in(point, point, true))
-	{
-		Height = chunk->height_at(X, Z);
-		return true;
-	}
-	return false;
+	auto const chunks{chunks_in(point, point, true)};
+	if (chunks.empty())
+		return false;
+	Height = chunks.front()->height_at(X, Z);
+	return true;
 }
 
 void terrain_streamer::gather_triangles(glm::dvec2 const &Min, glm::dvec2 const &Max, std::vector<std::array<glm::dvec3, 3>> &Out) const
