@@ -61,7 +61,7 @@ public:
 	{
 		double speed{1.0};
 		double fast{30.0};
-		bool zoomed{true};
+		bool zoomed{false}; // off as the editor was before: "As it was" means it
 		bool pan_ortho{true};
 		bool pan_perspective{false};
 		bool no_fog{false}; // the fog and the haze left out in the perspective view too (in the top view they always are)

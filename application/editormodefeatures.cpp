@@ -1157,7 +1157,7 @@ void editor_mode::cut_track_bed()
 	// the ones made before with a hole of their own get it closed
 	for (auto const &patch : patches)
 		if (false == patch.paint && replaced(patch))
-			m_streamer.cut(patch.outline, false);
+			m_streamer.cut_field(patch.outline, false);
 	patches.erase(std::remove_if(patches.begin(), patches.end(), replaced), patches.end());
 	auto const removed{before - patches.size()};
 	std::vector<std::size_t> made_now;
@@ -1340,6 +1340,38 @@ void editor_mode::cut_out_surface()
 	if (m_waves.on && m_waves.kind == terrain_waves::field && m_waves.tramlines >= 1.0f && patch.paint)
 		patch.field = format("tram=%g angle=%g head=%g drift=%g soil=uprawy/zbronowane", m_waves.tramlines, m_waves.angle, m_waves.headland, m_waves.drift);
 	auto patches{m_streamer.patches()};
+	// the outline of a field put back to be drawn again: that field gets it, the rest of it as it was
+	auto const again{std::find_if(patches.begin(), patches.end(), [this](heightmap::surface_patch const &Other) { return Other.name == m_patch_reoutline; })};
+	m_patch_reoutline.clear();
+	if (again != patches.end())
+	{
+		auto const old{*again};
+		auto const index{static_cast<std::size_t>(again - patches.begin())};
+		auto outline{std::move(patch.outline)};
+		auto shape{std::move(patch.shape)};
+		patch = old;
+		patch.outline = std::move(outline);
+		patch.shape = std::move(shape);
+		terrain_history_step();
+		if (m_waves.on && apply_waves(patch.outline))
+			forget_ground();
+		auto const name{patch.name};
+		patches[index] = patch;
+		if (false == patch.paint)
+		{
+			m_streamer.cut_field(old.outline, false);
+			m_streamer.cut_field(patch.outline, true);
+			m_streamer.patches(std::move(patches));
+			forget_ground();
+		}
+		else
+			repaint_patches(std::move(patches), {index}, {old});
+		terrain_history_step();
+		m_patch_selected = static_cast<int>(index);
+		m_paint_outline.clear();
+		m_terrain_status = format(STR_C("%s outlined again, Ctrl+Z puts it back"), name.c_str());
+		return;
+	}
 	// a name not taken yet
 	for (int number = static_cast<int>(patches.size()) + 1;; ++number)
 	{
@@ -1361,7 +1393,7 @@ void editor_mode::cut_out_surface()
 	if (separate)
 	{
 		// the ground cut away under it, the field drawn over the hole with the heights the terrain has there
-		m_streamer.cut(outline, true);
+		m_streamer.cut_field(outline, true);
 		m_streamer.patches(std::move(patches));
 		forget_ground();
 	}
@@ -2140,7 +2172,7 @@ void editor_mode::convert_patches_to_paint()
 				continue;
 		}
 		// the hole under it closed, the mesh gone
-		m_streamer.cut(patch.outline, false);
+		m_streamer.cut_field(patch.outline, false);
 		patch.paint = true;
 		patch.follow = true;
 		patch.heights.clear();

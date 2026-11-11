@@ -17412,3 +17412,9 @@ msgstr "Jak głęboko koleiny wchodzą w ziemię; teren dostaje pod polem punkt 
 
 msgid "With a crop: turned from along the rows by this much (0: the rows of the texture along the rows of the field)"
 msgstr "Z uprawą: obrót względem rzędów o tyle (0: rzędy tekstury wzdłuż rzędów pola)"
+
+msgid "%s outlined again, Ctrl+Z puts it back"
+msgstr "%s obrysowane na nowo, Ctrl+Z cofa"
+
+msgid "Puts the outline of the surface back as the outline of the Fill tool; cut out again, it changes this surface"
+msgstr "Wstawia obrys powierzchni z powrotem jako obrys narzędzia Wypełnij; wycięcie go zmienia tę powierzchnię"

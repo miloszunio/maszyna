@@ -2024,10 +2024,16 @@ bool editor_orthophoto::sample(glm::dvec2 const &Min, glm::dvec2 const &Max, dou
 	return any;
 }
 
-std::size_t editor_orthophoto::hurry(glm::dvec2 const &Min, glm::dvec2 const &Max)
+std::size_t editor_orthophoto::hurry(glm::dvec2 const &Min, glm::dvec2 const &Max, glm::dvec3 const &Camera)
 {
 	if (false == m_enabled)
 		return 0;
+	// the tile of the camera as it is now: it isn't followed while the layer is off
+	m_camera_tile = camera_tile(Camera);
+	{
+		std::lock_guard<std::mutex> lock(m_mutex);
+		m_focus = m_camera_tile;
+	}
 	auto const a{to_puwg(Min)}, b{to_puwg(Max)};
 	auto const low{glm::min(a, b)}, high{glm::max(a, b)};
 	tile_key const first{static_cast<int>(std::floor(low.x / tile_size)), static_cast<int>(std::floor(low.y / tile_size))};

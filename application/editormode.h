@@ -203,6 +203,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// swaps the kilometrage with the one the snapshot keeps
 	void restore_kilometrage(EditorSnapshot &Snapshot);
 	bool m_history_busy{false}; // undo or redo under way
+	std::size_t m_history_changes{0}; // undos, redos and the steps dropped off the full history: with its size, a change of the history is seen by
 	void handle_brush_mouse_hold(int Action, int Button);
 	void apply_rotation_for_new_node(scene::basic_node *node, int rotation_mode, float fixed_rotation_value);
 	// members
@@ -234,6 +235,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool m_dragging = false;
 	glm::dvec3 oldPos; // world position of the last brush placement
 	bool m_brush_has_last{false}; // false at the start of a brush stroke, so the first placement ignores spacing
+	bool m_draw_cursor{false}; // the cursor drawn into the picture (View menu), on only while the editor is
 	bool mouseHold{false};
 	float kMaxPlacementDistance = 200.0f;
 	static bool m_change_history;
@@ -793,6 +795,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool m_terrain_convert_paint{true}; // chunks converted to 0.5 m get paint samples every 0.5 m too
 	std::vector<glm::dvec3> m_paint_outline; // of the area filled with a material
 	int m_patch_selected{-1}; // surface cut out of the terrain chosen in the list
+	heightmap::surface_patch m_patch_edit; // its copy the widgets edit, kept while one of them is held
+	int m_patch_edited{-1}; // which field m_patch_edit is of
+	std::string m_patch_reoutline; // the field whose outline was put back to be drawn again: cutting out changes it
 	float m_paint_feather{0.0f}; // metres the filled material blends in over across the outline, 0: sharp
 	float m_paint_rotation{0.0f}; // degrees the textures of the filled material are turned by
 	float m_water_selected_level{0.0f}; // level of the chosen water, while it's edited

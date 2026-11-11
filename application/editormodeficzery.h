@@ -307,6 +307,7 @@
 		std::vector<char> selected; // of the nodes
 		std::vector<glm::dvec3> synced; // the points of the road tool as they were last matched to the nodes
 		std::size_t history{0}; // length of the undo history the profile was read at
+		std::size_t history_changes{0}; // and m_history_changes then
 		int exaggeration{4}; // index of the stretch of the heights: fit, 1, 2, 5, 10, 20, 50
 		bool dragging{false}; // nodes dragged up or down in the graph
 		float drag_mouse{0.0f};

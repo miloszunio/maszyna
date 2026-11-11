@@ -216,6 +216,14 @@ void editor_mode::orthophoto_hurry()
                 auto const clip = inverse * glm::vec4(ndc, Depth, 1.0f);
                 return glm::dvec3{glm::vec3{clip} / clip.w};
             };
+            if (Global.EditorOrtho)
+            {
+                // the view straight down: the corners of the screen are where it reaches on the ground
+                auto const corner{camera + point(0.0f)};
+                low = glm::min(low, glm::dvec2{corner.x, corner.z});
+                high = glm::max(high, glm::dvec2{corner.x, corner.z});
+                continue;
+            }
             auto direction = point(0.5f) - point(0.0f);
             if (glm::length(direction) < 1e-9)
                 continue;
@@ -232,7 +240,7 @@ void editor_mode::orthophoto_hurry()
             low = glm::min(low, glm::dvec2{hit.x, hit.z});
             high = glm::max(high, glm::dvec2{hit.x, hit.z});
         }
-    auto const count{m_orthophoto.hurry(low, high)};
+    auto const count{m_orthophoto.hurry(low, high, camera)};
     ui()->set_status(count > 0 ? format(STR_C("Orthophoto: %zu tiles of the view downloaded first (Ctrl+~)"), count)
                            : std::string{STR("Orthophoto: the view is all shown already (Ctrl+~)")});
 }
@@ -336,7 +344,14 @@ void editor_mode::render_patches_ui()
     }
     if (m_patch_selected < 0 || m_patch_selected >= static_cast<int>(patches.size()))
         return;
-    auto patch{patches[m_patch_selected]};
+    // the copy edited is kept from frame to frame while a widget is held, so a drag ends with the values dragged to; taken
+    // anew from the list otherwise (another field chosen, an undo)
+    if (false == ImGui::IsAnyItemActive() || m_patch_edited != m_patch_selected)
+    {
+        m_patch_edit = patches[m_patch_selected];
+        m_patch_edited = m_patch_selected;
+    }
+    auto &patch{m_patch_edit};
     bool changed{false};
     char buffer[256];
     std::snprintf(buffer, sizeof(buffer), "%s", patch.material.c_str());
@@ -392,24 +407,28 @@ void editor_mode::render_patches_ui()
         patch.noise = std::max(0.0f, patch.noise);
         patch.noise_scale = std::max(0.5f, patch.noise_scale);
         auto all{patches};
-        all[m_patch_selected] = std::move(patch);
+        all[m_patch_selected] = patch;
         repaint_patches(std::move(all), {static_cast<std::size_t>(m_patch_selected)});
         return;
     }
     if (ImGui::Button(STR_C("Outline it again##patch")))
     {
+        // cutting it out again changes this field, not a new one
+        m_patch_reoutline = patch.name;
         if (false == patch.shape.empty() && restore_outline(patch.shape))
             return;
         m_paint_outline.clear();
         for (auto const &point : patch.outline)
         {
+            // on the ground: a field following the terrain has no heights of its own
             double height{0.0};
-            patch.height(point.x, point.y, height);
+            if (false == m_streamer.height_at(point.x, point.y, height))
+                patch.height(point.x, point.y, height);
             m_paint_outline.emplace_back(point.x, height, point.y);
         }
     }
     if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("%s", STR_C("Puts the outline of the surface back as the outline of the Fill tool"));
+        ImGui::SetTooltip("%s", STR_C("Puts the outline of the surface back as the outline of the Fill tool; cut out again, it changes this surface"));
     ImGui::SameLine();
     if (ImGui::Button(STR_C("Go to##patch")))
     {
@@ -421,7 +440,7 @@ void editor_mode::render_patches_ui()
     ImGui::SameLine();
     if (ImGui::Button(STR_C("Give back to the terrain##patch")))
     {
-        auto const gone = patch;
+        auto const gone = patches[m_patch_selected];
         auto all{patches};
         all.erase(all.begin() + m_patch_selected);
         m_patch_selected = -1;
@@ -432,7 +451,7 @@ void editor_mode::render_patches_ui()
             m_terrain_status = STR_C("Surface removed, the ground under it has the first material of the palette again");
             return;
         }
-        m_streamer.cut(gone.outline, false);
+        m_streamer.cut_field(gone.outline, false);
         m_streamer.patches(std::move(all));
         forget_ground();
         m_terrain_status = STR_C("Surface removed, the hole under it closed");

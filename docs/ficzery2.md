@@ -1,6 +1,17 @@
 Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrrycho leżą najnowsze zmiany maj00ra, a na tym wszystkie nasze wdrożenia.
 
-## Zmiany w tym wydaniu (nr 84–85)
+## Zmiany w tym wydaniu (nr 86)
+
+Poprawki z review maj00ra do PR-ów #309–#315, przeniesione do nas:
+- **Pola / powierzchnie:** suwaki we właściwościach pola zapamiętują wartość (wcześniej przeciągnięcie się nie zapisywało); „Obrysuj ponownie” kładzie punkty na ziemi i ponowne wycięcie zmienia to samo pole zamiast robić drugie; osobne powierzchnie budowane tak daleko, jak rysowany jest teren (bez dziur za 1,5 km); pole na krawędzi ostatniego chunka budowane z tego, co ma ziemię, bez przebudowy co sekundę; „Oddaj terenowi” zamyka tylko dziurę po polu (dziury pól mają znacznik 254), ręczne dziury zostają; ponowne kładzenie formacji nie kasuje naturalnych skarp.
+- **Profil drogi:** koniec przebiegu ciągnie za sobą inne odcinki w tym punkcie (zmiana pasów, trzy odcinki bez skrzyżowania); pętla ma jedną wysokość w punkcie zamknięcia; „Wyrównaj” zostawia nachylenia na końcach; wykres odświeża się też przy pełnej historii; „Poziomo” i „Nad terenem” zmieniają tylko zaznaczone węzły.
+- **Punkty dróg:** najpierw punkt przy klikniętej ziemi, potem odcinek albo skrzyżowanie pod kursorem, szukanie na ekranie tylko gdy nic nie ma i nie dalej niż to, co pod kursorem; Alt+przeciąganie przerywa Esc, zamknięcie okna, inne narzędzie albo tryb torów; Ctrl+Z czeka na koniec przeciągania.
+- **Promień do terenu:** nie trafia pod ziemię sąsiedniego chunka przez lukę; w widoku z góry pędzle działają nad terenem wyższym niż kamera.
+- **Ctrl+~:** w widoku z góry bierze cały widok; działa za pierwszym razem przy wyłączonym ortofoto. „Jak było” w prędkości kamery znów bez przyspieszania z przybliżeniem.
+- **Kursor do streamów:** wyłączany po wyjściu z edytora, przywracany po powrocie.
+- **`Mouse_Hit()`** domyślnie „nie wiem” zamiast „trafiono” (PR #327).
+
+## Zmiany w nr 84–85
 
 - **`eu07_user.ini`** (nr 85): własne ustawienia czytane po `eu07.ini`, z `%APPDATA%\Maszyna` albo z folderu gry. Starter przepisuje `eu07.ini` tylko ze znanymi sobie kluczami (np. `gfx.atmosphere.haze` znikało), tego pliku nie rusza.
 
@@ -281,3 +292,4 @@ Od pierwszego buildu `ficzery2`. Numery to kolejne buildy CI (wspólna numeracja
 - **nr 83** (10.11): uprawy na polach (15 upraw z trawą 3D i teksturami), fala „Pole uprawne” (rzędy, zagony, uwrocia, ścieżki technologiczne).
 - **nr 84** (11.11): korekcja obrazu i wyostrzanie, uprawy bez jesieni, kolor pola zgodny z trawą, cieplejsza ziemia, miękkie ścieżki technologiczne.
 - **nr 85** (11.11): `eu07_user.ini`, ustawienia, których starter nie kasuje.
+- **nr 86** (11.11): poprawki z review PR-ów #309–#315 (pola, profil drogi, punkty dróg, promień do terenu, Ctrl+~, kursor), `Mouse_Hit()` bez optymizmu.

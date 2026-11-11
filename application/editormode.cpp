@@ -13,6 +13,7 @@ http://mozilla.org/MPL/2.0/.
 #include <iterator>
 #include <fstream>
 #include <regex>
+#include <optional>
 #include "application/editormode.h"
 #include "application/editormodeshared.h"
 #include "application/editorgestures.h"
@@ -884,6 +885,7 @@ void editor_mode::push_snapshot(scene::basic_node *node, EditorSnapshot::Action 
     if(m_max_history_size >= 0 && (int)m_history.size() >= m_max_history_size)
     {
         m_history.erase(m_history.begin(), m_history.begin() + ((int)m_history.size() - m_max_history_size + 1));
+        ++m_history_changes;
     }
 
     EditorSnapshot snap;
@@ -1013,6 +1015,7 @@ void editor_mode::undo_last()
 {
     // the warning by the cursor told of the step taken back now: "Ctrl+Z takes it back" is done
     ui()->drop_refusal();
+    ++m_history_changes; // for those who watch the history: a step was taken back or done again
     // a change of the terrain made a moment ago is a step of its own before it's taken back
     m_history_busy = true;
     terrain_history_step();
@@ -1209,6 +1212,7 @@ void editor_mode::undo_one()
 
 void editor_mode::redo_last()
 {
+    ++m_history_changes; // for those who watch the history: a step was taken back or done again
     // a change of the terrain made since the undo goes to the history, and the redo steps are dropped with it
     m_history_busy = true;
     terrain_history_step();
@@ -3699,7 +3703,11 @@ bool editor_mode::terrain_cursor(glm::dvec3 &World) const
     auto const direction = point(0.5f) - point(0.0f);
     if (glm::length(direction) < 1e-9)
         return false;
-    return m_streamer.raycast(GfxRenderer->Camera_Position() + point(0.0f), glm::normalize(direction), 5000.0, World);
+    // the top view sees from 10 km behind the plane of the camera (the near plane of its projection): the ray starts there,
+    // so the ground higher than the camera is met too
+    auto const back{Global.EditorOrtho ? 10000.0 : 0.0};
+    auto const along{glm::normalize(direction)};
+    return m_streamer.raycast(GfxRenderer->Camera_Position() + point(0.0f) - along * back, along, 5000.0 + back, World);
 }
 
 void editor_mode::render_grass_ui()
@@ -4394,8 +4402,11 @@ void editor_mode::render_view_menu()
         toggle_ortho();
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The view straight down without perspective, as on a map; again for the camera as it was"));
-    if (ImGui::MenuItem(STR_C("Cursor drawn into the picture (streams)"), nullptr, ui_layer::drawn_cursor()))
-        ui_layer::draw_cursor(false == ui_layer::drawn_cursor());
+    if (ImGui::MenuItem(STR_C("Cursor drawn into the picture (streams)"), nullptr, m_draw_cursor))
+    {
+        m_draw_cursor = !m_draw_cursor;
+        ui_layer::draw_cursor(m_draw_cursor);
+    }
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\n"
                                       "or a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"));
@@ -6494,6 +6505,8 @@ void editor_mode::update_camera(double const Deltatime)
 void editor_mode::enter()
 {
     m_statebackup = {Global.pCamera, FreeFlyModeFlag, Global.ControlPicking};
+    // the cursor drawn into the picture is the editor's: back on when it comes back, if it was chosen
+    ui_layer::draw_cursor(m_draw_cursor);
     apply_camera_settings();
     Global.EditorCameraOn = true;
     // the editor changes the tracks, their sleepers are worked out as they're needed
@@ -6594,6 +6607,8 @@ void editor_mode::enter()
 
 void editor_mode::exit()
 {
+    // the driver's view has no menu to switch the drawn cursor off: the system one there
+    ui_layer::draw_cursor(false);
     Global.EditorCameraOn = false;
     track_sleepers::lay_in_background(true);
     Global.editor_tracks = false;
@@ -6862,7 +6877,7 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         return;
 
     // shortcuts: undo/redo. not in the middle of a drag, it would go on from the state which was undone
-    if (Global.ctrlState && (Key == GLFW_KEY_Z || Key == GLFW_KEY_Y) && is_press(Action) && (m_track_gizmo_using || m_track_set_using || m_straights.dragging || m_extend.active || m_switch.placing || m_point_drag.active || m_handle_drag.active))
+    if (Global.ctrlState && (Key == GLFW_KEY_Z || Key == GLFW_KEY_Y) && is_press(Action) && (m_track_gizmo_using || m_track_set_using || m_straights.dragging || m_extend.active || m_switch.placing || m_point_drag.active || m_handle_drag.active || m_roadtool.lifting))
         return;
     if (Global.ctrlState && Key == GLFW_KEY_Z && is_press(Action))
     {
@@ -7450,6 +7465,7 @@ void editor_mode::render_change_history(){
         {
             auto remove_count = (int)m_history.size() - m_max_history_size;
             m_history.erase(m_history.begin(), m_history.begin() + remove_count);
+            ++m_history_changes;
             // adjust selected index
             if (m_selected_history_idx >= (int)m_history.size())
                 m_selected_history_idx = (int)m_history.size() - 1;

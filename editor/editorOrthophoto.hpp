@@ -171,7 +171,7 @@ class editor_orthophoto
 	bool sample(glm::dvec2 const &Min, glm::dvec2 const &Max, double Step, int &Width, int &Height, std::vector<std::uint8_t> &Rgba) const;
 	// the tiles over a rectangle of the world (x, z; what the camera sees), within the reach around the camera, asked for before anything
 	// else, the ones which failed tried again at once. returns: how many were put at the front of the queue
-	std::size_t hurry(glm::dvec2 const &Min, glm::dvec2 const &Max);
+	std::size_t hurry(glm::dvec2 const &Min, glm::dvec2 const &Max, glm::dvec3 const &Camera);
 	// false when the build has no http client; cached tiles are still shown
 	static bool can_download();
 	// what a WMS tells of itself in its capabilities: its title, its fees and access constraints, its layers with a name and whether it
