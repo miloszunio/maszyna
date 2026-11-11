@@ -36,9 +36,9 @@ Zostało przy nich: test skryptem w edytorze, komentarz pod każdym PR-em z opis
 
 1. **Naprawić sadzenie drzew (ZIELSKO).** Log z próby, ustalenie: dane (serwer, arkusze, współrzędne) czy sito i sadzenie.
    Zapas: wysokości koron z NMPT − NMT tam, gdzie modeli 3D nie ma.
-2. **Obrys z działki ewidencyjnej** jako sposób obrysu: klik w teren albo numer działki (ULDK GUGiK), Shift+klik dokłada
+2. **(w nr 111, do testu)** **Obrys z działki ewidencyjnej** jako sposób obrysu: klik w teren albo numer działki (ULDK GUGiK), Shift+klik dokłada
    sąsiednią, potem zwykła edycja punktów; odpowiedzi trzymane na dysku.
-3. **Strzałka kierunku rzędów** przy fali „Pole uprawne”: wektor w środku obrysu, grot do przeciągania (Ctrl: co 5°),
+3. **(w nr 111, do testu)** **Strzałka kierunku rzędów** przy fali „Pole uprawne”: wektor w środku obrysu, grot do przeciągania (Ctrl: co 5°),
    tekstura uprawy obraca się z rzędami.
 4. **PR-y z naszych rzeczy**, każdy z testem w edytorze: uprawy + fala pola, obrys z działki + strzałka, korekcja obrazu,
    `eu07_user.ini`, zaawansowane obrysy (krzywe, Bézier, ręcznie, wzdłuż toru, różdżka) po merge #315.

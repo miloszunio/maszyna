@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include "application/editorprojection.h"
 #include "editor/editorFormat.hpp"
 #include "editor/editorGeometry.hpp"
+#include "editor/editorParcel.hpp"
 #include "world/Track.h"
 #include "simulation/simulation.h"
 #include "scene/scene.h"
@@ -552,10 +553,268 @@ void editor_mode::render_outline_options()
 		}
 		ImGui::Unindent();
 	}
+	changed |= ImGui::Checkbox(STR_C("A cadastral parcel (click it)##outline"), &shape.parcel);
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("A click on the ground takes the outline of the parcel there from the cadastre (ULDK of GUGiK), Shift+click adds the "
+		                              "parcel next to it or takes one away; then its points are moved as any others. Needs the terrain set where it lies (PUWG 1992)"));
+	if (shape.parcel)
+	{
+		ImGui::Indent();
+		ImGui::SetNextItemWidth(200.0f);
+		ImGui::InputTextWithHint("##parcelnumber", "021903_2.0003.176/5", m_parcel_number, sizeof(m_parcel_number));
+		ImGui::SameLine();
+		if (ImGui::Button(STR_C("Fetch by the number##parcel")) && m_parcel_number[0] != '\0')
+		{
+			std::string const number{m_parcel_number};
+			auto const add{Global.shiftState};
+			run_busy(STR_C("Fetching the parcel from the cadastre (ULDK)"), [this, number, add]() { parcel_fetch({}, number, add); });
+		}
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", STR_C("The full number of the parcel: the district (TERYT), the precinct and the parcel; with Shift held it's added"));
+		for (auto const &id : m_parcel_ids)
+			ImGui::BulletText("%s", id.c_str());
+		if (false == m_parcel_status.empty())
+			ImGui::TextWrapped("%s", m_parcel_status.c_str());
+		ImGui::Unindent();
+	}
 	if (m_paint_outline.size() >= 3)
+	{
 		ImGui::TextDisabled(STR_C("%zu points clicked, %zu of the outline made"), m_paint_outline.size(), shaped_outline().size());
+		ImGui::TextColored(ImVec4(0.96f, 0.79f, 0.24f, 1.0f), "%s", STR_C("Drag a point to move it, Alt+click on a point takes it away, on a side puts one in"));
+	}
 	if (changed)
 		m_outline_shaped_key.clear();
+}
+
+void editor_mode::parcel_fetch(glm::dvec3 const &World, std::string const &Number, bool const Add)
+{
+	auto const &manifest{m_streamer.manifest()};
+	if (false == manifest.georeferenced)
+	{
+		m_parcel_status = STR_C("The terrain doesn't know where it lies (PUWG 1992): set its origin first");
+		return;
+	}
+	auto const east0{manifest.origin_east};
+	auto const north0{manifest.origin_north};
+	parcel::found found;
+	std::string error;
+	auto const url{Number.empty() ? parcel::url_at(east0 - World.x, north0 + World.z) : parcel::url_of(Number)};
+	if (false == parcel::fetch(url, found, error))
+	{
+		m_parcel_status = format(STR_C("No parcel: %s"), error.c_str());
+		WriteLog("Editor: parcel " + url + ": " + error);
+		return;
+	}
+	auto parcels{Add ? m_parcels : std::vector<std::vector<glm::dvec2>>{}};
+	auto ids{Add ? m_parcel_ids : std::vector<std::string>{}};
+	// the one taken already is taken away again
+	if (auto const known{std::find(ids.begin(), ids.end(), found.id)}; known != ids.end())
+	{
+		parcels.erase(parcels.begin() + (known - ids.begin()));
+		ids.erase(known);
+	}
+	else
+	{
+		parcels.push_back(found.ring);
+		ids.push_back(found.id);
+	}
+	std::vector<glm::dvec2> ring;
+	if (parcels.size() == 1)
+		ring = parcels.front();
+	else if (parcels.size() > 1 && false == parcel::merge(parcels, ring))
+	{
+		m_parcel_status = format(STR_C("%s doesn't touch the parcels taken before along a side: not added"), found.id.c_str());
+		return;
+	}
+	m_parcels = std::move(parcels);
+	m_parcel_ids = std::move(ids);
+	m_paint_outline.clear();
+	m_outline_marks.clear();
+	for (auto const &point : ring)
+	{
+		glm::dvec3 const at{east0 - point.x, 0.0, point.y - north0};
+		double height{0.0};
+		m_streamer.height_at(at.x, at.z, height);
+		m_paint_outline.emplace_back(at.x, height, at.z);
+	}
+	// the corners of a parcel stay corners, whatever the curve
+	for (auto &mark : outline_marks())
+		mark.sharp = true;
+	m_outline_shaped_key.clear();
+	m_parcel_status = m_parcel_ids.empty() ? std::string{} : format(STR_C("%zu parcels, %zu points"), m_parcel_ids.size(), m_paint_outline.size());
+	WriteLog("Editor: parcel " + found.id + ", " + std::to_string(found.ring.size()) + " points");
+}
+
+namespace
+{
+// how far on the screen from the cursor, in pixels; a large number if it isn't in front of the camera
+double pixels_to(screen_projection const &Projection, glm::dvec3 const &Point)
+{
+	ImVec2 at;
+	if (false == Projection.project(Point, at))
+		return std::numeric_limits<double>::max();
+	auto const mouse{ImGui::GetIO().MousePos};
+	return std::hypot(at.x - mouse.x, at.y - mouse.y);
+}
+} // namespace
+
+bool editor_mode::outline_point_press(glm::dvec3 const &World)
+{
+	if (m_paint_outline.empty())
+		return false;
+	screen_projection const projection;
+	// the point nearest to the cursor on the screen
+	int nearest{-1};
+	double best{10.0};
+	for (std::size_t i = 0; i < m_paint_outline.size(); ++i)
+		if (auto const pixels{pixels_to(projection, m_paint_outline[i] + glm::dvec3{0.0, 0.15, 0.0})}; pixels < best)
+		{
+			best = pixels;
+			nearest = static_cast<int>(i);
+		}
+	auto &marks{outline_marks()};
+	if (Global.altState)
+	{
+		if (nearest >= 0)
+		{
+			m_paint_outline.erase(m_paint_outline.begin() + nearest);
+			marks.erase(marks.begin() + nearest);
+			m_outline_shaped_key.clear();
+			return true;
+		}
+		// a point put in the side nearest to the click
+		if (m_paint_outline.size() < 2)
+			return false;
+		auto const click{plan2(World)};
+		std::size_t side{0};
+		auto closest{std::numeric_limits<double>::max()};
+		for (std::size_t i = 0; i < m_paint_outline.size(); ++i)
+		{
+			auto const a{plan2(m_paint_outline[i])};
+			auto const b{plan2(m_paint_outline[(i + 1) % m_paint_outline.size()])};
+			auto const run{b - a};
+			auto const run2{glm::dot(run, run)};
+			auto const t{run2 > 1e-12 ? std::clamp(glm::dot(click - a, run) / run2, 0.0, 1.0) : 0.0};
+			if (auto const distance{glm::distance(click, a + run * t)}; distance < closest)
+			{
+				closest = distance;
+				side = i;
+			}
+		}
+		auto const point{placement_on_ground(World)};
+		m_paint_outline.insert(m_paint_outline.begin() + side + 1, point);
+		outline_mark mark;
+		mark.position = point;
+		mark.sharp = marks[side].sharp;
+		marks.insert(marks.begin() + side + 1, mark);
+		m_outline_shaped_key.clear();
+		return true;
+	}
+	if (nearest < 0)
+		return false;
+	m_outline_moving = nearest;
+	return true;
+}
+
+void editor_mode::outline_edit_drag(bool const Held)
+{
+	if (false == Held)
+	{
+		m_outline_moving = -1;
+		m_rows_arrow_dragging = false;
+		return;
+	}
+	glm::dvec3 world;
+	if ((m_outline_moving < 0 && false == m_rows_arrow_dragging) || false == cursor_on_ground(world))
+		return;
+	if (m_rows_arrow_dragging)
+	{
+		glm::dvec3 middle, tip;
+		if (false == rows_arrow(middle, tip))
+			return;
+		auto angle{glm::degrees(std::atan2(world.z - middle.z, world.x - middle.x))};
+		if (Global.ctrlState)
+			angle = std::round(angle / 5.0) * 5.0;
+		// the rows run either way: kept within -90..90, as the longest side gives it
+		m_waves.angle = static_cast<float>(std::remainder(angle, 180.0));
+		m_waves.auto_direction = false;
+		return;
+	}
+	if (m_outline_moving >= static_cast<int>(m_paint_outline.size()))
+	{
+		m_outline_moving = -1;
+		return;
+	}
+	auto &marks{outline_marks()};
+	auto const point{placement_on_ground(world)};
+	m_paint_outline[m_outline_moving] = point;
+	marks[m_outline_moving].position = point; // its mark goes with it
+	m_outline_shaped_key.clear();
+}
+
+bool editor_mode::rows_arrow(glm::dvec3 &Middle, glm::dvec3 &Tip) const
+{
+	if (m_terrain_tool != terrain_tool::fields || false == m_waves.on || m_waves.kind != terrain_waves::field)
+		return false;
+	auto const &outline{shaped_outline()};
+	if (outline.size() < 3)
+		return false;
+	glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
+	for (auto const &point : outline)
+	{
+		low = glm::min(low, point);
+		high = glm::max(high, point);
+	}
+	auto const middle{(low + high) * 0.5};
+	auto const angle{glm::radians(static_cast<double>(m_waves.auto_direction ? longest_side(outline) : m_waves.angle))};
+	auto const length{std::max(8.0, glm::length(high - low) * 0.2)};
+	auto const tip{middle + glm::dvec2{std::cos(angle), std::sin(angle)} * length};
+	double height{0.0};
+	m_streamer.height_at(middle.x, middle.y, height);
+	Middle = {middle.x, height + 0.5, middle.y};
+	Tip = {tip.x, height + 0.5, tip.y};
+	return true;
+}
+
+bool editor_mode::rows_arrow_press()
+{
+	glm::dvec3 middle, tip;
+	if (false == rows_arrow(middle, tip))
+		return false;
+	screen_projection const projection;
+	if (pixels_to(projection, tip) > 14.0)
+		return false;
+	m_rows_arrow_dragging = true;
+	return true;
+}
+
+void editor_mode::draw_rows_arrow(ImDrawList *Drawlist)
+{
+	glm::dvec3 middle, tip;
+	if (false == rows_arrow(middle, tip))
+		return;
+	screen_projection const projection;
+	auto const colour{IM_COL32(245, 200, 60, 255)};
+	// the shaft both ways (the rows run both ways), the head at the end to drag
+	auto const back{middle - (tip - middle)};
+	projection.line(Drawlist, back, tip, colour, 3.0f);
+	ImVec2 a, b;
+	if (projection.project(middle, a) && projection.project(tip, b))
+	{
+		ImVec2 const along{b.x - a.x, b.y - a.y};
+		auto const length{std::hypot(along.x, along.y)};
+		if (length > 1.0f)
+		{
+			ImVec2 const unit{along.x / length, along.y / length};
+			ImVec2 const side{-unit.y, unit.x};
+			Drawlist->AddTriangleFilled(b, ImVec2(b.x - unit.x * 14.0f + side.x * 7.0f, b.y - unit.y * 14.0f + side.y * 7.0f),
+			                            ImVec2(b.x - unit.x * 14.0f - side.x * 7.0f, b.y - unit.y * 14.0f - side.y * 7.0f), colour);
+		}
+		Drawlist->AddCircle(b, 9.0f, colour, 16, m_rows_arrow_dragging ? 3.0f : 1.5f);
+		auto const angle{m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle};
+		auto const label{format(STR_C("rows %.0f deg%s"), angle, m_waves.auto_direction ? STR_C(" (longest side)") : "")};
+		Drawlist->AddText(ImVec2(b.x + 12.0f, b.y - 8.0f), colour, label.c_str());
+	}
 }
 
 void editor_mode::draw_outline_shape(ImDrawList *Drawlist)

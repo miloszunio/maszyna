@@ -19,6 +19,7 @@
 		bool along{false}; // the sides between points by a track follow it at a distance of its axis
 		bool along_from_click{true};
 		float along_offset{10.0f};
+		bool parcel{false}; // a click takes the cadastral parcel under it (ULDK of GUGiK) as the outline, Shift+click adds the next
 	};
 	struct outline_mark
 	{
@@ -47,6 +48,24 @@
 	bool restore_outline(std::string const &Controls);
 	void render_outline_options();
 	void draw_outline_shape(ImDrawList *Drawlist);
+	// the cadastral parcels the outline is made of (editormodeoutline.cpp): their rings in PUWG 1992, east and north
+	std::vector<std::vector<glm::dvec2>> m_parcels;
+	std::vector<std::string> m_parcel_ids;
+	char m_parcel_number[64]{}; // typed in to fetch a parcel by it
+	std::string m_parcel_status;
+	// the parcel at the place of the scene (or of the number, with Number given) fetched; added to those taken before, or
+	// in place of them
+	void parcel_fetch(glm::dvec3 const &World, std::string const &Number, bool Add);
+	// the points of the outline moved, put in or taken away after it's drawn: a point pressed is dragged, Alt+click on a
+	// point takes it away, Alt+click on a side puts one in
+	int m_outline_moving{-1};
+	bool outline_point_press(glm::dvec3 const &World);
+	// the arrow of the direction of the rows of a cultivated field, its tip dragged round the middle of the outline
+	bool m_rows_arrow_dragging{false};
+	bool rows_arrow(glm::dvec3 &Middle, glm::dvec3 &Tip) const;
+	bool rows_arrow_press();
+	void outline_edit_drag(bool Held);
+	void draw_rows_arrow(ImDrawList *Drawlist);
 	// the field of work of our own features (editormodefeatures.cpp): surfaces cut out of the terrain to texture them, and the
 	// track bed and the slopes along the tracks cut into pieces of their own
 	enum class feature_tool

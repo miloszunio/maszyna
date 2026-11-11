@@ -1561,7 +1561,10 @@ bool editor_mode::update()
         m_terrain_stroke = false;
     // the handles of a point being put, the line drawn by hand
     if (m_terrain_open && outlining())
+    {
+        outline_edit_drag(mouseHold);
         outline_drag(mouseHold);
+    }
     if (m_terrain_open)
         draw_terrain_overlay();
 
@@ -2392,7 +2395,10 @@ void editor_mode::draw_terrain_overlay()
     }
     // the outline as it will be cut or filled, its curves made, with the points clicked and their handles
     if (outlining() && false == m_paint_outline.empty())
+    {
         draw_outline_shape(drawlist);
+        draw_rows_arrow(drawlist);
+    }
     if (m_features_open && m_feature_tool == feature_tool::zielsko)
         draw_zielsko_preview(drawlist);
     if (m_terrain_tool == terrain_tool::water && false == m_water_points.empty())
@@ -2941,6 +2947,14 @@ void editor_mode::handle_terrain_click(bool const Shift)
     case terrain_tool::fill:
     case terrain_tool::fields:
     {
+        // the arrow of the rows, the points of the outline: grabbed before anything new is put
+        if (rows_arrow_press() || outline_point_press(world))
+            break;
+        if (m_outline_shape.parcel)
+        {
+            run_busy(STR_C("Fetching the parcel from the cadastre (ULDK)"), [this, world, Shift]() { parcel_fetch(world, {}, Shift); });
+            break;
+        }
         if (Shift)
         {
             if (false == m_paint_outline.empty())

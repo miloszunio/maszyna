@@ -17418,3 +17418,36 @@ msgstr "%s obrysowane na nowo, Ctrl+Z cofa"
 
 msgid "Puts the outline of the surface back as the outline of the Fill tool; cut out again, it changes this surface"
 msgstr "Wstawia obrys powierzchni z powrotem jako obrys narzędzia Wypełnij; wycięcie go zmienia tę powierzchnię"
+
+msgid "Fetching the parcel from the cadastre (ULDK)"
+msgstr "Pobieranie działki z ewidencji (ULDK)"
+
+msgid "A cadastral parcel (click it)##outline"
+msgstr "Działka z ewidencji (kliknij ją)##outline"
+
+msgid "A click on the ground takes the outline of the parcel there from the cadastre (ULDK of GUGiK), Shift+click adds the parcel next to it or takes one away; then its points are moved as any others. Needs the terrain set where it lies (PUWG 1992)"
+msgstr "Klik w teren bierze obrys działki w tym miejscu z ewidencji (ULDK GUGiK), Shift+klik dokłada sąsiednią albo zabiera już wziętą; potem jej punkty przesuwa się jak każde inne. Teren musi wiedzieć, gdzie leży (PUWG 1992)"
+
+msgid "Fetch by the number##parcel"
+msgstr "Pobierz po numerze##parcel"
+
+msgid "The full number of the parcel: the district (TERYT), the precinct and the parcel; with Shift held it's added"
+msgstr "Pełny numer działki: jednostka (TERYT), obręb i numer; z wciśniętym Shift jest dokładana"
+
+msgid "Drag a point to move it, Alt+click on a point takes it away, on a side puts one in"
+msgstr "Przeciągnij punkt, by go przesunąć; Alt+klik na punkcie go usuwa, na boku wstawia nowy"
+
+msgid "No parcel: %s"
+msgstr "Brak działki: %s"
+
+msgid "%s doesn't touch the parcels taken before along a side: not added"
+msgstr "%s nie styka się bokiem z wziętymi wcześniej działkami: nie dodana"
+
+msgid "%zu parcels, %zu points"
+msgstr "Działek: %zu, punktów: %zu"
+
+msgid "rows %.0f deg%s"
+msgstr "rzędy %.0f°%s"
+
+msgid " (longest side)"
+msgstr " (najdłuższy bok)"

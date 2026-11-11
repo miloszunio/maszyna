@@ -235,6 +235,7 @@ set(SOURCES
 "editor/editorTerrainStreamer.cpp"
 "editor/editorTerrainStreamerFiczery.cpp"
 "editor/editorZielsko.cpp"
+"editor/editorParcel.cpp"
 "application/editormodezielsko.cpp"
 "editor/editorOrthophoto.cpp"
 "editor/editorHttp.cpp"
