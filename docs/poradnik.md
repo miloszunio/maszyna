@@ -7,13 +7,13 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 
 - Numer wersji jest w tytule okna i w `WERSJA.txt`. Zgłaszając błąd, podawaj go.
 - **~** (tylda, klawisz na lewo od 1) włącza i wyłącza ortofotomapę na terenie, **Ctrl+~** najpierw ściąga kafelki tam, gdzie patrzy kamera.
-- **Ficzery** to dział **F7** na górnej belce. Drogi to **F4**, Tory **F3**.
+- **GeoTools** (dawniej Ficzery) to dział **F7** na górnej belce, z zakładkami **Pola**, **Drzewa**, **Torowisko i skarpy**, **Idź do** (te same narzędzia są na pasku). Drogi to **F4**, Tory **F3**.
 - Ciężkie operacje (torowisko i skarpy na całej scenerii, przemalowanie, film, dociąganie terenu, obiekty pod torami) pokazują **klepsydrę** na zamrożonym ekranie.
   Postęp w procentach jest w tytule okna, **Esc** przerywa tam, gdzie się da. To, co zrobione, zostaje i da się cofnąć.
 
 ## Teksturowanie terenu
 
-1. Ficzery (F7) → paleta: kafelki materiałów w grupach. LPM wybiera materiał, **1–9** pierwsze dziewięć, **Alt+LPM** w widoku bierze materiał spod kursora.
+1. GeoTools (F7) → paleta: kafelki materiałów w grupach. LPM wybiera materiał, **1–9** pierwsze dziewięć, **Alt+LPM** w widoku bierze materiał spod kursora.
 2. Pędzel: **Mieszaj** (przenika), **Kryj** (zastępuje), **Zmazuj**. Pod paletą widać, co jest pod kursorem i ile materiałów ma kawałek (max 8; czerwone = brak miejsca).
 3. PPM na kafelku: skala, obrót, zmiana materiału w całej scenerii naraz (bez dokładania nowej pozycji), grupa, zdjęcie z palety z zamiennikiem.
 4. **Zamień w obrysie** (Teren → Wypełnij): narysuj obrys (albo magiczną różdżką), wybierz materiał „z” i kliknij „na zaznaczony”. Reszta scenerii zostaje.
@@ -21,9 +21,9 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 
 ## Pola: wycinanie powierzchni (pola, łąki, place)
 
-Od nr 80 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wypełnienia), tak samo jak w PR-ze do gałęzi Hirka. Z Ficzerów zniknęło.
+Od wydania po nr 111 Pola są w **GeoTools (F7) → Pola** (zakładka i ikona trawy na pasku). Wcześniej (nr 80–111) były w Teren → Pola; z Terenu zniknęły.
 
-1. Teren → **Pola**. Rysuj obrys: LPM punkt, Shift+LPM cofa. Kształt obrysu: zaokrąglenia, gładka krzywa, Bézier, z ręki, wzdłuż toru (tego u Hirka jeszcze nie ma).
+1. GeoTools → **Pola**. Rysuj obrys: LPM punkt, Shift+LPM cofa. Kształt obrysu: zaokrąglenia, gładka krzywa, Bézier, z ręki, wzdłuż toru (tego u Hirka jeszcze nie ma).
 2. Albo **magiczna różdżka**: włącz i kliknij na ortofoto w pole, obrys zrobi się sam z obszaru o podobnym kolorze.
 3. Materiał wybierasz w palecie trybu Teren (nad panelem). Do wyboru:
    - **Wmalowane w teren** (domyślnie): bez szwu, przejście i szum krawędzi, trawa 3D pod spodem; zajmuje jeden z 8 materiałów chunka.
@@ -31,7 +31,7 @@ Od nr 80 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wyp
 4. Jeśli ma falować: „Falowanie terenu” (pagórki, bruzdy, pasy pól, kratka…), profil fali, chropowatość.
 5. Żółty „Wytnij pole”.
 6. Lista „Pola i wycięte powierzchnie”: zmiana materiału, „Idź do”, „Obrysuj ponownie”. Powierzchnie z dziurą (osobne albo stare z IRT) zamienia na malowane „Przemaluj je w teren”.
-7. „Naturalne skarpy” są w tym samym panelu (i dalej w Ficzery → Torowisko i skarpy).
+7. „Naturalne skarpy” są w tym samym panelu (i dalej w GeoTools → Torowisko i skarpy).
 
 ### Obrys z działki, edycja punktów, strzałka rzędów (od nr 111)
 
@@ -67,7 +67,7 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
 
 ## Torowisko i skarpy
 
-1. Ficzery → **Torowisko i skarpy**. Wybierz materiały torowiska i skarpy w palecie, długość kawałka, zasięg skarpy, przejścia.
+1. GeoTools → **Torowisko i skarpy**. Wybierz materiały torowiska i skarpy w palecie, długość kawałka, zasięg skarpy, przejścia.
 2. Zakres przy przycisku: **Wokół kamery** (promień) albo **Cała sceneria**.
 3. Żółty „Wytnij torowisko i skarpy”. Kawałki robione wcześniej wzdłuż tych samych modyfikatorów są zastępowane.
 4. **Naturalne skarpy**: ustaw falowanie podnóża, łagodnienie, chropowatość i kliknij „Zrób naturalne skarpy”. „Z powrotem skarpy według projektu” przywraca trapez. Po tym wytnij torowisko i skarpy jeszcze raz.
@@ -109,7 +109,7 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
 
 ## ZIELSKO z kosmosu (drzewa z Geoportalu)
 
-Ficzery → **ZIELSKO z kosmosu** (ikona trawy). Drzewa z modeli 3D drzew GUGiK: każde stoi tam, gdzie w rzeczywistości, i ma swoją wysokość.
+GeoTools → **Drzewa** (ZIELSKO z kosmosu). Drzewa z modeli 3D drzew GUGiK: każde stoi tam, gdzie w rzeczywistości, i ma swoją wysokość.
 Dane nie mówią nic o gatunku i koronie (korona jest szablonem skalowanym do wysokości), więc modele bierzesz z banku węzłów.
 
 1. **Zasięg** (jeden dla wszystkiego): wokół kamery (promień), w obrysie (LPM stawia punkty) albo cała sceneria.
@@ -124,9 +124,17 @@ Dane nie mówią nic o gatunku i koronie (korona jest szablonem skalowanym do wy
    Pliki z pierwszej wersji (tylko pas przy torach) dalej działają; brakujące arkusze zostaną doczytane.
 7. W opisie scenerii podaj źródło: **GUGiK, modele 3D drzew (geoportal.gov.pl), CC BY 4.0**.
 
+### Drzewa przy torze (od wydania po nr 111)
+
+- Drzewa bliżej osi toru niż **„Do (m od osi)”** (domyślnie 30 m) dostają nazwę `zielsko_tor_<n>` (pozostałe `zielsko_<n>`), a w podglądzie („Policz i pokaż”) są **niebieskie**. Po sadzeniu status mówi, ile ich jest.
+- **„Grupa dla nich”**: grupa banku węzłów z drzewami 3D. Gdy jest podana, drzewa przy torze od razu sadzą się z niej, zamiast z atlasów.
+- **„Wymień drzewa przy torze”** (z grupy w „Wstaw z”): drzewa `zielsko_tor_` w zasięgu wstawia od nowa z tej grupy, w tym samym miejscu, z tym samym obrotem i wysokością z danych. Bez historii (Ctrl+Z tego nie cofa); atlasy wracają po ponownym „Posadź”.
+- **„Zaznacz drzewa przy torze”**: wrzuca je do zaznaczenia w Otoczeniu, żeby przesunąć, obrócić albo usunąć razem.
+- Status sadzenia i `log.txt` (linie `ZIELSKO:`) mówią, ile drzew odpadło na każdym etapie sita i przy sadzeniu.
+
 ## Idź do
 
-Ficzery → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie znaki obojętne), zapisane kamery w `<sceneria>.kamery`.
+GeoTools → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie znaki obojętne), zapisane kamery w `<sceneria>.kamery`.
 
 ## Gdy coś nie działa
 

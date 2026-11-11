@@ -38,6 +38,13 @@ namespace
 {
 
 char const *const zielsko_prefix{"zielsko_"};
+char const *const zielsko_near_prefix{"zielsko_tor_"}; // the trees by the tracks: zielsko_ too, so clearing and planting again take them
+// the number of a tree of ZIELSKO: after the last _ of its name
+std::size_t zielsko_number(std::string const &Name)
+{
+	auto const underscore{Name.find_last_of('_')};
+	return underscore == std::string::npos ? 0 : static_cast<std::size_t>(std::strtoull(Name.c_str() + underscore + 1, nullptr, 10));
+}
 
 bool starts_with(std::string const &Text, char const *Prefix)
 {
@@ -412,30 +419,125 @@ std::size_t editor_mode::zielsko_remove(bool const InScope)
 	return found.size();
 }
 
+std::vector<std::string> editor_mode::zielsko_templates(char const *Group)
+{
+	std::vector<std::string> result;
+	if (Group == nullptr || Group[0] == '\0')
+		return result;
+	auto &bank{ui()->nodebank()};
+	auto const names{bank.group_names()};
+	auto const wanted{lower(Group)};
+	for (std::size_t i = 0; i < names.size(); ++i)
+	{
+		auto name{names[i]};
+		name.erase(0, name.find_first_not_of(" \t"));
+		name.erase(name.find_last_not_of(" \t\r") + 1);
+		if (lower(name) != wanted)
+			continue;
+		for (auto const &entry : bank.group_templates(i))
+			if (lower(entry).find("model") != std::string::npos)
+				result.push_back(entry);
+	}
+	return result;
+}
+
+std::size_t editor_mode::zielsko_replace_near(char const *Group)
+{
+	auto &settings{m_zielsko};
+	auto const pool{zielsko_templates(Group)};
+	if (pool.empty())
+	{
+		m_zielsko_status = format(STR_C("No group %s in the node bank: nothing to put in"), Group);
+		return 0;
+	}
+	if (settings.scope == 2)
+		m_zielsko_outline = shaped_outline();
+	std::vector<TAnimModel *> found;
+	for (auto *model : simulation::Instances.sequence())
+		if (model != nullptr && starts_with(model->name(), zielsko_near_prefix) && zielsko_in_scope(glm::dvec2{model->location().x, model->location().z}))
+			found.push_back(model);
+	std::mt19937 random{2026u};
+	// how tall a model of a template is at the scale of 1: given, or about its radius, as when planting
+	std::unordered_map<std::string, double> heights;
+	auto const own_height = [&](std::string const &Source, TAnimModel *Model) {
+		if (settings.model_height > 0.0f)
+			return static_cast<double>(settings.model_height);
+		if (auto const known{heights.find(Source)}; known != heights.end())
+			return known->second;
+		auto own{Model != nullptr && Model->Model() != nullptr ? static_cast<double>(Model->Model()->bounding_radius()) : 0.0};
+		if (own < 1.0)
+			own = 15.0;
+		heights.emplace(Source, own);
+		return own;
+	};
+	std::size_t replaced{0};
+	for (std::size_t i = 0; i < found.size(); ++i)
+	{
+		if ((i & 0xff) == 0)
+			editor_busy_progress(static_cast<double>(i) / static_cast<double>(found.size()));
+		auto *old{found[i]};
+		// the tree as it stands: the height of the data comes back from the scale and the height of its model
+		auto const name{old->name()};
+		auto const location{old->location()};
+		auto const angles{old->Angles()};
+		auto const scale{old->Scale()};
+		auto old_own{settings.model_height > 0.0f ? static_cast<double>(settings.model_height)
+		                                          : old->Model() != nullptr ? static_cast<double>(old->Model()->bounding_radius()) : 0.0};
+		if (old_own < 1.0)
+			old_own = 15.0; // as planting takes it
+		auto const tree_height{static_cast<double>(scale.y) * old_own};
+		auto const width_ratio{scale.y > 0.0f ? scale.x / scale.y : 1.0f};
+		if (m_node == old)
+		{
+			m_node = nullptr;
+			ui()->set_node(nullptr);
+		}
+		erase_model(old);
+		auto const &src{pool[std::uniform_int_distribution<std::size_t>{0, pool.size() - 1}(random)]};
+		auto *model{simulation::State.create_model(src, name, location)};
+		if (model == nullptr)
+			continue;
+		auto const factor{std::clamp(tree_height / own_height(src, model), 0.15, 6.0)};
+		m_editor.rotate(model, angles, 1);
+		model->Scale(glm::vec3{static_cast<float>(factor * width_ratio), static_cast<float>(factor), static_cast<float>(factor * width_ratio)});
+		++replaced;
+	}
+	m_zielsko_status = format(STR_C("Trees by the tracks put in from %s: %zu of %zu"), Group, replaced, found.size());
+	WriteLog("ZIELSKO: " + m_zielsko_status);
+	return replaced;
+}
+
+std::size_t editor_mode::zielsko_select_near()
+{
+	if (m_zielsko.scope == 2)
+		m_zielsko_outline = shaped_outline();
+	std::vector<scene::basic_node *> found;
+	for (auto *model : simulation::Instances.sequence())
+		if (model != nullptr && starts_with(model->name(), zielsko_near_prefix) && zielsko_in_scope(glm::dvec2{model->location().x, model->location().z}))
+			found.push_back(model);
+	if (found.empty())
+	{
+		m_zielsko_status = STR_C("No trees by the tracks within the area");
+		return 0;
+	}
+	// in the surroundings, where a selection of models is moved, turned and deleted
+	choose_edit_mode(nodebank_panel::MODIFY);
+	m_node = found.back();
+	found.pop_back();
+	m_selection = std::move(found);
+	ui()->set_node(m_node);
+	auto const count{m_selection.size() + 1};
+	m_zielsko_status = format(STR_C("Selected: %zu trees by the tracks"), count);
+	ui()->set_status(m_zielsko_status);
+	return count;
+}
+
 void editor_mode::zielsko_plant()
 {
 	auto &settings{m_zielsko};
-	// the templates of the groups of the node bank of the names given
-	auto const templates = [&](char const *Group) {
-		std::vector<std::string> result;
-		auto &bank{ui()->nodebank()};
-		auto const names{bank.group_names()};
-		auto const wanted{lower(Group)};
-		for (std::size_t i = 0; i < names.size(); ++i)
-		{
-			auto name{names[i]};
-			name.erase(0, name.find_first_not_of(" \t"));
-			name.erase(name.find_last_not_of(" \t\r") + 1);
-			if (lower(name) != wanted)
-				continue;
-			for (auto const &entry : bank.group_templates(i))
-				if (lower(entry).find("model") != std::string::npos)
-					result.push_back(entry);
-		}
-		return result;
-	};
-	auto const tall_pool{templates(settings.trees_group)};
-	auto low_pool{templates(settings.low_group)};
+	auto const tall_pool{zielsko_templates(settings.trees_group)};
+	auto low_pool{zielsko_templates(settings.low_group)};
+	auto const near_pool{zielsko_templates(settings.near_group)};
 	if (low_pool.empty())
 		low_pool = tall_pool;
 	if (tall_pool.empty())
@@ -459,13 +561,13 @@ void editor_mode::zielsko_plant()
 	std::size_t number{0};
 	for (auto *model : simulation::Instances.sequence())
 		if (model != nullptr && starts_with(model->name(), zielsko_prefix))
-			number = std::max<std::size_t>(number, std::strtoull(model->name().c_str() + std::strlen(zielsko_prefix), nullptr, 10) + 1);
+			number = std::max<std::size_t>(number, zielsko_number(model->name()) + 1);
 	std::mt19937 random{1992u};
 	auto const uniform = [&](double const Low, double const High) { return std::uniform_real_distribution<double>{Low, High}(random); };
 	// the height of each template: given, or about the radius of its model, which stands on its foot
 	std::unordered_map<std::string, double> heights;
 	std::size_t planted{0};
-	std::size_t no_ground{0}, off_region{0}, no_model{0};
+	std::size_t no_ground{0}, off_region{0}, no_model{0}, by_tracks{0};
 	for (std::size_t i = 0; i < candidates.size(); ++i)
 	{
 		if ((i & 0xff) == 0)
@@ -483,9 +585,13 @@ void editor_mode::zielsko_plant()
 			++off_region;
 			continue;
 		}
-		auto const &pool{c.height < settings.small_below ? low_pool : tall_pool};
+		// by the tracks: marked by the name, and from their own group when one is given
+		auto const by_track{c.track <= settings.near_track};
+		auto const &pool{by_track && false == near_pool.empty() ? near_pool : c.height < settings.small_below ? low_pool : tall_pool};
 		auto const &src{pool[std::min(pool.size() - 1, static_cast<std::size_t>(uniform(0.0, 1.0) * pool.size()))]};
-		auto *model{simulation::State.create_model(src, zielsko_prefix + std::to_string(number + planted), location)};
+		auto *model{simulation::State.create_model(src, (by_track ? zielsko_near_prefix : zielsko_prefix) + std::to_string(number + planted), location)};
+		if (by_track && model != nullptr)
+			++by_tracks;
 		if (model == nullptr)
 		{
 			++no_model;
@@ -514,6 +620,7 @@ void editor_mode::zielsko_plant()
 		++planted;
 	}
 	m_zielsko_status = format(STR_C("Planted %zu trees (%zu planted before within the area taken away). The source: GUGiK, 3D tree models, CC BY 4.0"), planted, removed);
+	m_zielsko_status += format(STR_C(". By the tracks (up to %.0f m, named zielsko_tor_): %zu"), settings.near_track, by_tracks);
 	if (no_ground + off_region + no_model > 0)
 		m_zielsko_status += format(STR_C(". Not planted: %zu with no terrain under them, %zu outside the scenery, %zu whose model couldn't be made"), no_ground,
 		                           off_region, no_model);
@@ -538,7 +645,9 @@ void editor_mode::draw_zielsko_preview(ImDrawList *Drawlist)
 			continue;
 		// low ones yellow, the tall ones deep green
 		auto const t{std::clamp((c.height - 4.0f) / 26.0f, 0.0f, 1.0f)};
-		auto const colour{IM_COL32(static_cast<int>(230 - 200 * t), static_cast<int>(220 - 60 * t), static_cast<int>(60 - 20 * t), 220)};
+		// the ones by the tracks blue: the ones to be put in as 3D models
+		auto const colour{c.track <= m_zielsko.near_track ? IM_COL32(90, 170, 255, 230)
+		                                                  : IM_COL32(static_cast<int>(230 - 200 * t), static_cast<int>(220 - 60 * t), static_cast<int>(60 - 20 * t), 220)};
 		Drawlist->AddCircleFilled(dot, 2.5f + 2.5f * t, colour);
 		if (++drawn > 20000)
 			break;
@@ -624,6 +733,27 @@ void editor_mode::render_zielsko_ui()
 		                              "From the model: about the radius of the model, which suits the models standing on their foot"));
 	ImGui::SetNextItemWidth(120.0f);
 	ImGui::SliderFloat(STR_C("Scatter of the size##zielsko"), &settings.jitter, 0.0f, 0.3f, "%.2f");
+
+	ImGui::SeparatorText(STR_C("Trees by the tracks"));
+	ImGui::SetNextItemWidth(120.0f);
+	ImGui::DragFloat(STR_C("Up to (m from the axis)##zielskonear"), &settings.near_track, 0.5f, 0.0f, 150.0f, "%.0f");
+	item_tooltip(STR_C("These are named zielsko_tor_N (the others zielsko_N) and shown blue in the dots: easy to find and to put in as 3D models, "
+	                   "whose atlases would show up close to the train"));
+	ImGui::SetNextItemWidth(180.0f);
+	ImGui::InputTextWithHint(STR_C("Group for them##zielskonear"), STR_C("as the others"), settings.near_group, sizeof(settings.near_group));
+	item_tooltip(STR_C("A group of the node bank of 3D trees: the trees by the tracks are planted from it straight away. Empty: from the groups above"));
+	ImGui::SetNextItemWidth(180.0f);
+	ImGui::InputTextWithHint(STR_C("Put in from##zielskoreplace"), STR_C("group of 3D trees"), settings.replace_group, sizeof(settings.replace_group));
+	ImGui::BeginDisabled(running || settings.replace_group[0] == '\0');
+	if (change_button(STR_C("Replace the trees by the tracks##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
+		run_busy(STR_C("Replacing the trees by the tracks"), [this]() { zielsko_replace_near(m_zielsko.replace_group); });
+	ImGui::EndDisabled();
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		ImGui::SetTooltip("%s", STR_C("The trees named zielsko_tor_ within the area go in again from the group given, where they stood, turned as they were "
+		                              "and as tall as the data has them. Not in the history: planting again puts the atlases back"));
+	if (ImGui::Button(STR_C("Select the trees by the tracks##zielsko"), ImVec2(-FLT_MIN, 0.0f)))
+		zielsko_select_near();
+	item_tooltip(STR_C("The ones within the area, in the selection of the surroundings: moved, turned or deleted together there"));
 
 	ImGui::Spacing();
 	ImGui::BeginDisabled(running);

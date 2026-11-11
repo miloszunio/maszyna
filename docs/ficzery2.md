@@ -1,12 +1,18 @@
 Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrrycho leżą najnowsze zmiany maj00ra, a na tym wszystkie nasze wdrożenia.
 
-## Zmiany w tym wydaniu (nr 111)
+## Zmiany w tym wydaniu
 
-- **Obrys z działki ewidencyjnej** (ULDK GUGiK): klik w teren albo numer działki, Shift+klik dokłada sąsiednią (wspólne boki odpadają). `editor/editorParcel.cpp`.
-- **Edycja punktów obrysu:** przeciąganie, Alt+klik usuwa punkt albo wstawia go na boku.
+- **GeoTools** zamiast Ficzery (F7): zakładki Pola, Drzewa, Torowisko i skarpy, Idź do; Pola przeniesione tu z Terenu.
+- **Drzewa przy torze** (do 30 m od osi, do ustawienia): nazwa `zielsko_tor_<n>`, niebieskie w podglądzie, osobna grupa modeli 3D do sadzenia, przyciski „Wymień drzewa przy torze” i „Zaznacz drzewa przy torze”.
+- **ZIELSKO mówi, czemu nie sadzi:** liczniki każdego etapu sita i sadzenia w statusie i w `log.txt`.
 - **Kierunek rzędów** przy fali „Pole uprawne”: gizmo obrotu jak przy obiektach, tylko w poziomie (Ctrl: co 5°); strzałka pokazuje rzędy.
 - **Obrys nad pustym chunkiem:** żółte ostrzeżenie i przycisk „Dodaj brakujące chunki pod obrysem” (NMT albo grunt scenerii); chunk dodany pod istniejącym polem dostaje od razu jego dziurę i malowanie (wcześniej pole dorysowywało się dopiero po odjechaniu kamerą, bez dziury).
 - **Punkty obrysu działki** rysowane i chwytane na terenie pod nimi (wcześniej narożniki nad niewczytanym terenem dostawały wysokość 0 i w widoku z ukosa wisiały obok obrysu).
+
+### Z nr 111
+
+- **Obrys z działki ewidencyjnej** (ULDK GUGiK): klik w teren albo numer działki, Shift+klik dokłada sąsiednią (wspólne boki odpadają). `editor/editorParcel.cpp`.
+- **Edycja punktów obrysu:** przeciąganie, Alt+klik usuwa punkt albo wstawia go na boku.
 
 ## Zmiany w nr 109
 

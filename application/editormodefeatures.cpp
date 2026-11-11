@@ -758,8 +758,42 @@ void editor_mode::render_cut_surfaces()
 	render_patches_ui();
 }
 
+void editor_mode::choose_feature_tool(feature_tool const Tool)
+{
+	m_feature_tool = Tool;
+	// the outline of the trees and of the fields is drawn as with Fill, the fields with their own tool
+	m_terrain_tool = Tool == feature_tool::fields ? terrain_tool::fields : Tool == feature_tool::zielsko ? terrain_tool::fill : terrain_tool::none;
+}
+
 void editor_mode::render_features_ui()
 {
+	// the tools of GeoTools as tabs, as in the toolbar
+	struct tab
+	{
+		char const *label;
+		feature_tool tool;
+	};
+	tab const tabs[]{{STR_C("Fields##geotools"), feature_tool::fields},
+	                 {STR_C("Trees##geotools"), feature_tool::zielsko},
+	                 {STR_C("Track bed and slopes##geotools"), feature_tool::track_bed},
+	                 {STR_C("Go to##geotools"), feature_tool::go_to}};
+	if (ImGui::BeginTabBar("##geotools"))
+	{
+		// a tool chosen in the toolbar (or by the work area) shows its tab; a tab clicked chooses its tool
+		auto const outside{m_feature_tab_shown != m_feature_tool};
+		for (auto const &entry : tabs)
+		{
+			auto const flags{outside && entry.tool == m_feature_tool ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None};
+			if (ImGui::BeginTabItem(entry.label, nullptr, flags))
+			{
+				if (false == outside && entry.tool != m_feature_tool)
+					choose_feature_tool(entry.tool);
+				ImGui::EndTabItem();
+			}
+		}
+		ImGui::EndTabBar();
+		m_feature_tab_shown = m_feature_tool;
+	}
 	if (m_feature_tool == feature_tool::go_to)
 	{
 		render_go_to_ui();
@@ -773,6 +807,11 @@ void editor_mode::render_features_ui()
 	if (m_feature_tool == feature_tool::zielsko)
 	{
 		render_zielsko_ui();
+		return;
+	}
+	if (m_feature_tool == feature_tool::fields)
+	{
+		render_fields_ui();
 		return;
 	}
 	auto const &layers{m_streamer.manifest().layers};

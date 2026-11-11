@@ -248,10 +248,6 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::area_fill, STR_C("Water"), nullptr, STR_C("LMB adds a point of the outline of a body of water, Shift+LMB takes the last one back"), chosen(terrain_tool::water), choose(terrain_tool::water)});
 		Buttons.push_back({icon::count, STR_C("Fill"), nullptr, STR_C("LMB adds a point of the outline of an area to fill with a material, Shift+LMB takes the last one back"), chosen(terrain_tool::fill),
 		                   choose(terrain_tool::fill)});
-		Buttons.push_back({icon::grass, STR_C("Fields"), nullptr,
-		                   STR_C("LMB adds a point of the outline of a field: a surface cut out of the terrain with a material of its own, the ground under it made wavy if wanted; "
-		                         "Shift+LMB takes the last one back"),
-		                   chosen(terrain_tool::fields), choose(terrain_tool::fields)});
 		Buttons.push_back({icon::hole, STR_C("Holes"), nullptr, STR_C("LMB cuts a hole in the terrain under the brush (portals of tunnels), Shift+LMB closes it"), chosen(terrain_tool::holes),
 		                   choose(terrain_tool::holes)});
 		auto const orthophoto{m_orthophoto.enabled()};
@@ -275,24 +271,19 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 	}
 	case work_area::features:
 	{
-		// ours (the surfaces cut out of the terrain went to Terrain > Fields, as in the PR to feat/gl46-migration)
+		// GeoTools: what comes from the maps of geoportal.gov.pl and lies on the terrain
+		Buttons.push_back({icon::grass, STR_C("Fields"), nullptr,
+		                   STR_C("LMB adds a point of the outline of a field (or takes a parcel of the cadastre): a surface cut out of the terrain with a material "
+		                         "of its own, a crop, the ground under it made wavy if wanted; Shift+LMB takes the last one back"),
+		                   m_feature_tool == feature_tool::fields, [this]() { choose_feature_tool(feature_tool::fields); }});
+		Buttons.push_back({icon::grass, STR_C("Trees"), nullptr,
+		                   STR_C("ZIELSKO from space: the trees of the 3D tree models of geoportal.gov.pl, where they stand and as tall as they are, planted along the tracks"),
+		                   m_feature_tool == feature_tool::zielsko, [this]() { choose_feature_tool(feature_tool::zielsko); }});
 		Buttons.push_back({icon::profile, STR_C("Track bed and slopes"), nullptr,
 		                   STR_C("The track bed, the embankments and the cuttings along the tracks cut into pieces up to 100 m, to texture them"),
-		                   m_feature_tool == feature_tool::track_bed, [this]() {
-			                   m_feature_tool = feature_tool::track_bed;
-			                   m_terrain_tool = terrain_tool::none;
-		                   }});
-		Buttons.push_back({icon::grass, STR_C("ZIELSKO from space"), nullptr,
-		                   STR_C("The trees of the 3D tree models of geoportal.gov.pl, where they stand and as tall as they are, planted along the tracks"),
-		                   m_feature_tool == feature_tool::zielsko, [this]() {
-			                   m_feature_tool = feature_tool::zielsko;
-			                   m_terrain_tool = terrain_tool::fill;
-		                   }});
+		                   m_feature_tool == feature_tool::track_bed, [this]() { choose_feature_tool(feature_tool::track_bed); }});
 		Buttons.push_back({icon::orthophoto, STR_C("Go to"), nullptr, STR_C("The map with the camera on it, a search of the towns and villages, the places of the camera kept"),
-		                   m_feature_tool == feature_tool::go_to, [this]() {
-			                   m_feature_tool = feature_tool::go_to;
-			                   m_terrain_tool = terrain_tool::none;
-		                   }});
+		                   m_feature_tool == feature_tool::go_to, [this]() { choose_feature_tool(feature_tool::go_to); }});
 		auto const orthophoto{m_orthophoto.enabled()};
 		Buttons.push_back({icon::orthophoto, STR_C("Orthophoto"), nullptr, STR_C("Aerial imagery of geoportal.gov.pl under the scenery, laid out by the origin of the scenery"), orthophoto,
 		                   [this, orthophoto]() { choose_orthophoto(false == orthophoto); }, true});

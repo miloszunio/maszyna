@@ -17475,3 +17475,84 @@ msgstr "Zrobiono chunków z gruntu scenerii: %zu"
 
 msgid ". %zu chunks under the outline have no terrain: the field ends at its edge until they're added (then it goes onto them)"
 msgstr ". Pod obrysem %zu chunków nie ma terenu: pole kończy się na jego krawędzi, dopóki ich nie dodasz (wtedy na nie wejdzie)"
+
+msgid ". By the tracks (up to %.0f m, named zielsko_tor_): %zu"
+msgstr ". Przy torze (do %.0f m, nazwa zielsko_tor_): %zu"
+
+msgid "A group of the node bank of 3D trees: the trees by the tracks are planted from it straight away. Empty: from the groups above"
+msgstr "Grupa banku węzłów z drzewami 3D: drzewa przy torze od razu sadzą się z niej. Puste: z grup powyżej"
+
+msgid "Fields and surfaces cut out to texture them: GeoTools (F7)"
+msgstr "Pola i powierzchnie wycięte do teksturowania: GeoTools (F7)"
+
+msgid "Fields##geotools"
+msgstr "Pola##geotools"
+
+msgid "From the maps of geoportal.gov.pl onto the terrain: fields and parcels, trees, the track bed and slopes, the map to go to"
+msgstr "Z map geoportal.gov.pl na teren: pola i działki, drzewa, torowisko i skarpy, mapa do przechodzenia"
+
+msgid "Go to##geotools"
+msgstr "Idź do##geotools"
+
+msgid "Group for them##zielskonear"
+msgstr "Grupa dla nich##zielskonear"
+
+msgid "LMB adds a point of the outline of a field (or takes a parcel of the cadastre): a surface cut out of the terrain with a material of its own, a crop, the ground under it made wavy if wanted; Shift+LMB takes the last one back"
+msgstr "LPM dodaje punkt obrysu pola (albo bierze działkę z ewidencji): powierzchnia wycięta z terenu z własnym materiałem, uprawą, grunt pod nią falowany, jeśli trzeba; Shift+LPM cofa ostatni"
+
+msgid "No group %s in the node bank: nothing to put in"
+msgstr "W banku węzłów nie ma grupy %s: nie ma czym wstawiać"
+
+msgid "No trees by the tracks within the area"
+msgstr "W zasięgu nie ma drzew przy torze"
+
+msgid "Put in from##zielskoreplace"
+msgstr "Wstaw z##zielskoreplace"
+
+msgid "Replace the trees by the tracks##zielsko"
+msgstr "Wymień drzewa przy torze##zielsko"
+
+msgid "Replacing the trees by the tracks"
+msgstr "Wymiana drzew przy torze"
+
+msgid "Select the trees by the tracks##zielsko"
+msgstr "Zaznacz drzewa przy torze##zielsko"
+
+msgid "Selected: %zu trees by the tracks"
+msgstr "Zaznaczono drzew przy torze: %zu"
+
+msgid "The ones within the area, in the selection of the surroundings: moved, turned or deleted together there"
+msgstr "Te w zasięgu, do zaznaczenia w Otoczeniu: tam przesuwa się je, obraca albo usuwa razem"
+
+msgid "The trees named zielsko_tor_ within the area go in again from the group given, where they stood, turned as they were and as tall as the data has them. Not in the history: planting again puts the atlases back"
+msgstr "Drzewa zielsko_tor_ w zasięgu wstawiane są od nowa z podanej grupy, w tym samym miejscu, z tym samym obrotem i wysokością z danych. Bez historii: ponowne sadzenie przywraca atlasy"
+
+msgid "These are named zielsko_tor_N (the others zielsko_N) and shown blue in the dots: easy to find and to put in as 3D models, whose atlases would show up close to the train"
+msgstr "Te dostają nazwę zielsko_tor_N (pozostałe zielsko_N) i są niebieskie w podglądzie: łatwo je znaleźć i wstawić jako modele 3D, bo atlasy z bliska pociągu widać"
+
+msgid "Track bed and slopes##geotools"
+msgstr "Torowisko i skarpy##geotools"
+
+msgid "Trees"
+msgstr "Drzewa"
+
+msgid "Trees by the tracks"
+msgstr "Drzewa przy torze"
+
+msgid "Trees by the tracks put in from %s: %zu of %zu"
+msgstr "Drzewa przy torze wstawione z %s: %zu z %zu"
+
+msgid "Trees##geotools"
+msgstr "Drzewa##geotools"
+
+msgid "Up to (m from the axis)##zielskonear"
+msgstr "Do (m od osi)##zielskonear"
+
+msgid "ZIELSKO from space: the trees of the 3D tree models of geoportal.gov.pl, where they stand and as tall as they are, planted along the tracks"
+msgstr "ZIELSKO z kosmosu: drzewa z modeli 3D drzew geoportal.gov.pl, tam gdzie stoją i tak wysokie, jak są, sadzone wzdłuż torów"
+
+msgid "as the others"
+msgstr "jak pozostałe"
+
+msgid "group of 3D trees"
+msgstr "grupa drzew 3D"

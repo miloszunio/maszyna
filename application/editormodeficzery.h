@@ -75,8 +75,13 @@
 		cut_out, // an outline drawn as with Fill, painted into the terrain as a surface of its own
 		track_bed, // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
 		go_to, // the map with the camera on it, a search of towns and the places of the camera kept
-		zielsko // ZIELSKO z kosmosu: the trees of the 3D tree models of geoportal.gov.pl planted along the tracks
+		zielsko, // ZIELSKO z kosmosu: the trees of the 3D tree models of geoportal.gov.pl planted along the tracks
+		fields // the Fields: cultivated fields, parcels of the cadastre, surfaces cut out of the terrain
 	};
+	// a tool of GeoTools chosen, with the tool of the terrain it works with
+	void choose_feature_tool(feature_tool Tool);
+	feature_tool m_feature_tab_shown{feature_tool::fields}; // the tab shown last: one chosen in the toolbar is selected in the tabs
+
 	// ZIELSKO z kosmosu (editormodezielsko.cpp, editor/editorZielsko.cpp)
 	struct zielsko_settings
 	{
@@ -93,6 +98,10 @@
 		float small_below{8.0f};
 		float model_height{0.0f}; // 0: from the model
 		float jitter{0.08f};
+		// the trees this near the axis of a track are marked (named zielsko_tor_N), to be put in as 3D models instead of atlases
+		float near_track{30.0f};
+		char near_group[64]{""}; // empty: planted from the groups above, as the others
+		char replace_group[64]{""};
 	};
 	struct zielsko_candidate
 	{
@@ -121,6 +130,11 @@
 	void zielsko_plant();
 	// the trees planted by ZIELSKO taken away, within its area if InScope
 	std::size_t zielsko_remove(bool InScope);
+	// the templates of the group of the node bank of that name (its models)
+	std::vector<std::string> zielsko_templates(char const *Group);
+	// the trees by the tracks (zielsko_tor_) within the area: put in anew from Group, where and as tall as they stood; or selected
+	std::size_t zielsko_replace_near(char const *Group);
+	std::size_t zielsko_select_near();
 	void draw_zielsko_preview(ImDrawList *Drawlist);
 	void render_zielsko_ui();
 	// the transition the surfaces cut out blend over, and the noise their edge is shifted by
@@ -174,7 +188,7 @@
 	void render_cut_surfaces();
 	// a combo of what's done with the grass; true if changed
 	bool grass_choice(char const *Label, int &Choice);
-	feature_tool m_feature_tool{feature_tool::track_bed};
+	feature_tool m_feature_tool{feature_tool::fields};
 	bool m_features_open{false};
 	struct track_bed_settings
 	{

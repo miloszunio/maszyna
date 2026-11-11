@@ -2013,9 +2013,6 @@ void editor_mode::render_terrain_ui()
         ImGui::TextDisabled("%s", STR_C("The holes follow the ground every metre (every grid point of finer chunks), whatever the drawn grid"));
     }
 
-    if (ImGui::CollapsingHeader(STR_C("Fields"), m_terrain_tool == terrain_tool::fields ? ImGuiTreeNodeFlags_DefaultOpen : 0))
-        render_fields_ui();
-
     if (ImGui::CollapsingHeader(STR_C("Fill"), m_terrain_tool == terrain_tool::fill ? ImGuiTreeNodeFlags_DefaultOpen : 0))
     {
         auto const &layers{m_streamer.manifest().layers};
@@ -2075,7 +2072,7 @@ void editor_mode::render_terrain_ui()
                 forget_ground_shapes();
             }
         }
-        ImGui::TextDisabled("%s", STR_C("Surfaces cut out to texture them: the Features field of work (F7)"));
+        ImGui::TextDisabled("%s", STR_C("Fields and surfaces cut out to texture them: GeoTools (F7)"));
         auto const &grasskinds = m_streamer.grass_kinds();
         ImGui::BeginDisabled(grasskinds.empty());
         if (ImGui::Button(STR_C("Grow grass")))
@@ -5716,14 +5713,16 @@ void editor_mode::choose_work_area(work_area const Area)
 		m_roadtool.window = false;
 		terrain_workspace(true);
 		m_features_open = false;
+		// the Fields are in GeoTools: their tool isn't left on in the terrain, where nothing of it is shown
+		if (m_terrain_tool == terrain_tool::fields)
+			m_terrain_tool = terrain_tool::none;
 		break;
 	case work_area::features:
 		m_track_window_open = false;
 		m_roadtool.window = false;
 		terrain_workspace(true);
 		m_features_open = true;
-		// the outline of the surface is drawn as with Fill
-		m_terrain_tool = m_feature_tool == feature_tool::zielsko ? terrain_tool::fill : terrain_tool::none;
+		choose_feature_tool(m_feature_tool);
 		break;
 	}
 }
@@ -5743,7 +5742,7 @@ void editor_mode::render_workspaces()
 	    {STR_C("Roads"), work_area::roads, editor_icons::icon::work_roads, STR_C("Roads and junctions, level crossings, the points where the traffic comes and goes")},
 	    {STR_C("Terrain"), work_area::terrain, editor_icons::icon::work_terrain, STR_C("Heightmap terrain: chunks, sculpting, painting, water, orthophoto")},
 	    {STR_C("Catenary"), work_area::catenary, editor_icons::icon::work_catenary, STR_C("The overhead catenary: poles with cantilevers, gantries, the wires of the chains")},
-	    {STR_C("Features"), work_area::features, editor_icons::icon::work_terrain, STR_C("Ours: surfaces cut out of the terrain to texture them, the track bed and the slopes cut into pieces")},
+	    {"GeoTools", work_area::features, editor_icons::icon::work_terrain, STR_C("From the maps of geoportal.gov.pl onto the terrain: fields and parcels, trees, the track bed and slopes, the map to go to")},
 	};
 	char const *const keys[] = {"F2", "F3", "F4", "F5", "F6", "F7"};
 	auto const current{current_work_area()};
@@ -5903,7 +5902,7 @@ void editor_mode::render_shortcuts_window()
 	      {"Ctrl+Shift+F11", "Export scenery dump"},
 	      {"F11", "Leave the editor"},
 	      {"F10", "Quit the simulator"}}},
-	    {"Fields of work", {{"F2", "Surroundings"}, {"F3", "Tracks"}, {"F4", "Roads"}, {"F5", "Terrain"}, {"F6", "Catenary"}, {"F7", "Features"}}},
+	    {"Fields of work", {{"F2", "Surroundings"}, {"F3", "Tracks"}, {"F4", "Roads"}, {"F5", "Terrain"}, {"F6", "Catenary"}, {"F7", "GeoTools"}}},
 	    {"Camera",
 	     {{"RMB held, mouse", "Look around"},
 	      {"RMB held, W S A D", "Fly forwards, back, left, right (arrows in the legacy scheme)"},
