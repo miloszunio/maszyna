@@ -102,6 +102,7 @@
 	zielsko::harvest m_zielsko_harvest;
 	std::vector<zielsko_candidate> m_zielsko_preview;
 	std::string m_zielsko_status;
+	std::string m_zielsko_sieve; // how many trees each step of the sieve took out, the last time it was run
 	std::string zielsko_folder() const;
 	// the area of ZIELSKO (around the camera, the outline kept, the whole scenery) holds the point of the scene
 	bool zielsko_in_scope(glm::dvec2 const &At) const;

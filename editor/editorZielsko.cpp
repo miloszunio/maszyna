@@ -479,6 +479,7 @@ void harvest::run(std::string Folder, std::vector<probe> Probes, bool const Whol
 			answers[{east, north}] = c;
 	}
 	std::size_t asked{0};
+	std::size_t failed{0};
 	for (std::size_t i = 0; i < Probes.size() && false == stopped(); ++i)
 	{
 		m_progress = 0.05 * static_cast<double>(i) / static_cast<double>(std::max<std::size_t>(1, Probes.size()));
@@ -492,10 +493,26 @@ void harvest::run(std::string Folder, std::vector<probe> Probes, bool const Whol
 			std::vector<std::uint8_t> answer;
 			std::string error;
 			if (false == client.get(county_query(Probes[i].east, Probes[i].north), answer, error, stopped))
+			{
+				// not kept: asked again next time
+				if (++failed == 1)
+					WriteLog("ZIELSKO: the county under " + std::to_string(key.first) + " " + std::to_string(key.second) + " not asked: " + error);
 				continue;
-			if (false == county_of_answer(std::string(answer.begin(), answer.end()), c))
+			}
+			std::string const text(answer.begin(), answer.end());
+			if (false == county_of_answer(text, c))
+			{
+				// an error of the service isn't an answer: asked again next time
+				if (text.empty() || text.find("ServiceException") != std::string::npos)
+				{
+					if (++failed == 1)
+						WriteLog("ZIELSKO: the service gave no answer for " + std::to_string(key.first) + " " + std::to_string(key.second) + ": " +
+						         text.substr(0, 200));
+					continue;
+				}
 				// no county of the models there (abroad): kept as such
 				c = county{"-", "-"};
+			}
 			answers[key] = c;
 			++asked;
 		}
@@ -552,6 +569,8 @@ void harvest::run(std::string Folder, std::vector<probe> Probes, bool const Whol
 			total += c.size;
 			++todo;
 		}
+	if (failed > 0)
+		WriteLog("ZIELSKO: " + std::to_string(failed) + " of " + std::to_string(Probes.size()) + " points not asked for their county (the network)");
 	WriteLog("ZIELSKO: " + std::to_string(found.size()) + " counties under the area, " + std::to_string(todo) + " to be read, up to " +
 	         std::to_string(total / 1048576) + " MB");
 	// 3. the packages read until all the sheets wanted have come (or to the end), each sheet passed kept

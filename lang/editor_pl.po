@@ -16453,9 +16453,6 @@ msgstr "Wokół kamery##scope"
 msgid "Build the structure##tunnel"
 msgstr "Zbuduj konstrukcję##tunnel"
 
-msgid "Clods and hummocks of about 3 m over the whole surface, up to 20 cm high: a ploughed field, a trodden pasture.\nThe terrain under the surface gets a point every metre for them (and for waves shorter than 15 m), the files grow"
-msgstr "Grudy i kępy wielkości około 3 m na całej powierzchni, do 20 cm wysokości: zaorane pole, wydeptane pastwisko.\nTeren pod powierzchnią dostaje dla nich punkt co metr (także dla fal krótszych niż 15 m), pliki rosną"
-
 msgid "Cursor drawn into the picture (streams)"
 msgstr "Kursor rysowany w obrazie (stream)"
 
@@ -17451,3 +17448,12 @@ msgstr "rzędy %.0f°%s"
 
 msgid " (longest side)"
 msgstr " (najdłuższy bok)"
+
+msgid "Of %zu trees read: %zu too low, %zu outside the area, %zu too far from the tracks, %zu too near them, %zu by a road, %zu in water, %zu too close to another, %zu over the limit; %zu left"
+msgstr "Z %zu wczytanych drzew: za niskich %zu, poza obszarem %zu, za daleko od torów %zu, za blisko nich %zu, przy drodze %zu, w wodzie %zu, za blisko innego %zu, ponad limit %zu; zostaje %zu"
+
+msgid ". No tracks found in the scenery: the distance to the tracks takes every tree out"
+msgstr ". W scenerii nie znaleziono torów: odległość od torów odsiewa każde drzewo"
+
+msgid ". Not planted: %zu with no terrain under them, %zu outside the scenery, %zu whose model couldn't be made"
+msgstr ". Nie posadzono: %zu bez terenu pod nimi, %zu poza scenerią, %zu, których modelu nie dało się utworzyć"

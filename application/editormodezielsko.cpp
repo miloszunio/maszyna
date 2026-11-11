@@ -271,8 +271,11 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 				if (seen.insert(zielsko::metre_of(t.east, t.north)).second)
 					trees.push_back(t);
 		}
+	m_zielsko_sieve.clear();
 	if (trees.empty())
 		return result;
+	// how many each step takes out: told in the status and the log, so a sieve that leaves nothing says why
+	std::size_t low{0}, outside{0}, far{0}, near{0}, road{0}, water_{0}, crowded{0};
 	track_points rails, roads;
 	rails.gather(1, 4.0);
 	roads.gather(2, 4.0);
@@ -295,15 +298,32 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 		if ((++index & 0x3fff) == 0)
 			editor_busy_progress(0.6 * static_cast<double>(index) / static_cast<double>(trees.size()));
 		if (t.height < settings.lowest)
+		{
+			++low;
 			continue;
+		}
 		glm::dvec2 const at{east0 - t.east, t.north - north0};
 		if (false == zielsko_in_scope(at))
+		{
+			++outside;
 			continue;
+		}
 		auto const track{rails.distance(at.x, at.y, farthest)};
-		if (track > farthest || track < settings.nearest)
+		if (track > farthest)
+		{
+			++far;
 			continue;
+		}
+		if (track < settings.nearest)
+		{
+			++near;
+			continue;
+		}
 		if (false == roads.empty() && roads.distance(at.x, at.y, settings.road) < settings.road)
+		{
+			++road;
 			continue;
+		}
 		auto wet{false};
 		for (auto const &body : water)
 			if (geometry::point_in_polygon(body.outline, at))
@@ -312,7 +332,10 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 				break;
 			}
 		if (wet)
+		{
+			++water_;
 			continue;
+		}
 		if (spacing > 0.0)
 		{
 			auto too_near{false};
@@ -333,15 +356,28 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 						}
 				}
 			if (too_near)
+			{
+				++crowded;
 				continue;
+			}
 			placed[k].push_back(at);
 		}
 		result.push_back({at, t.height, static_cast<float>(track)});
 	}
 	// the nearest to the tracks first, as far as the limit
 	std::sort(result.begin(), result.end(), [](zielsko_candidate const &A, zielsko_candidate const &B) { return A.track < B.track; });
+	std::size_t over_limit{0};
 	if (result.size() > static_cast<std::size_t>(std::max(0, settings.limit)))
+	{
+		over_limit = result.size() - static_cast<std::size_t>(std::max(0, settings.limit));
 		result.resize(static_cast<std::size_t>(std::max(0, settings.limit)));
+	}
+	m_zielsko_sieve = format(STR_C("Of %zu trees read: %zu too low, %zu outside the area, %zu too far from the tracks, %zu too near them, %zu by a road, "
+	                               "%zu in water, %zu too close to another, %zu over the limit; %zu left"),
+	                         trees.size(), low, outside, far, near, road, water_, crowded, over_limit, result.size());
+	if (rails.empty())
+		m_zielsko_sieve += STR_C(". No tracks found in the scenery: the distance to the tracks takes every tree out");
+	WriteLog("ZIELSKO: " + m_zielsko_sieve);
 	return result;
 }
 
@@ -405,6 +441,7 @@ void editor_mode::zielsko_plant()
 	if (tall_pool.empty())
 	{
 		m_zielsko_status = format(STR_C("No group %s in the node bank: nothing to plant with"), settings.trees_group);
+		WriteLog("ZIELSKO: " + m_zielsko_status);
 		return;
 	}
 	std::size_t counties, read;
@@ -412,7 +449,9 @@ void editor_mode::zielsko_plant()
 	m_zielsko_preview.clear();
 	if (candidates.empty())
 	{
-		m_zielsko_status = counties == 0 ? std::string{STR_C("Nothing read yet: Plant reads what the area needs first")} : std::string{STR_C("No tree passes the sieve")};
+		m_zielsko_status = counties == 0 ? std::string{STR_C("Nothing read yet: Plant reads what the area needs first")}
+		                                 : std::string{STR_C("No tree passes the sieve")} + (m_zielsko_sieve.empty() ? std::string{} : ": " + m_zielsko_sieve);
+		WriteLog("ZIELSKO: " + m_zielsko_status);
 		return;
 	}
 	// the trees planted before within the area go first; the names go on after the highest one taken
@@ -426,6 +465,7 @@ void editor_mode::zielsko_plant()
 	// the height of each template: given, or about the radius of its model, which stands on its foot
 	std::unordered_map<std::string, double> heights;
 	std::size_t planted{0};
+	std::size_t no_ground{0}, off_region{0}, no_model{0};
 	for (std::size_t i = 0; i < candidates.size(); ++i)
 	{
 		if ((i & 0xff) == 0)
@@ -433,15 +473,26 @@ void editor_mode::zielsko_plant()
 		auto const &c{candidates[i]};
 		double ground{0.0};
 		if (false == m_streamer.height_at(c.at.x, c.at.y, ground, true))
+		{
+			++no_ground;
 			continue;
+		}
 		glm::dvec3 const location{c.at.x, ground, c.at.y};
 		if (false == simulation::Region->point_inside(location))
+		{
+			++off_region;
 			continue;
+		}
 		auto const &pool{c.height < settings.small_below ? low_pool : tall_pool};
 		auto const &src{pool[std::min(pool.size() - 1, static_cast<std::size_t>(uniform(0.0, 1.0) * pool.size()))]};
 		auto *model{simulation::State.create_model(src, zielsko_prefix + std::to_string(number + planted), location)};
 		if (model == nullptr)
+		{
+			++no_model;
+			if (no_model == 1)
+				WriteLog("ZIELSKO: the model of " + src + " can't be made");
 			continue;
+		}
 		auto own{static_cast<double>(settings.model_height)};
 		if (own <= 0.0)
 		{
@@ -463,6 +514,9 @@ void editor_mode::zielsko_plant()
 		++planted;
 	}
 	m_zielsko_status = format(STR_C("Planted %zu trees (%zu planted before within the area taken away). The source: GUGiK, 3D tree models, CC BY 4.0"), planted, removed);
+	if (no_ground + off_region + no_model > 0)
+		m_zielsko_status += format(STR_C(". Not planted: %zu with no terrain under them, %zu outside the scenery, %zu whose model couldn't be made"), no_ground,
+		                           off_region, no_model);
 	WriteLog("ZIELSKO: " + m_zielsko_status);
 }
 
