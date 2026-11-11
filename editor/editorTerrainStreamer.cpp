@@ -1222,6 +1222,9 @@ bool terrain_streamer::add_chunk(std::shared_ptr<heightmap::chunk_data> Data)
 	m_loading.erase(key);
 	apply_modifiers(added, low, low + glm::dvec2{heightmap::chunk_size});
 	touch_neighbours(key);
+	// the pieces cut out over it made again now, not when the camera has gone far enough; the fields over it marked by the editor
+	m_waterchanged = true;
+	m_added.push_back(key);
 	return true;
 }
 
@@ -1672,6 +1675,19 @@ bool terrain_streamer::cut_field(std::vector<glm::dvec2> const &Outline, bool co
 	if (cut_area(low, high, Cut, true, inside, kFieldHole) || Cut)
 		return true;
 	return cut_area(low, high, false, true, inside); // cut before the holes of the fields were marked: all of it
+}
+
+void terrain_streamer::mark_field_hole(chunk_key const &Key, std::vector<glm::dvec2> const &Outline)
+{
+	if (Outline.size() < 3 || m_chunks.count(Key) == 0)
+		return;
+	auto const [low, high]{outline_bounds(Outline)};
+	auto const corner{heightmap::chunk_corner(Key)};
+	glm::dvec2 const from{glm::max(low, corner)};
+	glm::dvec2 const to{glm::min(high, corner + glm::dvec2{heightmap::chunk_size})};
+	if (from.x > to.x || from.y > to.y)
+		return;
+	cut_area(from, to, true, false, [&](double const Px, double const Pz) { return inside_outline(Outline, Px, Pz); }, kFieldHole);
 }
 
 bool terrain_streamer::cut_area(glm::dvec2 const &Min, glm::dvec2 const &Max, bool const Cut, bool const Load, std::function<bool(double X, double Z)> const &Inside,

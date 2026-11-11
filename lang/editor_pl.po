@@ -17457,3 +17457,21 @@ msgstr ". W scenerii nie znaleziono torów: odległość od torów odsiewa każd
 
 msgid ". Not planted: %zu with no terrain under them, %zu outside the scenery, %zu whose model couldn't be made"
 msgstr ". Nie posadzono: %zu bez terenu pod nimi, %zu poza scenerią, %zu, których modelu nie dało się utworzyć"
+
+msgid "Part of the outline has no terrain under it: %zu chunks. A field there ends at the edge of the terrain"
+msgstr "Część obrysu nie ma pod sobą terenu: chunków %zu. Pole kończy się tam na krawędzi terenu"
+
+msgid "Add the missing chunks under the outline"
+msgstr "Dodaj brakujące chunki pod obrysem"
+
+msgid "Made from the terrain model (NMT of GUGiK), as the chunks around the camera are; the fields over them go onto them as they come"
+msgstr "Robione z numerycznego modelu terenu (NMT GUGiK), jak chunki wokół kamery; pola nad nimi wchodzą na nie, gdy się pojawią"
+
+msgid "Made from the ground of the scenery and the edges of the chunks beside them; the fields over them go onto them"
+msgstr "Robione z gruntu scenerii i krawędzi sąsiednich chunków; pola nad nimi wchodzą na nie"
+
+msgid "%zu chunks made from the ground of the scenery"
+msgstr "Zrobiono chunków z gruntu scenerii: %zu"
+
+msgid ". %zu chunks under the outline have no terrain: the field ends at its edge until they're added (then it goes onto them)"
+msgstr ". Pod obrysem %zu chunków nie ma terenu: pole kończy się na jego krawędzi, dopóki ich nie dodasz (wtedy na nie wejdzie)"

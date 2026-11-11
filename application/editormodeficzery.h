@@ -197,6 +197,13 @@
 	// the list given to the terrain, the changed ones painted anew and then the ones over them that they touch (the track bed over
 	// the slopes, the surfaces drawn by hand over both), so the transitions are made again; the Cleared outlines painted first
 	// with the first material of the palette, as the ground was
+	// the fields and surfaces cut out over the chunks added since the last frame put onto them: their holes, their paint
+	void fields_on_new_chunks();
+	// the chunks under the outline there's no terrain of (none on the disk either), looked at now and then
+	std::vector<heightmap::chunk_key> const &outline_missing_chunks();
+	std::vector<heightmap::chunk_key> m_outline_missing;
+	double m_outline_missing_at{-1.0};
+	void render_missing_ground();
 	void repaint_patches(std::vector<heightmap::surface_patch> All, std::vector<std::size_t> const &Changed, std::vector<heightmap::surface_patch> const &Cleared = {});
 	// what a cab-view film saw beside the track (editormodefilm.cpp): the .meta of kabina_meta.py laid along the route of the film over
 	// the tracks of the scenery (.trasa), the dry grass, the undergrowth and the gravel as surfaces painted into the terrain, the

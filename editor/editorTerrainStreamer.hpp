@@ -8,6 +8,7 @@ http://mozilla.org/MPL/2.0/.
 */
 
 #pragma once
+#include <utility>
 
 #include <condition_variable>
 #include <deque>
@@ -143,6 +144,10 @@ class terrain_streamer
 	// the hole of a field of its own surface cut (Cut true) or closed: marked as the field's, so closing it leaves the holes
 	// cut otherwise (the Holes tool) there as they are; a hole of a field cut before the mark is closed whole
 	bool cut_field(std::vector<glm::dvec2> const &Outline, bool Cut);
+	// the same in the chunk Key alone, as it's in memory: the hole of a field over a chunk added after the field was cut
+	void mark_field_hole(chunk_key const &Key, std::vector<glm::dvec2> const &Outline);
+	// the chunks added since asked last (made by hand, from the ground, from the terrain model): the fields over them go onto them
+	std::vector<chunk_key> take_added() { return std::exchange(m_added, {}); }
 	// grass: grows the kind of the grass palette Kind within Radius of (X,Z), Strength (0..1) of the way at the centre;
 	// Erase: takes every kind of grass away there instead
 	bool grass(double X, double Z, double Radius, double Strength, std::uint16_t Kind, bool Erase);
@@ -241,6 +246,7 @@ class terrain_streamer
 	std::pair<std::size_t, std::size_t> replace_in_area(std::vector<glm::dvec2> const &Outline, std::uint16_t From, std::uint16_t To);
 
   private:
+	std::vector<chunk_key> m_added; // the chunks added since take_added()
 	struct pack_state
 	{
 		enum class state

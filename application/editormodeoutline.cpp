@@ -585,6 +585,7 @@ void editor_mode::render_outline_options()
 		ImGui::TextDisabled(STR_C("%zu points clicked, %zu of the outline made"), m_paint_outline.size(), shaped_outline().size());
 		ImGui::TextColored(ImVec4(0.96f, 0.79f, 0.24f, 1.0f), "%s", STR_C("Drag a point to move it, Alt+click on a point takes it away, on a side puts one in"));
 	}
+	render_missing_ground();
 	if (changed)
 		m_outline_shaped_key.clear();
 }
@@ -659,6 +660,82 @@ void editor_mode::parcel_fetch(glm::dvec3 const &World, std::string const &Numbe
 	m_outline_shaped_key.clear();
 	m_parcel_status = m_parcel_ids.empty() ? std::string{} : format(STR_C("%zu parcels, %zu points"), m_parcel_ids.size(), m_paint_outline.size());
 	WriteLog("Editor: parcel " + found.id + ", " + std::to_string(found.ring.size()) + " points");
+}
+
+std::vector<heightmap::chunk_key> const &editor_mode::outline_missing_chunks()
+{
+	// a few times a second: the outline moves while dragged, the chunks come while made
+	auto const now{ImGui::GetTime()};
+	if (m_outline_missing_at >= 0.0 && now - m_outline_missing_at < 0.5)
+		return m_outline_missing;
+	m_outline_missing_at = now;
+	m_outline_missing.clear();
+	if (false == m_streamer.active() || m_paint_outline.size() < 3)
+		return m_outline_missing;
+	auto const &outline{shaped_outline()};
+	if (outline.size() < 3)
+		return m_outline_missing;
+	glm::dvec2 low{std::numeric_limits<double>::max()}, high{-std::numeric_limits<double>::max()};
+	for (auto const &point : outline)
+	{
+		low = glm::min(low, point);
+		high = glm::max(high, point);
+	}
+	auto const first{heightmap::chunk_at(low.x, low.y)};
+	auto const last{heightmap::chunk_at(high.x, high.y)};
+	for (int cz = first.second; cz <= last.second; ++cz)
+		for (int cx = first.first; cx <= last.first; ++cx)
+		{
+			heightmap::chunk_key const key{cx, cz};
+			if (m_streamer.exists(key))
+				continue;
+			// the chunk counts where the outline takes some of it: a point of the outline in it, or a point of a grid of 25 m of it inside the outline
+			auto const corner{heightmap::chunk_corner(key)};
+			auto const in_square = [&](glm::dvec2 const &Point) {
+				return Point.x >= corner.x && Point.x <= corner.x + heightmap::chunk_size && Point.y >= corner.y && Point.y <= corner.y + heightmap::chunk_size;
+			};
+			auto taken{std::any_of(outline.begin(), outline.end(), in_square)};
+			for (double z = corner.y + 12.5; z < corner.y + heightmap::chunk_size && false == taken; z += 25.0)
+				for (double x = corner.x + 12.5; x < corner.x + heightmap::chunk_size && false == taken; x += 25.0)
+					taken = geometry::point_in_polygon(outline, glm::dvec2{x, z});
+			if (taken)
+				m_outline_missing.push_back(key);
+		}
+	return m_outline_missing;
+}
+
+void editor_mode::render_missing_ground()
+{
+	auto const &missing{outline_missing_chunks()};
+	if (missing.empty())
+		return;
+	ImGui::TextColored(ImVec4(0.96f, 0.79f, 0.24f, 1.0f), "%s",
+	                   format(STR_C("Part of the outline has no terrain under it: %zu chunks. A field there ends at the edge of the terrain"), missing.size()).c_str());
+	auto const model{m_streamer.manifest().georeferenced};
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.62f, 0.48f, 0.08f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.58f, 0.10f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.85f, 0.66f, 0.12f, 1.0f));
+	auto const add{ImGui::Button(STR_C("Add the missing chunks under the outline"), ImVec2(-FLT_MIN, 0.0f))};
+	ImGui::PopStyleColor(3);
+	item_tooltip(model ? STR_C("Made from the terrain model (NMT of GUGiK), as the chunks around the camera are; the fields over them go onto them as they come")
+	                   : STR_C("Made from the ground of the scenery and the edges of the chunks beside them; the fields over them go onto them"));
+	if (false == add)
+		return;
+	std::vector<heightmap::chunk_key> keys{missing.begin(), missing.end()};
+	m_outline_missing_at = -1.0;
+	if (model)
+	{
+		nmt_make(keys);
+		m_parcel_status = m_nmt_state.status;
+		return;
+	}
+	if (false == ensure_terrain())
+		return;
+	std::size_t made{0};
+	for (auto const &key : keys)
+		if (add_chunk_from_ground(key, m_terrain_spacing))
+			++made;
+	m_parcel_status = format(STR_C("%zu chunks made from the ground of the scenery"), made);
 }
 
 namespace

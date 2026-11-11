@@ -1401,8 +1401,14 @@ void editor_mode::cut_out_surface()
 		repaint_patches(std::move(patches), {index});
 	terrain_history_step();
 	m_patch_selected = static_cast<int>(index);
+	// the chunks it reached with no terrain, told of after; looked at while the outline is still there
+	m_outline_missing_at = -1.0;
+	auto const missing{outline_missing_chunks().size()};
 	m_paint_outline.clear();
+	m_outline_missing_at = -1.0;
 	m_terrain_status = format(STR_C("Cut out as %s with %s, Ctrl+Z puts it back"), name.c_str(), material.c_str());
+	if (missing > 0)
+		m_terrain_status += format(STR_C(". %zu chunks under the outline have no terrain: the field ends at its edge until they're added (then it goes onto them)"), missing);
 }
 
 namespace
@@ -2065,6 +2071,38 @@ bool editor_mode::grass_choice(char const *Label, int &Choice)
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("%s", STR_C("The 3D grass under the surface: left as it grows, taken away (gravel, a yard), or another kind of the grass palette grown there instead"));
 	return changed;
+}
+
+void editor_mode::fields_on_new_chunks()
+{
+	auto const added{m_streamer.take_added()};
+	if (added.empty())
+		return;
+	auto const &all{m_streamer.patches()};
+	std::vector<std::size_t> repaint;
+	for (std::size_t i = 0; i < all.size(); ++i)
+	{
+		if (all[i].outline.size() < 3)
+			continue;
+		glm::dvec2 low, high;
+		reach_of(all[i], low, high);
+		for (auto const &key : added)
+		{
+			auto const corner{heightmap::chunk_corner(key)};
+			if (high.x < corner.x || low.x > corner.x + heightmap::chunk_size || high.y < corner.y || low.y > corner.y + heightmap::chunk_size)
+				continue;
+			// a surface of its own lies over a hole of the ground, a painted one is in the paint of the chunks
+			if (all[i].paint)
+			{
+				repaint.push_back(i);
+				break;
+			}
+			m_streamer.mark_field_hole(key, all[i].outline);
+		}
+	}
+	if (false == repaint.empty())
+		repaint_patches(all, repaint);
+	WriteLog(format("Editor: %zu chunks added, the surfaces cut out over them put onto them (%zu painted again)", added.size(), repaint.size()));
 }
 
 void editor_mode::repaint_patches(std::vector<heightmap::surface_patch> All, std::vector<std::size_t> const &Changed, std::vector<heightmap::surface_patch> const &Cleared)
