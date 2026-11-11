@@ -21,7 +21,6 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorGeometry.hpp"
 #include "editor/editorParcel.hpp"
 #include "rendering/renderer.h"
-#include "imgui/ImGuizmo.h"
 #include "world/Track.h"
 #include "simulation/simulation.h"
 #include "scene/scene.h"
@@ -759,7 +758,7 @@ bool editor_mode::outline_point_press(glm::dvec3 const &World)
 	screen_projection const projection;
 	// the point nearest to the cursor on the screen
 	int nearest{-1};
-	double best{10.0};
+	double best{12.0};
 	for (std::size_t i = 0; i < m_paint_outline.size(); ++i)
 		if (auto const pixels{pixels_to(projection, outline_point_shown(i))}; pixels < best)
 		{
@@ -815,11 +814,26 @@ void editor_mode::outline_edit_drag(bool const Held)
 	if (false == Held)
 	{
 		m_outline_moving = -1;
+		m_rows_ring_dragging = false;
 		return;
 	}
 	glm::dvec3 world;
-	if (m_outline_moving < 0 || false == cursor_on_ground(world))
+	if ((m_outline_moving < 0 && false == m_rows_ring_dragging) || false == cursor_on_ground(world))
 		return;
+	if (m_rows_ring_dragging)
+	{
+		glm::dvec3 middle, tip;
+		if (false == rows_arrow(middle, tip))
+			return;
+		// turned by as much as the cursor went round the middle
+		auto angle{m_rows_ring_start + glm::degrees(std::atan2(world.z - middle.z, world.x - middle.x)) - m_rows_ring_from};
+		if (Global.ctrlState)
+			angle = std::round(angle / 5.0) * 5.0;
+		// the rows run either way: kept within -90..90, as the longest side gives it
+		m_waves.angle = static_cast<float>(std::remainder(angle, 180.0));
+		m_waves.auto_direction = false;
+		return;
+	}
 	if (m_outline_moving >= static_cast<int>(m_paint_outline.size()))
 	{
 		m_outline_moving = -1;
@@ -856,49 +870,64 @@ bool editor_mode::rows_arrow(glm::dvec3 &Middle, glm::dvec3 &Tip) const
 	return true;
 }
 
-bool editor_mode::rows_arrow_press()
+double editor_mode::rows_ring_radius(glm::dvec3 const &Middle) const
 {
-	// the ring turns the rows by itself (render_rows_gizmo): a click on it puts no point and fetches no parcel
-	glm::dvec3 middle, tip;
-	return m_rows_gizmo_over && rows_arrow(middle, tip);
+	// about 90 pixels on the screen, in the top view as in the 3D one
+	screen_projection const projection;
+	ImVec2 centre, east, north;
+	if (false == projection.project(Middle, centre) || false == projection.project(Middle + glm::dvec3{1.0, 0.0, 0.0}, east) ||
+	    false == projection.project(Middle + glm::dvec3{0.0, 0.0, 1.0}, north))
+		return 20.0;
+	auto const per_metre{std::max(std::hypot(east.x - centre.x, east.y - centre.y), std::hypot(north.x - centre.x, north.y - centre.y))};
+	return per_metre > 1e-6f ? std::clamp(90.0 / per_metre, 1.0, 5000.0) : 20.0;
 }
 
-void editor_mode::render_rows_gizmo()
+bool editor_mode::rows_ring_hovered() const
 {
 	glm::dvec3 middle, tip;
 	if (false == rows_arrow(middle, tip))
+		return false;
+	auto const radius{rows_ring_radius(middle)};
+	screen_projection const projection;
+	auto const mouse{ImGui::GetIO().MousePos};
+	ImVec2 previous;
+	bool has_previous{false};
+	for (int i = 0; i <= 64; ++i)
 	{
-		m_rows_gizmo_over = false;
-		return;
+		auto const angle{glm::two_pi<double>() * i / 64.0};
+		ImVec2 at;
+		if (false == projection.project(middle + glm::dvec3{std::cos(angle) * radius, 0.0, std::sin(angle) * radius}, at))
+		{
+			has_previous = false;
+			continue;
+		}
+		if (has_previous)
+		{
+			// the distance of the cursor from this piece of the ring
+			ImVec2 const run{at.x - previous.x, at.y - previous.y};
+			auto const length2{run.x * run.x + run.y * run.y};
+			auto const t{length2 > 1e-6f ? std::clamp(((mouse.x - previous.x) * run.x + (mouse.y - previous.y) * run.y) / length2, 0.0f, 1.0f) : 0.0f};
+			if (std::hypot(previous.x + run.x * t - mouse.x, previous.y + run.y * t - mouse.y) < 9.0f)
+				return true;
+		}
+		previous = at;
+		has_previous = true;
 	}
-	ImGuizmo::BeginFrame();
-	ImGuizmo::SetOrthographic(Global.EditorOrtho);
-	ImGuiIO const &io = ImGui::GetIO();
-	ImGuizmo::SetRect(0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y);
-	// as the gizmo of the objects: the view camera-relative, the projection a plain one of the same view
-	glm::mat4 const view{GfxRenderer->Camera_View_Matrix()};
-	glm::mat4 const projection{editor_mode::projection_matrix(io.DisplaySize.y > 0.0f ? io.DisplaySize.x / io.DisplaySize.y : 1.0f)};
-	auto const angle{glm::radians(static_cast<double>(m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle))};
-	glm::dvec3 const direction{std::cos(angle), 0.0, std::sin(angle)};
-	// the axes of the ring turned with the rows: its X along them
-	glm::mat4 matrix{1.0f};
-	matrix[0] = glm::vec4{glm::vec3{direction}, 0.0f};
-	matrix[2] = glm::vec4{glm::vec3{glm::cross(direction, glm::dvec3{0.0, 1.0, 0.0})}, 0.0f}; // right-handed: Z = X x Y
-	matrix[3] = glm::vec4{glm::vec3{middle - GfxRenderer->Camera_Position()}, 1.0f};
-	glm::vec3 snap{5.0f};
-	glm::mat4 delta{1.0f};
-	ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection), ImGuizmo::ROTATE_Y, ImGuizmo::WORLD, glm::value_ptr(matrix), glm::value_ptr(delta),
-	                     Global.ctrlState ? glm::value_ptr(snap) : nullptr);
-	m_rows_gizmo_over = ImGuizmo::IsOver() || ImGuizmo::IsUsing();
-	if (false == ImGuizmo::IsUsing())
-		return;
-	// the direction of the rows as the ring left it: the X axis of its matrix, whichever way the turn is counted
-	glm::dvec3 const turned{matrix[0]};
-	if (glm::length(glm::dvec2{turned.x, turned.z}) < 1e-6)
-		return;
-	// the rows run either way: kept within -90..90, as the longest side gives it
-	m_waves.angle = static_cast<float>(std::remainder(glm::degrees(std::atan2(turned.z, turned.x)), 180.0));
-	m_waves.auto_direction = false;
+	return false;
+}
+
+bool editor_mode::rows_arrow_press()
+{
+	// the ring grabbed anywhere round it: a click there puts no point and fetches no parcel
+	if (false == rows_ring_hovered())
+		return false;
+	glm::dvec3 middle, tip, world;
+	if (false == rows_arrow(middle, tip) || false == cursor_on_ground(world))
+		return false;
+	m_rows_ring_dragging = true;
+	m_rows_ring_from = glm::degrees(std::atan2(world.z - middle.z, world.x - middle.x));
+	m_rows_ring_start = m_waves.auto_direction ? static_cast<float>(longest_side(shaped_outline())) : m_waves.angle;
+	return true;
 }
 
 glm::dvec3 editor_mode::outline_point_shown(std::size_t const Index)
@@ -917,24 +946,35 @@ void editor_mode::draw_rows_arrow(ImDrawList *Drawlist)
 	if (false == rows_arrow(middle, tip))
 		return;
 	screen_projection const projection;
+	auto const radius{rows_ring_radius(middle)};
+	auto const lit{m_rows_ring_dragging || rows_ring_hovered()};
 	auto const colour{IM_COL32(245, 200, 60, 255)};
-	// the shaft both ways (the rows run both ways); it's turned with the ring of the gizmo
-	auto const back{middle - (tip - middle)};
-	projection.line(Drawlist, back, tip, colour, 3.0f);
-	ImVec2 a, b;
-	if (projection.project(middle, a) && projection.project(tip, b))
+	// the ring, as the one of an object turned on the flat
+	for (int i = 0; i < 64; ++i)
 	{
-		ImVec2 const along{b.x - a.x, b.y - a.y};
-		auto const length{std::hypot(along.x, along.y)};
+		auto const a{glm::two_pi<double>() * i / 64.0};
+		auto const b{glm::two_pi<double>() * (i + 1) / 64.0};
+		projection.line(Drawlist, middle + glm::dvec3{std::cos(a) * radius, 0.0, std::sin(a) * radius}, middle + glm::dvec3{std::cos(b) * radius, 0.0, std::sin(b) * radius},
+		                colour, lit ? 4.0f : 2.0f);
+	}
+	// the rows across it both ways (they run both ways), the head on one side
+	auto const angle{glm::radians(static_cast<double>(m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle))};
+	glm::dvec3 const along{std::cos(angle) * radius, 0.0, std::sin(angle) * radius};
+	projection.line(Drawlist, middle - along, middle + along, colour, 2.0f);
+	ImVec2 a, b;
+	if (projection.project(middle, a) && projection.project(middle + along, b))
+	{
+		ImVec2 const run{b.x - a.x, b.y - a.y};
+		auto const length{std::hypot(run.x, run.y)};
 		if (length > 1.0f)
 		{
-			ImVec2 const unit{along.x / length, along.y / length};
+			ImVec2 const unit{run.x / length, run.y / length};
 			ImVec2 const side{-unit.y, unit.x};
 			Drawlist->AddTriangleFilled(b, ImVec2(b.x - unit.x * 14.0f + side.x * 7.0f, b.y - unit.y * 14.0f + side.y * 7.0f),
 			                            ImVec2(b.x - unit.x * 14.0f - side.x * 7.0f, b.y - unit.y * 14.0f - side.y * 7.0f), colour);
 		}
-		auto const angle{m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle};
-		auto const label{format(STR_C("rows %.0f deg%s"), angle, m_waves.auto_direction ? STR_C(" (longest side)") : "")};
+		auto const label{format(STR_C("rows %.0f deg%s"), m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle,
+		                        m_waves.auto_direction ? STR_C(" (longest side)") : "")};
 		Drawlist->AddText(ImVec2(b.x + 12.0f, b.y - 8.0f), colour, label.c_str());
 	}
 }

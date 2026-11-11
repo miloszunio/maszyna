@@ -61,8 +61,13 @@
 	int m_outline_moving{-1};
 	bool outline_point_press(glm::dvec3 const &World);
 	// the arrow of the direction of the rows of a cultivated field, its tip dragged round the middle of the outline
-	bool m_rows_gizmo_over{false}; // the cursor on the ring of the rows (or turning it) in the last frame: a click there is the ring's
-	void render_rows_gizmo();
+	// the ring of the rows on the ground in the middle of the field, as wide on the screen whatever the view: dragged round,
+	// it turns the rows by as much as the cursor goes round it
+	bool m_rows_ring_dragging{false};
+	double m_rows_ring_from{0.0}; // degrees of the cursor round the middle when it was grabbed
+	float m_rows_ring_start{0.f}; // the angle of the rows then
+	double rows_ring_radius(glm::dvec3 const &Middle) const; // m
+	bool rows_ring_hovered() const;
 	bool rows_arrow(glm::dvec3 &Middle, glm::dvec3 &Tip) const;
 	bool rows_arrow_press();
 	glm::dvec3 outline_point_shown(std::size_t Index); // a point of the outline where it's drawn and grabbed: on the ground under it

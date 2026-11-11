@@ -6110,17 +6110,6 @@ void editor_mode::render_gizmo()
         return;
     }
 
-    // the rows of a field turned on the flat with a ring of their own, as an object is
-    if (outlining() && m_terrain_tool == terrain_tool::fields)
-    {
-        render_rows_gizmo();
-        glm::dvec3 middle, tip;
-        if (rows_arrow(middle, tip))
-            return;
-    }
-    else
-        m_rows_gizmo_over = false;
-
     // the transform gizmo is suppressed while editing terrain, so the brush/chunk tool owns the mouse
     if (!gizmo_shown() || terrain_brush() || terrain_clicking())
     {
@@ -7180,6 +7169,9 @@ void editor_mode::on_mouse_button(int const Button, int const Action, int const 
     {
         if (is_press(Action))
             handle_terrain_click(Global.shiftState);
+        // an outline takes the button held too: a point of it, a handle or the ring of the rows dragged
+        if (outlining())
+            mouseHold = is_press(Action);
         m_input.mouse.button(Button, Action);
         return;
     }

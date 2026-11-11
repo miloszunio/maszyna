@@ -5,7 +5,8 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 - **GeoTools** zamiast Ficzery (F7): zakładki Pola, Drzewa, Torowisko i skarpy, Idź do; Pola przeniesione tu z Terenu.
 - **Drzewa przy torze** (do 30 m od osi, do ustawienia): nazwa `zielsko_tor_<n>`, niebieskie w podglądzie, osobna grupa modeli 3D do sadzenia, przyciski „Wymień drzewa przy torze” i „Zaznacz drzewa przy torze”.
 - **ZIELSKO mówi, czemu nie sadzi:** liczniki każdego etapu sita i sadzenia w statusie i w `log.txt`.
-- **Kierunek rzędów** przy fali „Pole uprawne”: gizmo obrotu jak przy obiektach, tylko w poziomie (Ctrl: co 5°); strzałka pokazuje rzędy.
+- **Kierunek rzędów** przy fali „Pole uprawne”: żółty pierścień na ziemi, łapany w dowolnym miejscu, działa z góry i w perspektywie (Ctrl: co 5°); strzałka pokazuje rzędy.
+- **Przeciąganie punktów obrysu** (też z działki) wreszcie działa: przycisk trzymany nie docierał do obrysu (w nr 111 przeciąganie kończyło się w pierwszej klatce).
 - **Obrys nad pustym chunkiem:** żółte ostrzeżenie i przycisk „Dodaj brakujące chunki pod obrysem” (NMT albo grunt scenerii); chunk dodany pod istniejącym polem dostaje od razu jego dziurę i malowanie (wcześniej pole dorysowywało się dopiero po odjechaniu kamerą, bez dziury).
 - **Punkty obrysu działki** rysowane i chwytane na terenie pod nimi (wcześniej narożniki nad niewczytanym terenem dostawały wysokość 0 i w widoku z ukosa wisiały obok obrysu).
 
