@@ -275,7 +275,7 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 	if (trees.empty())
 		return result;
 	// how many each step takes out: told in the status and the log, so a sieve that leaves nothing says why
-	std::size_t low{0}, outside{0}, far{0}, near{0}, road{0}, water_{0}, crowded{0};
+	std::size_t low{0}, outside{0}, too_far{0}, too_close{0}, by_road{0}, in_water{0}, crowded{0};
 	track_points rails, roads;
 	rails.gather(1, 4.0);
 	roads.gather(2, 4.0);
@@ -311,17 +311,17 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 		auto const track{rails.distance(at.x, at.y, farthest)};
 		if (track > farthest)
 		{
-			++far;
+			++too_far;
 			continue;
 		}
 		if (track < settings.nearest)
 		{
-			++near;
+			++too_close;
 			continue;
 		}
 		if (false == roads.empty() && roads.distance(at.x, at.y, settings.road) < settings.road)
 		{
-			++road;
+			++by_road;
 			continue;
 		}
 		auto wet{false};
@@ -333,7 +333,7 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 			}
 		if (wet)
 		{
-			++water_;
+			++in_water;
 			continue;
 		}
 		if (spacing > 0.0)
@@ -374,7 +374,7 @@ std::vector<editor_mode::zielsko_candidate> editor_mode::zielsko_candidates(std:
 	}
 	m_zielsko_sieve = format(STR_C("Of %zu trees read: %zu too low, %zu outside the area, %zu too far from the tracks, %zu too near them, %zu by a road, "
 	                               "%zu in water, %zu too close to another, %zu over the limit; %zu left"),
-	                         trees.size(), low, outside, far, near, road, water_, crowded, over_limit, result.size());
+	                         trees.size(), low, outside, too_far, too_close, by_road, in_water, crowded, over_limit, result.size());
 	if (rails.empty())
 		m_zielsko_sieve += STR_C(". No tracks found in the scenery: the distance to the tracks takes every tree out");
 	WriteLog("ZIELSKO: " + m_zielsko_sieve);
