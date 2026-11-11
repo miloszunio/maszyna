@@ -47,7 +47,7 @@ W panelu Pól jest **„Obsiane”**: wybierz uprawę, a pole dostanie jej tekst
 
 ### Ładniejszy obraz (od nr 84)
 
-W `eu07.ini` (albo suwakami w oknie ekspozycji, obok balansu bieli):
+W pliku **`eu07_user.ini`** obok `eu07.ini` (`%APPDATA%\Maszyna`), od nr 85. Starter przepisuje `eu07.ini` tylko ze znanymi sobie kluczami i gubi resztę, a `eu07_user.ini` zostawia w spokoju; gra czyta go po `eu07.ini`. Można też suwakami w oknie ekspozycji, obok balansu bieli:
 
 ```
 gfx.atmosphere.haze 0.4          // mniej zamglenia w pogodny dzień (domyślnie 1)

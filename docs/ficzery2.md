@@ -1,8 +1,10 @@
 Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrrycho leżą najnowsze zmiany maj00ra, a na tym wszystkie nasze wdrożenia.
 
-## Zmiany w tym wydaniu (nr 84)
+## Zmiany w tym wydaniu (nr 84–85)
 
-- **Obraz „PRO” w ustawieniach** (renderer GL 4.6 i Vulkan, domyślnie bez zmian, włączane w `eu07.ini` albo suwakami w oknie ekspozycji, tam gdzie balans bieli):
+- **`eu07_user.ini`** (nr 85): własne ustawienia czytane po `eu07.ini`, z `%APPDATA%\Maszyna` albo z folderu gry. Starter przepisuje `eu07.ini` tylko ze znanymi sobie kluczami (np. `gfx.atmosphere.haze` znikało), tego pliku nie rusza.
+
+- **Obraz „PRO” w ustawieniach** (renderer GL 4.6 i Vulkan, domyślnie bez zmian, włączane w `eu07_user.ini` albo suwakami w oknie ekspozycji, tam gdzie balans bieli):
   - `gfx.postfx.grade.saturation` (1 = bez zmian), `gfx.postfx.grade.vibrance` (podbija nasycenie bladych kolorów: trawy, zboża, ziemi; nieba i żywych kolorów prawie nie rusza), `gfx.postfx.grade.contrast` (krzywa S jasności);
   - `gfx.postfx.sharpen` (0–1): wyostrzenie po TAA, w granicach sąsiednich pikseli, bez obwódek.
   - Tonemapper AgX daje celowo płaski obraz (nasycenie 0,9); te ustawienia go „wywołują”.
@@ -247,7 +249,7 @@ Narzędzie Kapelusz (prostokąt nad torem i dobór rozjazdu) wypadło z działu 
 - `tools/zielsko/uprawy.py`: tekstury upraw z `farm00`/`farm01` (przekolorowanie, plamy dojrzewania, kwiaty rzepaku, słoma ścierniska), kafelkowane, z `.mat` jak `farm00.mat`.
 - `terrain_streamer::paint_where` / `grass_where`: malowanie i trawa według funkcji miejsca.
 
-## Uprawy: kolory, ścieżki, obraz (nr 84)
+## Uprawy: kolory, ścieżki, obraz (nr 84–85)
 
 Opis w „Zmiany w tym wydaniu” na górze.
 
@@ -278,3 +280,4 @@ Od pierwszego buildu `ficzery2`. Numery to kolejne buildy CI (wspólna numeracja
 - **nr 82** (10.11): ZIELSKO przebudowane: jeden zasięg czytania i sadzenia, arkusze doczytywane do ostatniego potrzebnego.
 - **nr 83** (10.11): uprawy na polach (15 upraw z trawą 3D i teksturami), fala „Pole uprawne” (rzędy, zagony, uwrocia, ścieżki technologiczne).
 - **nr 84** (11.11): korekcja obrazu i wyostrzanie, uprawy bez jesieni, kolor pola zgodny z trawą, cieplejsza ziemia, miękkie ścieżki technologiczne.
+- **nr 85** (11.11): `eu07_user.ini`, ustawienia, których starter nie kasuje.

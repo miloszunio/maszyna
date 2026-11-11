@@ -1238,6 +1238,16 @@ int eu07_application::init_settings(int Argc, char *Argv[])
 	{
 		Global.LoadIniFile("eu07.ini");
 	}
+	// the player's own additions read over it: the starter writes eu07.ini anew with the keys it knows only, this file it
+	// leaves alone (a test doesn't read it either)
+	if (false == Global.test.enabled)
+	{
+		fs::path const additions{user_config_path("eu07_user.ini")};
+		if (!additions.empty() && fs::exists(additions))
+			Global.LoadIniAdditions(additions.string());
+		else if (fs::exists("eu07_user.ini"))
+			Global.LoadIniAdditions("eu07_user.ini");
+	}
 	if (Global.debug_memorystats)
 	{
 		start_heap_counting();
