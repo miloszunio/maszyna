@@ -37,7 +37,7 @@ Od nr 80 wycinanie jest w trybie **Teren (F11) → Pola** (ikona trawy, obok Wyp
 
 - W opcjach obrysu (Wypełnij, Pola): **„Działka z ewidencji (kliknij ją)”**. Klik w teren pobiera obrys działki w tym miejscu z ewidencji (ULDK GUGiK), **Shift+klik** dokłada sąsiednią (wspólne boki znikają) albo zabiera już wziętą. Można też wpisać pełny numer (np. `021903_2.0003.176/5`) i **Pobierz po numerze**. Teren musi mieć ustawione położenie w PUWG 1992 (to samo co dla ZIELSKO).
 - **Punkty każdego obrysu da się poprawiać:** przeciągnij punkt, **Alt+klik na punkcie** go usuwa, **Alt+klik na boku** wstawia nowy.
-- Przy fali **„Pole uprawne”** w środku obrysu jest **żółta strzałka kierunku rzędów**. Przeciągnij jej grot (Ctrl: co 5°), a wyłączy się „Rzędy wzdłuż najdłuższego boku”; tekstura uprawy idzie za rzędami.
+- Przy fali **„Pole uprawne”** w środku obrysu jest **gizmo obrotu** jak przy obiektach, tylko w poziomie (jeden pierścień), a żółta strzałka pokazuje kierunek rzędów. Obróć pierścień (Ctrl: co 5°), a wyłączy się „Rzędy wzdłuż najdłuższego boku”; tekstura uprawy idzie za rzędami.
 
 ### Uprawy (od nr 83)
 

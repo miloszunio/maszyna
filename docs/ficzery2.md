@@ -4,7 +4,8 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 
 - **Obrys z działki ewidencyjnej** (ULDK GUGiK): klik w teren albo numer działki, Shift+klik dokłada sąsiednią (wspólne boki odpadają). `editor/editorParcel.cpp`.
 - **Edycja punktów obrysu:** przeciąganie, Alt+klik usuwa punkt albo wstawia go na boku.
-- **Strzałka kierunku rzędów** przy fali „Pole uprawne”, grot do przeciągania (Ctrl: co 5°).
+- **Kierunek rzędów** przy fali „Pole uprawne”: gizmo obrotu jak przy obiektach, tylko w poziomie (Ctrl: co 5°); strzałka pokazuje rzędy.
+- **Punkty obrysu działki** rysowane i chwytane na terenie pod nimi (wcześniej narożniki nad niewczytanym terenem dostawały wysokość 0 i w widoku z ukosa wisiały obok obrysu).
 
 ## Zmiany w nr 109
 

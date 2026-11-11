@@ -19,6 +19,8 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorFormat.hpp"
 #include "editor/editorGeometry.hpp"
 #include "editor/editorParcel.hpp"
+#include "rendering/renderer.h"
+#include "imgui/ImGuizmo.h"
 #include "world/Track.h"
 #include "simulation/simulation.h"
 #include "scene/scene.h"
@@ -28,6 +30,7 @@ http://mozilla.org/MPL/2.0/.
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <glm/gtc/type_ptr.hpp>
 #include <memory>
 #include <sstream>
 
@@ -630,13 +633,26 @@ void editor_mode::parcel_fetch(glm::dvec3 const &World, std::string const &Numbe
 	m_parcel_ids = std::move(ids);
 	m_paint_outline.clear();
 	m_outline_marks.clear();
+	// the terrain loaded for the corners where it isn't yet: one with no ground found took 0 and stood off the outline
+	std::vector<bool> grounded;
+	double sum{0.0};
+	std::size_t found_heights{0};
 	for (auto const &point : ring)
 	{
 		glm::dvec3 const at{east0 - point.x, 0.0, point.y - north0};
 		double height{0.0};
-		m_streamer.height_at(at.x, at.z, height);
+		grounded.push_back(m_streamer.height_at(at.x, at.z, height, true));
+		if (grounded.back())
+		{
+			sum += height;
+			++found_heights;
+		}
 		m_paint_outline.emplace_back(at.x, height, at.z);
 	}
+	// where there's no terrain at all, the height of the others
+	for (std::size_t i = 0; i < m_paint_outline.size() && found_heights > 0; ++i)
+		if (false == grounded[i])
+			m_paint_outline[i].y = sum / static_cast<double>(found_heights);
 	// the corners of a parcel stay corners, whatever the curve
 	for (auto &mark : outline_marks())
 		mark.sharp = true;
@@ -667,7 +683,7 @@ bool editor_mode::outline_point_press(glm::dvec3 const &World)
 	int nearest{-1};
 	double best{10.0};
 	for (std::size_t i = 0; i < m_paint_outline.size(); ++i)
-		if (auto const pixels{pixels_to(projection, m_paint_outline[i] + glm::dvec3{0.0, 0.15, 0.0})}; pixels < best)
+		if (auto const pixels{pixels_to(projection, outline_point_shown(i))}; pixels < best)
 		{
 			best = pixels;
 			nearest = static_cast<int>(i);
@@ -721,25 +737,11 @@ void editor_mode::outline_edit_drag(bool const Held)
 	if (false == Held)
 	{
 		m_outline_moving = -1;
-		m_rows_arrow_dragging = false;
 		return;
 	}
 	glm::dvec3 world;
-	if ((m_outline_moving < 0 && false == m_rows_arrow_dragging) || false == cursor_on_ground(world))
+	if (m_outline_moving < 0 || false == cursor_on_ground(world))
 		return;
-	if (m_rows_arrow_dragging)
-	{
-		glm::dvec3 middle, tip;
-		if (false == rows_arrow(middle, tip))
-			return;
-		auto angle{glm::degrees(std::atan2(world.z - middle.z, world.x - middle.x))};
-		if (Global.ctrlState)
-			angle = std::round(angle / 5.0) * 5.0;
-		// the rows run either way: kept within -90..90, as the longest side gives it
-		m_waves.angle = static_cast<float>(std::remainder(angle, 180.0));
-		m_waves.auto_direction = false;
-		return;
-	}
 	if (m_outline_moving >= static_cast<int>(m_paint_outline.size()))
 	{
 		m_outline_moving = -1;
@@ -778,14 +780,57 @@ bool editor_mode::rows_arrow(glm::dvec3 &Middle, glm::dvec3 &Tip) const
 
 bool editor_mode::rows_arrow_press()
 {
+	// the ring turns the rows by itself (render_rows_gizmo): a click on it puts no point and fetches no parcel
+	glm::dvec3 middle, tip;
+	return m_rows_gizmo_over && rows_arrow(middle, tip);
+}
+
+void editor_mode::render_rows_gizmo()
+{
 	glm::dvec3 middle, tip;
 	if (false == rows_arrow(middle, tip))
-		return false;
-	screen_projection const projection;
-	if (pixels_to(projection, tip) > 14.0)
-		return false;
-	m_rows_arrow_dragging = true;
-	return true;
+	{
+		m_rows_gizmo_over = false;
+		return;
+	}
+	ImGuizmo::BeginFrame();
+	ImGuizmo::SetOrthographic(Global.EditorOrtho);
+	ImGuiIO const &io = ImGui::GetIO();
+	ImGuizmo::SetRect(0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y);
+	// as the gizmo of the objects: the view camera-relative, the projection a plain one of the same view
+	glm::mat4 const view{GfxRenderer->Camera_View_Matrix()};
+	glm::mat4 const projection{editor_mode::projection_matrix(io.DisplaySize.y > 0.0f ? io.DisplaySize.x / io.DisplaySize.y : 1.0f)};
+	auto const angle{glm::radians(static_cast<double>(m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle))};
+	glm::dvec3 const direction{std::cos(angle), 0.0, std::sin(angle)};
+	// the axes of the ring turned with the rows: its X along them
+	glm::mat4 matrix{1.0f};
+	matrix[0] = glm::vec4{glm::vec3{direction}, 0.0f};
+	matrix[2] = glm::vec4{glm::vec3{glm::cross(direction, glm::dvec3{0.0, 1.0, 0.0})}, 0.0f}; // right-handed: Z = X x Y
+	matrix[3] = glm::vec4{glm::vec3{middle - GfxRenderer->Camera_Position()}, 1.0f};
+	glm::vec3 snap{5.0f};
+	glm::mat4 delta{1.0f};
+	ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection), ImGuizmo::ROTATE_Y, ImGuizmo::WORLD, glm::value_ptr(matrix), glm::value_ptr(delta),
+	                     Global.ctrlState ? glm::value_ptr(snap) : nullptr);
+	m_rows_gizmo_over = ImGuizmo::IsOver() || ImGuizmo::IsUsing();
+	if (false == ImGuizmo::IsUsing())
+		return;
+	// the direction of the rows as the ring left it: the X axis of its matrix, whichever way the turn is counted
+	glm::dvec3 const turned{matrix[0]};
+	if (glm::length(glm::dvec2{turned.x, turned.z}) < 1e-6)
+		return;
+	// the rows run either way: kept within -90..90, as the longest side gives it
+	m_waves.angle = static_cast<float>(std::remainder(glm::degrees(std::atan2(turned.z, turned.x)), 180.0));
+	m_waves.auto_direction = false;
+}
+
+glm::dvec3 editor_mode::outline_point_shown(std::size_t const Index)
+{
+	// on the ground under it, as the line of the outline is drawn; its own height where there's no ground
+	auto point{m_paint_outline[Index]};
+	double height{0.0};
+	if (m_streamer.height_at(point.x, point.z, height))
+		point.y = height;
+	return point + glm::dvec3{0.0, 0.15, 0.0};
 }
 
 void editor_mode::draw_rows_arrow(ImDrawList *Drawlist)
@@ -795,7 +840,7 @@ void editor_mode::draw_rows_arrow(ImDrawList *Drawlist)
 		return;
 	screen_projection const projection;
 	auto const colour{IM_COL32(245, 200, 60, 255)};
-	// the shaft both ways (the rows run both ways), the head at the end to drag
+	// the shaft both ways (the rows run both ways); it's turned with the ring of the gizmo
 	auto const back{middle - (tip - middle)};
 	projection.line(Drawlist, back, tip, colour, 3.0f);
 	ImVec2 a, b;
@@ -810,7 +855,6 @@ void editor_mode::draw_rows_arrow(ImDrawList *Drawlist)
 			Drawlist->AddTriangleFilled(b, ImVec2(b.x - unit.x * 14.0f + side.x * 7.0f, b.y - unit.y * 14.0f + side.y * 7.0f),
 			                            ImVec2(b.x - unit.x * 14.0f - side.x * 7.0f, b.y - unit.y * 14.0f - side.y * 7.0f), colour);
 		}
-		Drawlist->AddCircle(b, 9.0f, colour, 16, m_rows_arrow_dragging ? 3.0f : 1.5f);
 		auto const angle{m_waves.auto_direction ? longest_side(shaped_outline()) : m_waves.angle};
 		auto const label{format(STR_C("rows %.0f deg%s"), angle, m_waves.auto_direction ? STR_C(" (longest side)") : "")};
 		Drawlist->AddText(ImVec2(b.x + 12.0f, b.y - 8.0f), colour, label.c_str());
@@ -844,7 +888,7 @@ void editor_mode::draw_outline_shape(ImDrawList *Drawlist)
 	for (std::size_t i = 0; i < m_paint_outline.size(); ++i)
 	{
 		ImVec2 dot;
-		auto const point{m_paint_outline[i] + glm::dvec3{0.0, 0.15, 0.0}};
+		auto const point{outline_point_shown(i)};
 		if (false == Projection.project(point, dot))
 			continue;
 		auto const colour{IM_COL32(250, 200, 90, 255)};

@@ -61,9 +61,11 @@
 	int m_outline_moving{-1};
 	bool outline_point_press(glm::dvec3 const &World);
 	// the arrow of the direction of the rows of a cultivated field, its tip dragged round the middle of the outline
-	bool m_rows_arrow_dragging{false};
+	bool m_rows_gizmo_over{false}; // the cursor on the ring of the rows (or turning it) in the last frame: a click there is the ring's
+	void render_rows_gizmo();
 	bool rows_arrow(glm::dvec3 &Middle, glm::dvec3 &Tip) const;
 	bool rows_arrow_press();
+	glm::dvec3 outline_point_shown(std::size_t Index); // a point of the outline where it's drawn and grabbed: on the ground under it
 	void outline_edit_drag(bool Held);
 	void draw_rows_arrow(ImDrawList *Drawlist);
 	// the field of work of our own features (editormodefeatures.cpp): surfaces cut out of the terrain to texture them, and the
