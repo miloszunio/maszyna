@@ -1,57 +1,55 @@
 # Mapa drogowa: edytor ficzery2 → 3.0
 
-Stan na 11.11.2026, po nr 109. Kierunek: szybsze robienie realistycznych scenerii z danych (GUGiK, OSM) zamiast ręcznego
-klikania; później fikcyjne, z poprawkami istniejących. Każda zmiana, która idzie do Hirka, idzie z testem skryptem edytora
-(`EU07_EDITOR_SELFTEST`) na kopii scenerii, nie tylko z kompilacją i Sonarem.
+Stan na 12.11.2026, po nr 129. Kierunek: szybsze robienie realistycznych scenerii z danych (GUGiK, OSM) zamiast ręcznego
+klikania; później fikcyjne, z poprawkami istniejących. Każda zmiana, która idzie upstream, idzie sprawdzona w grze, nie tylko
+z kompilacją i Sonarem.
 
 Bieżący stan PR-ów i testów: arkusz „MaSzyna ficzery2: PR-y i testy”.
 
-## 1. Wysłane do Hirka (PR-y)
+## 1. PR-y upstream (MaSzyna-EU07)
 
 | PR | Co | Stan |
 |---|---|---|
-| #309 | kursor rysowany w obrazie (streamy) | review: merge; poprawka wypchnięta |
-| #310 | punkty dróg pod terenem, Alt+przeciąganie | review: needs work; poprawki wypchnięte |
-| #311 | okno profilu drogi | review: needs work; poprawki wypchnięte |
-| #312 | ~ / Ctrl+~ ortofoto, prędkość kamery | review: merge po 1–2; poprawki wypchnięte |
-| #313 | przesuwanie widoku kółkiem w perspektywie | review: merge; poprawka wypchnięta |
-| #314 | promień do terenu dla narzędzi | review: needs work; poprawki wypchnięte |
-| #315 | Pola w trybie Teren, falowanie, naturalne skarpy | review: needs work; poprawki wypchnięte |
-| #327 | `Mouse_Hit()` bez optymizmu | nowy |
-| #241, #243 | wypełnianie obszaru, NMT z kamery (stare) | do decyzji: poprawić albo zamknąć |
-
-Zostało przy nich: test skryptem w edytorze, komentarz pod każdym PR-em z opisem poprawek, rebase konfliktów (#309 z #312,
-#310 z #311).
+| #309 | kursor rysowany w obrazie (streamy) | **w masterze** |
+| #310 | punkty dróg pod terenem, Alt+przeciąganie | **w masterze** |
+| #313 | przesuwanie widoku kółkiem w perspektywie | **w masterze** |
+| #314 | promień do terenu dla narzędzi | **w masterze** |
+| #327 | `Mouse_Hit()` bez optymizmu | **w masterze** |
+| #311 | okno profilu drogi | rebase na master 12.11, Sonar zielony, czeka na review |
+| #312 | ~ / Ctrl+~ ortofoto, prędkość kamery | rebase na master 12.11 (po #334 maj00ra), Sonar zielony, czeka |
+| #315 | Pola w trybie Teren (gl46) | czysto na gl46, Sonar zielony, czeka; do przeniesienia na master pod GeoTools (3.0) |
+| #241 | wypełnianie obszaru, lista obszarów (gl46) | poprawki z review wypchnięte 12.11 |
+| #243 | NMT z kamery, `//$g` z include (switch-blades) | poprawki z review wypchnięte 12.11, baza naprawiona |
+| #335 | issue: nagrywanie ekranu GL46 na pełnym ekranie | zgłoszone, z alternatywą (zastrzeżenie) |
 
 ## 2. U nas, w testach (ficzery2)
 
-- **Poprawki z review #309–#315** przeniesione do nas (nr 109).
-- **Uprawy na polach** (nr 83–84): 15 upraw z teksturą, trawą 3D i rzeźbą; tekstury z `tools/zielsko/uprawy.py`; kolor pola
-  zgodny z trawą, bez jesiennej orki pod zbożem.
-- **Fala „Pole uprawne”** (nr 83): rzędy wzdłuż najdłuższego boku, falujące, zagony, uwrocia, ścieżki technologiczne.
-- **Korekcja obrazu i wyostrzanie po TAA** (nr 84), **`eu07_user.ini`** (nr 85).
-- **ZIELSKO z kosmosu** (nr 72 / 82): drzewa z modeli 3D drzew Geoportalu. **Nie działa sadzenie: szukamy przyczyny.**
+- **GeoTools (F7)** zamiast Ficzery: zakładki Pola, Drzewa, Torowisko i skarpy, Idź do (nr 128).
+- **ZIELSKO** działa; drzewa do 30 m od osi toru jako `zielsko_tor_N`, wymiana na modele 3D, zaznaczanie (nr 128).
+- **Obrys z działki (ULDK)**, przeciąganie punktów, **pierścień kierunku rzędów** na ziemi (nr 129), puste chunki pod obrysem (nr 128).
+- **Uprawy na polach**, fala „Pole uprawne” (nr 83–84); korekcja obrazu i wyostrzanie (nr 84), `eu07_user.ini` (nr 85).
 
 ## 3. Teraz
 
-1. **Naprawić sadzenie drzew (ZIELSKO).** Log z próby, ustalenie: dane (serwer, arkusze, współrzędne) czy sito i sadzenie.
-   Zapas: wysokości koron z NMPT − NMT tam, gdzie modeli 3D nie ma.
-2. **(w nr 111, do testu)** **Obrys z działki ewidencyjnej** jako sposób obrysu: klik w teren albo numer działki (ULDK GUGiK), Shift+klik dokłada
-   sąsiednią, potem zwykła edycja punktów; odpowiedzi trzymane na dysku.
-3. **(w nr 111, do testu)** **Strzałka kierunku rzędów** przy fali „Pole uprawne”: wektor w środku obrysu, grot do przeciągania (Ctrl: co 5°),
-   tekstura uprawy obraca się z rzędami.
-4. **PR-y z naszych rzeczy**, każdy z testem w edytorze: uprawy + fala pola, obrys z działki + strzałka, korekcja obrazu,
-   `eu07_user.ini`, zaawansowane obrysy (krzywe, Bézier, ręcznie, wzdłuż toru, różdżka) po merge #315.
+1. **Czarny ekran przy pierwszym starcie nowego exe** (~35 s kompilacji shaderów po zniknięciu ekranu ładowania): ekran
+   ładowania z napisem do końca pierwszej klatki (PR upstream), stała nazwa exe w naszych buildach; potem kompilacja w trakcie
+   wczytywania z paskiem postępu. Do akceptu.
+2. **Tory z danych**: koncepcja w `docs/koncepcje/tory-z-danych.md` (do omówienia).
+3. **Kawałki ortofoto jadące za kamerą**: czekamy na screen.
 
 ## 4. Gałąź 3.0 (pod RC)
 
-Nowa gałąź od aktualnego `feat/gl46-migration` Hirka i mastera, ze zmianami Jerrego i maj00ra, a nasze ficzery już
-w docelowych miejscach (podział na pliki jak u Hirka, nie `editormodeficzery`). `ficzery2` zostaje, dopóki 3.0 nie
-zadziała w grze.
+Czysta gałąź od **aktualnego mastera** (bez wciągania gl46: tamtą integrację robią Hirek i maj00r). Każdy nasz ficzer to osobna
+gałąź od mastera i osobny PR; 3.0 = master + te gałęzie po kolei, składane od nowa skryptem, gdy master się ruszy. Kolejność:
+otwarte PR-y → Pola na master pod GeoTools → zaawansowane obrysy → działki z pierścieniem rzędów i pustymi chunkami → uprawy →
+ZIELSKO. Grade/wyostrzanie siedzą w rendererach GL46/Vulkan, których master nie ma: osobno do gl46. `ficzery2` zostaje
+poligonem, dopóki 3.0 nie ma wszystkiego.
 
 ## 5. Dalej: propozycje
 
 Z danych:
+- **Tory z danych** (GeoTools → Tory): obszar z chunka + promień, przebieg z IRT / BDOT10k / OSM, dopasowanie do ST-T1-A6
+  narzędziem układania maj00ra, NMT, formacja, obiekty z osobnymi skarpami. Szczegóły: `docs/koncepcje/tory-z-danych.md`.
 - **NMPT − NMT:** wysokości koron i dachów; drzewa tam, gdzie nie ma modeli 3D, i kontrola ZIELSKO.
 - **BDOT10k jako szkic scenerii:** lasy, zadrzewienia, łąki, uprawy, sady i wody jako pola z presetem; osie dróg do narzędzia
   dróg z klasą do profilu; rowy i stawy jako wcięcia i powierzchnie wody.
