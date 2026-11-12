@@ -11,6 +11,12 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 - Ciężkie operacje (torowisko i skarpy na całej scenerii, przemalowanie, film, dociąganie terenu, obiekty pod torami) pokazują **klepsydrę** na zamrożonym ekranie.
   Postęp w procentach jest w tytule okna, **Esc** przerywa tam, gdzie się da. To, co zrobione, zostaje i da się cofnąć.
 
+
+## Pierwsze uruchomienie nowej wersji: czarny ekran do ~minuty
+
+- Po wczytaniu scenerii pierwsza klatka przygotowuje shadery wszystkich materiałów. Przy **pierwszym uruchomieniu nowego exe** sterownik karty kompiluje je od zera (u nas ok. 35 s, w `log.txt` widać to jako „slow frame before, … ms” zaraz po „scenery lamp shadow maps”), a ekran ładowania już wtedy zniknął: obraz jest czarny i wygląda, jakby gra się zawiesiła. **Trzeba poczekać**, nie zamykać.
+- Dzieje się tak, bo sterownik trzyma skompilowane shadery osobno dla każdego programu, a każdy build ma inną nazwę exe (`eu07-x64_<data>_<hash>.exe`). Drugie uruchomienie tego samego exe startuje już szybko.
+
 ## Teksturowanie terenu
 
 1. GeoTools (F7) → paleta: kafelki materiałów w grupach. LPM wybiera materiał, **1–9** pierwsze dziewięć, **Alt+LPM** w widoku bierze materiał spod kursora.

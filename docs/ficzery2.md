@@ -2,6 +2,7 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 
 ## Zmiany w tym wydaniu
 
+- **Uwaga przy pierwszym uruchomieniu nowej wersji:** po wczytaniu scenerii do ~minuty czarnego ekranu, bo sterownik kompiluje shadery dla nowego exe od zera. Trzeba poczekać; drugie uruchomienie startuje szybko (opis w poradniku).
 - **GeoTools** zamiast Ficzery (F7): zakładki Pola, Drzewa, Torowisko i skarpy, Idź do; Pola przeniesione tu z Terenu.
 - **Drzewa przy torze** (do 30 m od osi, do ustawienia): nazwa `zielsko_tor_<n>`, niebieskie w podglądzie, osobna grupa modeli 3D do sadzenia, przyciski „Wymień drzewa przy torze” i „Zaznacz drzewa przy torze”.
 - **ZIELSKO mówi, czemu nie sadzi:** liczniki każdego etapu sita i sadzenia w statusie i w `log.txt`.
