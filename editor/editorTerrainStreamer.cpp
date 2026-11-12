@@ -926,7 +926,7 @@ bool terrain_streamer::waits_for_ground(heightmap::surface_patch const &Patch) c
 		for (auto x{std::min(first.first, last.first)}; x <= std::max(first.first, last.first); ++x)
 		{
 			chunk_key const key{x, z};
-			if (m_chunks.count(key) > 0 || m_removed.count(key) > 0)
+			if (m_chunks.contains(key) || m_removed.contains(key))
 				continue;
 			// still coming while its pack isn't read yet (just after opening the scenery none is); not coming only when
 			// the pack is missing, or read and without that chunk
@@ -1699,13 +1699,15 @@ void terrain_streamer::mark_field_hole(chunk_key const &Key, std::vector<glm::dv
 
 void terrain_streamer::recut_fields_over(std::vector<heightmap::surface_patch> const &Patches, heightmap::surface_patch const &Closed)
 {
-	glm::dvec2 low, high;
+	glm::dvec2 low;
+	glm::dvec2 high;
 	Closed.bounds(low, high);
 	for (auto const &patch : Patches)
 	{
 		if (patch.paint || patch.outline.size() < 3)
 			continue;
-		glm::dvec2 otherlow, otherhigh;
+		glm::dvec2 otherlow;
+		glm::dvec2 otherhigh;
 		patch.bounds(otherlow, otherhigh);
 		if (otherlow.x > high.x || otherhigh.x < low.x || otherlow.y > high.y || otherhigh.y < low.y)
 			continue;
