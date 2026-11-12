@@ -11,6 +11,8 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulation.h"
 #include "simulation/simulationtime.h"
 #include "simulation/simulationenvironment.h"
+#include "simulation/simulationtest.h"
+#include "simulation/blackboxrecorder.h"
 
 #include "utilities/Globals.h"
 #include "world/Event.h"
@@ -30,6 +32,7 @@ http://mozilla.org/MPL/2.0/.
 #include "scene/scenelayers.h"
 #include "vehicle/Train.h"
 #include "application/application.h"
+#include "rendering/renderer.h"
 #include "utilities/Logs.h"
 #include "vehicle/Driver.h"
 
@@ -108,6 +111,8 @@ state_manager::init_scripting_interface() {
         simulation::Memory.insert( memorycell );
         simulation::Region->insert( memorycell );
     }
+    // the cell a test scenery reports its result to
+    simulation::test().init_result_cell();
 }
 
 // legacy method, calculates changes in simulation state over specified time
@@ -197,6 +202,7 @@ state_manager::update_scripting_interface() {
 void state_manager::process_commands() {
 	command_data commanddata;
 	while( Commands.pop( commanddata, (uint32_t)command_target::simulation )) {
+		Blackbox.command( nullptr, commanddata.command, commanddata.action, commanddata.param1, commanddata.param2 );
 		if (commanddata.command == user_command::consistreleaser) {
 			TDynamicObject *found_vehicle = simulation::Vehicles.find(commanddata.payload);
 			TDynamicObject *vehicle = found_vehicle;
@@ -418,6 +424,12 @@ void state_manager::process_commands() {
 			}
 		}
 
+		if (commanddata.command == user_command::repaircoupler) {
+			if (auto *vehicle{simulation::Vehicles.find(commanddata.payload)}; vehicle != nullptr) {
+				vehicle->MoverParameters->repair_coupler(static_cast<int>(commanddata.param1) == end::rear ? end::rear : end::front);
+			}
+		}
+
 		if (commanddata.command == user_command::fillcompressor) {
 			TDynamicObject *vehicle = simulation::Vehicles.find(commanddata.payload);
 			vehicle->MoverParameters->CompressedVolume = 8.0f * vehicle->MoverParameters->VeselVolume;
@@ -561,6 +573,9 @@ std::pair<int, int> state_manager::rebuild_include(scene::instance_handle const 
 }
 
 void state_manager::delete_model(TAnimModel *model) {
+	if (GfxRenderer) {
+		GfxRenderer->Forget_Node(model);
+	}
 	scene::Layers.count(model->layer(), scene::layer_item::model, -1);
 	scene::Layers.forget(model);
 	Region->erase(model);
