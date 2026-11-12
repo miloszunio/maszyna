@@ -17,7 +17,7 @@ Cały łańcuch działa już poza edytorem i dał torowisko całego Dolnego Śl�
 | (v4) obiekty | tunel/most z terenu | teren 8 m nad niweletą = tunel, niweleta 5 m nad terenem = most; linia nad linią ≥ 2,5 m = wiadukt na całej długości, gdzie nasyp zasypałby dolną |
 | (v5) powierzchnie | torowisko i skarpy L/P po ≤ 100 m | nazwy „L132_2 torowisko km …”, „nasyp L”, „przekop P”; to samo co nasze GeoTools → Torowisko i skarpy |
 
-**Dane**: `IRT_koleje_dolnoslaskie.geojson` (943 obiekty, EPSG:2180): 605 osi linii (`MultiLineString`) z atrybutami `LN` (nr linii), `km_s`/`km_e`, `v_k` (prędkość), `NT` (liczba torów: 1, 2, 11), `EL` (elektryfikacja), oraz 338 punktów stacji (`SN` nazwa, `TYPE`, `SI`). **To osie linii, nie osie torów**: tor 2 i tory stacyjne powstają z reguł. Adresu usługi, z której plik pobrano, nie ma w skryptach (pola `OBJECTID`/`Shape_Length` wskazują na serwer ArcGIS za przeglądarką `imap gp107`); na start wystarczy ten plik jako źródło lokalne, licencja IRT: bezpłatnie z podaniem źródła.
+**Dane**: `IRT_koleje_dolnoslaskie.geojson` (943 obiekty, EPSG:2180): 605 osi linii (`MultiLineString`) z atrybutami `LN` (nr linii), `km_s`/`km_e`, `v_k` (prędkość), `NT` (liczba torów: 1, 2, 11), `EL` (elektryfikacja), oraz 338 punktów stacji (`SN` nazwa, `TYPE`, `SI`). **To osie linii, nie osie torów**: tor 2 i tory stacyjne powstają z reguł. Plik pochodzi z usługi ArcGIS REST za przeglądarką [`geoportal.dolnyslask.pl/imap/#gpmap=gp107`](https://geoportal.dolnyslask.pl/imap/#gpmap=gp107): `https://geoportal.dolnyslask.pl/gprest/services/UMWD_IRT/MapServer`, warstwa **8** (linie), **4** i **5** (stacje główne i pozostałe), zapytanie `/{warstwa}/query?where=1=1&outFields=*&returnGeometry=true&outSR=2180&f=json`. Usługa **wymaga tokenu**, który przeglądarka mapy dostaje przy otwarciu kompozycji; bez niego odpowiada odmową, a z naszego serwera geoportal nie jest osiągalny, dlatego plik pobrano w przeglądarce (31.10.2026). Edytor nie ma skąd wziąć tokenu, więc źródłem pozostaje plik lokalny, odświeżany ręcznie. Licencja IRT: bezpłatnie z podaniem źródła.
 
 **Wniosek dla edytora**: nie wymyślamy reguł. Przenosimy te z Pythona, a tam, gdzie maj00r ma w `editor/editorAlignment` to samo (przejściówki, przechyłka, rampy, `limits`), bierzemy jego kod i porównujemy wynik z v4 na tych samych odcinkach (raporty `raport_lukow.csv`, `raport_profilu.json`, `raport_ukladu.csv` jako wzorzec). Różnice zapisujemy, zanim cokolwiek pójdzie do PR.
 
@@ -37,7 +37,7 @@ Najważniejsze odkrycie: **rdzeń „naginania do przepisów” jest już w mast
 
 ## 2. Źródła danych (do wyboru, w tej kolejności sprawdzenia)
 
-1. **IRT: „Mapa sieci kolejowej” na Geoportalu Dolny Śląsk** (Instytut Rozwoju Terytorialnego; linie PLK i wojewódzkie; licencja: bezpłatnie z podaniem źródła). Na start **lokalny plik** `IRT_koleje_dolnoslaskie.geojson` (osie linii + stacje, opis w pkt 0) wczytany raz; adres usługi na żywo do odnalezienia za przeglądarką `geoportal.dolnyslask.pl/imap/#gpmap=gp107`, wtedy pobieranie per obszar.
+1. **IRT: „Mapa sieci kolejowej” na Geoportalu Dolny Śląsk** (Instytut Rozwoju Terytorialnego; linie PLK i wojewódzkie; licencja: bezpłatnie z podaniem źródła). Na start **lokalny plik** `IRT_koleje_dolnoslaskie.geojson` (osie linii + stacje, opis w pkt 0) wczytany raz; usługa na żywo (`UMWD_IRT/MapServer`, pkt 0) wymaga tokenu z przeglądarki, więc pobierania per obszar z edytora nie planujemy.
 2. **BDOT10k (GUGiK), cała Polska**: obiekty torów (klasa „tor lub zespół torów”) z atrybutami. Pobieranie per powiat (GML). Do sprawdzenia: dokładność osi i czy rozróżnia pojedyncze tory na stacjach.
 3. **OpenStreetMap (Overpass)**: na wielu polskich liniach **oś każdego toru osobno**, rozjazdy jako węzły (`railway=switch`), `gauge`, `electrified`, `voltage`, `maxspeed`, `railway:track_ref`, a do tego **obiekty**: `bridge=yes` / `tunnel=culvert` na odcinkach linii i ciekach. Licencja ODbL: wymaga podania źródła; czy scenerię zrobioną z OSM traktować jako bazę pochodną, trzeba ustalić z zespołem, zanim cokolwiek z tego pójdzie do paczki.
 
@@ -91,3 +91,20 @@ Każdy krok osobno do sprawdzenia w grze i osobno jako PR (zakładka GeoTools je
 - Domyślne parametry toru dla Dolnego Śląska (szyna, podsypka, prędkość, gdy brak w danych).
 - OSM: czy w ogóle wchodzimy w ODbL.
 - Czy obiekty (most/przepust) stawiamy też automatycznie z biblioteki modeli, czy tylko przygotowujemy pod nie teren.
+
+## Przegląd skryptów v4 (12.11.2026): co przenosić, a co poprawić przy przenoszeniu
+
+Wynik v4 w liczbach (`podsumowanie.json`, `raport_ukladu.csv`): 113 łańcuchów, 3428 łuków, z tego 1190 z lokalnym ograniczeniem prędkości; oś po korekcji leży średnio 2,25 m od punktów IRT, mediana p95 4,8 m, w 18 łańcuchach ponad 20 m, najgorzej L275 (110 m); 24 miejsca niepołączone (17 dowiązań i 7 połączeń koniec-koniec pominiętych).
+
+Do poprawienia, zanim to trafi do edytora:
+
+1. **Przepusty i przejazdy pod torem giną.** `mark_env` daje `bridge` dopiero, gdy teren jest ponad 5 m pod niweletą, a profil idzie przez filtr medianowy 50 m. Wąskie obniżenie (droga pod wiaduktem, przepust, 2-5 m) nie jest mostem, więc formacja je zasypuje. Potrzebne wykrywanie wąskich obniżeń w poprzek osi i dane o obiektach (BDOT10k/OSM).
+2. **Nasyp przy przyczółku kończy się ścianą.** `Formation.apply` ucina formację prostopadle na końcu odcinka przed mostem (`open_start/open_end`); za tą linią teren wraca od razu do NMT. Brak skarp wewnętrznych i stożków, czyli dokładnie tego, co ma być osobną powierzchnią.
+3. **Formacja bierze tylko najbliższą oś.** Między torami na różnych wysokościach (dojazd do wiaduktu, węzeł) teren ma uskok w połowie odległości, bez przejścia.
+4. **Tor 1 leży na osi linii, tor 2 zawsze 4,00 m w lewo.** Oś IRT to oś linii, więc para torów jest przesunięta o 2 m względem danych, a strona toru 2 nie wynika z niczego. Lepiej ±e/2 od osi, a na łukach R < 250 m poszerzenie międzytorza wg A6.
+5. **Dopasowanie liczone dla całego łańcucha.** Łuki zależą od sąsiadów (scalanie, prostowanie, zmniejszanie R), więc liczenie osobno dla chunka z promieniem da inne tory na styku dwóch obszarów. W edytorze: projekt osi całej linii liczony raz i zapisany, a kładzione są tylko kawałki z obszaru.
+6. **Promień wybierany jako największy w zapasie 1 m RMS** przy punktach co 50 m do 2 km: promienie są zawyżone i słabo określone. Do sprawdzenia z ortofotomapą (narzędzie maj00ra dopasowuje do punktów ze zdjęcia).
+7. **Odcinki dwutorowe krótsze niż 200 m są pomijane**, a rozjazd na końcu dwutorowego jest przesuwany do 1 km w poszukiwaniu prostej; oba przypadki zmieniają układ bez śladu w scenerii (tylko w raporcie).
+8. Drobne: `--cache` wczytuje `_cache.pkl` bez sprawdzenia, czy zmieniły się parametry albo dane; profil próbkowany tylko po osi toru 1; brak układów stacyjnych (338 stacji trafia tylko do `stacje.txt`).
+
+Bez zastrzeżeń do przeniesienia: tabele A6 (przechyłka, niedomiar, przejściówki, proste), lokalne ograniczenie prędkości z wygładzaniem krótkich odcinków, katalog Rz i zapis rozjazdu, most przechyłkowy na łukach koszowych, wiadukty na skrzyżowaniach linii, podział na kawałki (proste do 1000 m, łuki do 100 m i 10°, przejściówki do 10 m).
