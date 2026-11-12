@@ -1,8 +1,25 @@
 # Koncepcja: tory z danych (GeoTools → Tory)
 
-Stan: **koncepcja do omówienia**, nic z tego nie jest jeszcze w kodzie. Pisane 12.11.2026.
+Stan: **koncepcja do omówienia**, nic z tego nie jest jeszcze w kodzie edytora. Pisane 12.11.2026, uzupełnione o nasze skrypty IRT v4/v5.
 
 Cel: zaznaczyć kawałek scenerii (chunk + promień), pobrać dla niego przebieg torów z geoportalu, ułożyć je w edytorze jako **połączone tory MaSzyny z pełnymi parametrami**, wyprostowane do przepisów (ST-T1-A6), posadzone na danych wysokościowych (NMT), z terenem dociągniętym do torowiska. To, co robiły nasze skrypty w Pythonie, tylko w edytorze i kawałkami.
+
+## 0. Co już mamy (skrypty IRT v4/v5, Python)
+
+Cały łańcuch działa już poza edytorem i dał torowisko całego Dolnego Śląska (v4: 120 107 torów, 3335 km, 62 rozjazdy; v5: do tego 78 827 powierzchni torowiska i skarp):
+
+| Skrypt | Co robi | Reguły do przeniesienia |
+|---|---|---|
+| `irt2maszyna.py` | osie IRT (EPSG:2180) → proste, przejściówki, łuki, przechyłka; tor 2; zapis `.inc` | rozdz. 9 A6: Rmin P0/P1/P2 = 600/300/180 m, Idop 110/130/150 mm, dD/ds, dD/dt, dI/dt, Dmin 20 mm, Dmax z tab. 9.6 i (9.8), przejściówki z tab. 9.10, proste między łukami z tab. 9.1, scalanie łuków, lokalne V = √((D+Idop)·R/11,8) w dół do 10 km/h; **tor 2 = 4,00 m w lewo (w kierunku kilometracji), gdy NT ≥ 2**, odstęp zaokrąglony do 0,05 m |
+| `uklad.py` | rozjazdy i dowiązania | katalog Rz z `editorSwitchDesign.cpp` (60E1/49E1, 1:9/1:12/1:18,5), wybór typu z prędkości linii i jazdy na bok, wpis `track switch` jak `editor_track::create_switch`, rekord `//$r` jak `editorSwitchStore` |
+| `profil.py` | niweleta z NMT 1 m (WCS GUGiK) | rozdz. 10 A6: pochylenia tab. 10.1, łuki pionowe tab. 10.2, strefy stacji i peronów |
+| `teren.py` | heightmapa z formacją | spód podsypki 0,2 m pod torem, półszerokość formacji 3,52 m, skarpy 1:1,5 do 60 m, zaokrąglenie 1,5 m; **pod mostami i w tunelach teren nietknięty** |
+| (v4) obiekty | tunel/most z terenu | teren 8 m nad niweletą = tunel, niweleta 5 m nad terenem = most; linia nad linią ≥ 2,5 m = wiadukt na całej długości, gdzie nasyp zasypałby dolną |
+| (v5) powierzchnie | torowisko i skarpy L/P po ≤ 100 m | nazwy „L132_2 torowisko km …”, „nasyp L”, „przekop P”; to samo co nasze GeoTools → Torowisko i skarpy |
+
+**Dane**: `IRT_koleje_dolnoslaskie.geojson` (943 obiekty, EPSG:2180): 605 osi linii (`MultiLineString`) z atrybutami `LN` (nr linii), `km_s`/`km_e`, `v_k` (prędkość), `NT` (liczba torów: 1, 2, 11), `EL` (elektryfikacja), oraz 338 punktów stacji (`SN` nazwa, `TYPE`, `SI`). **To osie linii, nie osie torów**: tor 2 i tory stacyjne powstają z reguł. Adresu usługi, z której plik pobrano, nie ma w skryptach (pola `OBJECTID`/`Shape_Length` wskazują na serwer ArcGIS za przeglądarką `imap gp107`); na start wystarczy ten plik jako źródło lokalne, licencja IRT: bezpłatnie z podaniem źródła.
+
+**Wniosek dla edytora**: nie wymyślamy reguł. Przenosimy te z Pythona, a tam, gdzie maj00r ma w `editor/editorAlignment` to samo (przejściówki, przechyłka, rampy, `limits`), bierzemy jego kod i porównujemy wynik z v4 na tych samych odcinkach (raporty `raport_lukow.csv`, `raport_profilu.json`, `raport_ukladu.csv` jako wzorzec). Różnice zapisujemy, zanim cokolwiek pójdzie do PR.
 
 ## 1. Na czym to stoi (co już jest w edytorze)
 
@@ -20,7 +37,7 @@ Najważniejsze odkrycie: **rdzeń „naginania do przepisów” jest już w mast
 
 ## 2. Źródła danych (do wyboru, w tej kolejności sprawdzenia)
 
-1. **IRT: „Mapa sieci kolejowej” na Geoportalu Dolny Śląsk** (Instytut Rozwoju Terytorialnego; linie PLK i wojewódzkie; licencja: bezpłatnie z podaniem źródła). Katalog podaje tylko przeglądarkę (`geoportal.dolnyslask.pl/imap/#gpmap=gp107`), **adresu usługi nie ma**: weźmiemy go z naszych skryptów w Pythonie. Do ustalenia: czy to oś linii (jedna linia na wielotorową), czy oś każdego toru, i jakie atrybuty (nr linii, liczba torów, elektryfikacja, prędkość).
+1. **IRT: „Mapa sieci kolejowej” na Geoportalu Dolny Śląsk** (Instytut Rozwoju Terytorialnego; linie PLK i wojewódzkie; licencja: bezpłatnie z podaniem źródła). Na start **lokalny plik** `IRT_koleje_dolnoslaskie.geojson` (osie linii + stacje, opis w pkt 0) wczytany raz; adres usługi na żywo do odnalezienia za przeglądarką `geoportal.dolnyslask.pl/imap/#gpmap=gp107`, wtedy pobieranie per obszar.
 2. **BDOT10k (GUGiK), cała Polska**: obiekty torów (klasa „tor lub zespół torów”) z atrybutami. Pobieranie per powiat (GML). Do sprawdzenia: dokładność osi i czy rozróżnia pojedyncze tory na stacjach.
 3. **OpenStreetMap (Overpass)**: na wielu polskich liniach **oś każdego toru osobno**, rozjazdy jako węzły (`railway=switch`), `gauge`, `electrified`, `voltage`, `maxspeed`, `railway:track_ref`, a do tego **obiekty**: `bridge=yes` / `tunnel=culvert` na odcinkach linii i ciekach. Licencja ODbL: wymaga podania źródła; czy scenerię zrobioną z OSM traktować jako bazę pochodną, trzeba ustalić z zespołem, zanim cokolwiek z tego pójdzie do paczki.
 
@@ -57,7 +74,7 @@ NMT to goła powierzchnia (heightmapa, bez nawisów): pod wiaduktem ma dolinę a
 
 ## 7. Kolejność wdrażania (propozycja)
 
-1. Dostawca IRT (adres z naszych skryptów) + zakładka Tory: obszar, pobranie, cache, **podgląd linii** na mapie i w widoku. Nic nie kładzie.
+1. Dostawca IRT z lokalnego GeoJSON + zakładka Tory: obszar (chunk + promień), wycięcie linii z obszaru, **podgląd osi** na mapie i w widoku z atrybutami (nr linii, km, v, NT, EL). Nic nie kładzie.
 2. Graf + dopasowanie odcinków (`fit_trace_stretch`) + podgląd projektu z odchyłkami; „Połóż tory” bez rozjazdów, wolne końce zaznaczone.
 3. Rozjazdy w węzłach + łączenie z istniejącymi torami.
 4. Niweleta z NMT + formacja i skarpy + sprawdzenie zakopania, jeden krok historii.
@@ -68,8 +85,9 @@ Każdy krok osobno do sprawdzenia w grze i osobno jako PR (zakładka GeoTools je
 
 ## 8. Do ustalenia z Tobą
 
-- Adres usługi IRT i format (z naszych skryptów w Pythonie); same skrypty, żeby przenieść reguły, które tam działały (tolerancje, rozstawy, wyjątki).
-- Czy IRT daje oś linii czy osie torów; skąd brać tory stacyjne.
+- ~~Adres usługi IRT i skrypty~~: skrypty są (pkt 0); GeoJSON lokalny wystarcza na start, usługa na żywo później.
+- ~~Oś linii czy osie torów~~: osie linii; tor 2 z reguły 4,00 m, **tory stacyjne** (README v4: „układy stacyjne trzeba dorysować”) nadal ręcznie albo z OSM, gdzie są tory osobno.
+- Czy w edytorze trzymamy się wyniku v4/v5 jako wzorca (te same reguły = ten sam tor), czy dopuszczamy, że dopasowanie maj00ra da trochę inne łuki.
 - Domyślne parametry toru dla Dolnego Śląska (szyna, podsypka, prędkość, gdy brak w danych).
 - OSM: czy w ogóle wchodzimy w ODbL.
 - Czy obiekty (most/przepust) stawiamy też automatycznie z biblioteki modeli, czy tylko przygotowujemy pod nie teren.
