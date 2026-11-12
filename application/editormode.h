@@ -46,6 +46,8 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorGauge.hpp"
 #include "editor/editorIcons.hpp"
 #include "editor/editorZielsko.hpp"
+#include "editor/editorRailData.hpp"
+#include "editor/editorRailDesign.hpp"
 #include "application/scriptedinput.h"
 #include "world/Sweep.h"
 

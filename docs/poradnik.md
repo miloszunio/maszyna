@@ -138,6 +138,26 @@ Dane nie mówią nic o gatunku i koronie (korona jest szablonem skalowanym do wy
 - **„Zaznacz drzewa przy torze”**: wrzuca je do zaznaczenia w Otoczeniu, żeby przesunąć, obrócić albo usunąć razem.
 - Status sadzenia i `log.txt` (linie `ZIELSKO:`) mówią, ile drzew odpadło na każdym etapie sita i przy sadzeniu.
 
+## Tory z mapy (GeoTools → Tory, od wydania po nr 145)
+
+Układa tory linii kolejowych z mapy IRT (Geoportal Dolnego Śląska) w chunkach wokół kamery.
+
+1. **Dane.** Plik `IRT_koleje_dolnoslaskie.geojson` (PUWG 1992) leży w folderze `tory/` obok terenu scenerii, np. `terrain/irt/tory/`. Teren musi mieć ustawione położenie (PUWG). Po dołożeniu pliku: „Wczytaj mapę ponownie”.
+2. **Obszar.** Stań kamerą tam, gdzie mają być tory, i ustaw „Chunki wokół tego pod kamerą”. Obszar jest narysowany żółtą ramką na ziemi, osie linii z mapy na niebiesko, z nazwą odcinka i prędkością.
+3. **„Zaprojektuj tory w obszarze”** (żółty). Każdy odcinek linii przechodzący przez obszar jest projektowany w całości, do kilku sekund na odcinek. Podgląd: zielone tory, pomarańczowe tam, gdzie łuk wymusza prędkość niższą niż na linii, czerwone tam, gdzie projekt leży ponad 10 m od punktów mapy (obejrzyj na ortofotomapie, zanim ułożysz). W tabeli: długość, liczba łuków, ile z nich „wolniej”, odchyłka od mapy (średnia / największa), ile kawałków czeka na ułożenie.
+4. **„Ułóż tory w obszarze”** (żółty). Układa tylko kawałki leżące w obszarze; już ułożonych nie rusza. Ctrl+Z cofa całość.
+
+Co dostajesz:
+- łuki, krzywe przejściowe i przechyłki według norm z ustawień układania torów (te same, których używa narzędzie do układania);
+- łuk za ciasny na prędkość linii dostaje własną, niższą prędkość (w dziesiątkach km/h) i przechyłkę dla niej;
+- linia dwutorowa (NT ≥ 2): dwa tory po połowie odstępu z każdej strony osi z mapy;
+- wysokości: niweleta dopasowana do terenu, krótkie zagłębienia (przepust, droga pod torem) są pomijane, a nie odwzorowywane;
+- tory nazywają się `l<linia>_s<odcinek>_t<tor>_<kawałek>`, np. `l275_s07_t1_00042`; po tych nazwach edytor poznaje, co już leży.
+
+Sąsiednie obszary stykają się zawsze, bo podział linii na odcinki i projekt każdego odcinka zależą tylko od mapy, a nie od obszaru. Warunek: nie zmieniaj między obszarami pól „Kawałki toru do”, „Punkt mapy jest załomem od”, „Prędkość tam, gdzie mapa jej nie podaje” ani norm, bo wtedy projekt wyjdzie inny i tory się rozejdą.
+
+Czego jeszcze nie ma: torów stacyjnych i rozjazdów (mapa ma tylko osie linii), kształtowania terenu pod torami (nasyp, przekop: na razie przyciskami modelu terenu po ułożeniu), mostów i wiaduktów, sieci trakcyjnej. Mapa IRT jest poglądowa: punkty co ok. 50 m, miejscami co 2 km, więc tor może leżeć kilka metrów od prawdziwego.
+
 ## Idź do
 
 GeoTools → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie znaki obojętne), zapisane kamery w `<sceneria>.kamery`.

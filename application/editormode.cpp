@@ -2402,6 +2402,8 @@ void editor_mode::draw_terrain_overlay()
     }
     if (m_features_open && m_feature_tool == feature_tool::zielsko)
         draw_zielsko_preview(drawlist);
+    if (m_features_open && m_feature_tool == feature_tool::rails)
+        draw_rails_preview(drawlist);
     if (m_terrain_tool == terrain_tool::water && false == m_water_points.empty())
     {
         std::vector<glm::dvec3> outline;

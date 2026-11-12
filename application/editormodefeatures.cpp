@@ -778,6 +778,7 @@ void editor_mode::render_features_ui()
 	};
 	tab const tabs[]{{STR_C("Fields##geotools"), feature_tool::fields},
 	                 {STR_C("Trees##geotools"), feature_tool::zielsko},
+	                 {STR_C("Tracks##geotools"), feature_tool::rails},
 	                 {STR_C("Track bed and slopes##geotools"), feature_tool::track_bed},
 	                 {STR_C("Go to##geotools"), feature_tool::go_to}};
 	if (ImGui::BeginTabBar("##geotools"))
@@ -810,6 +811,11 @@ void editor_mode::render_features_ui()
 	if (m_feature_tool == feature_tool::zielsko)
 	{
 		render_zielsko_ui();
+		return;
+	}
+	if (m_feature_tool == feature_tool::rails)
+	{
+		render_rails_ui();
 		return;
 	}
 	if (m_feature_tool == feature_tool::fields)

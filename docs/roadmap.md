@@ -34,7 +34,7 @@ Bieżący stan PR-ów i testów: arkusz „MaSzyna ficzery2: PR-y i testy”.
 1. **Czarny ekran przy pierwszym starcie nowego exe** (~35 s kompilacji shaderów po zniknięciu ekranu ładowania): ekran
    ładowania z napisem do końca pierwszej klatki (PR upstream), stała nazwa exe w naszych buildach; potem kompilacja w trakcie
    wczytywania z paskiem postępu. Do akceptu.
-2. **Tory z danych**: koncepcja w `docs/koncepcje/tory-z-danych.md` (do omówienia).
+2. **Tory z danych**: etapy 1-2 wdrożone (GeoTools → Tory: mapa IRT, projekt według norm, układanie torów szlakowych w chunkach wokół kamery); do sprawdzenia w grze. Dalej: teren pod torami z przepustami i skarpami wewnętrznymi, rozjazdy, stacje (`docs/koncepcje/tory-z-danych.md`).
 3. **Kawałki ortofoto jadące za kamerą**: czekamy na screen.
 
 ## 4. Gałąź 3.0 (pod RC)

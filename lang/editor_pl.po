@@ -17556,3 +17556,120 @@ msgstr "jak pozostałe"
 
 msgid "group of 3D trees"
 msgstr "grupa drzew 3D"
+
+msgid "electrified"
+msgstr "zelektryfikowana"
+
+msgid "not electrified"
+msgstr "niezelektryfikowana"
+
+msgid "No map of the lines read"
+msgstr "Nie wczytano żadnej mapy linii"
+
+msgid "Read %zu files: %zu sections of lines, %zu stations; %zu stretches to design"
+msgstr "Wczytano plików: %zu; odcinków linii: %zu, stacji: %zu; odcinków do zaprojektowania: %zu"
+
+msgid "Designed %zu stretches of the area, %zu of them couldn't be"
+msgstr "Zaprojektowano odcinków w obszarze: %zu, z czego nie udało się: %zu"
+
+msgid "Nothing to lay: the tracks of the lines of the area lie there already, or no line goes through it"
+msgstr "Nie ma czego układać: tory linii z tego obszaru już leżą albo żadna linia przez niego nie przechodzi"
+
+msgid "Laid %zu paths, %.1f km of track, along %zu pieces of the lines. Ctrl+Z takes it back"
+msgstr "Ułożono torów: %zu, %.1f km toru, na %zu kawałkach linii. Ctrl+Z cofa"
+
+msgid "Stretches of lines through the area: %zu"
+msgstr "Odcinki linii przechodzące przez obszar: %zu"
+
+msgid "Stretch##rails"
+msgstr "Odcinek##rails"
+
+msgid "km##rails"
+msgstr "km##rails"
+
+msgid "km/h##rails"
+msgstr "km/h##rails"
+
+msgid "Tracks##rails"
+msgstr "Tory##rails"
+
+msgid "Traction##rails"
+msgstr "Trakcja##rails"
+
+msgid "Stretch##railsplan"
+msgstr "Odcinek##railsplan"
+
+msgid "m##railsplan"
+msgstr "m##railsplan"
+
+msgid "Curves##railsplan"
+msgstr "Łuki##railsplan"
+
+msgid "Slower##railsplan"
+msgstr "Wolniej##railsplan"
+
+msgid "From the map (m)##railsplan"
+msgstr "Od mapy (m)##railsplan"
+
+msgid "To lay##railsplan"
+msgstr "Do ułożenia##railsplan"
+
+msgid "Slower: curves too sharp for the speed of the line, laid with the speed they allow. From the map: how far the line designed lies from the points of the map, on average and at the worst; red where that's far, to be looked at on the orthophoto before it's laid. To lay: pieces within the area not laid yet, of all of the stretch"
+msgstr "Wolniej: łuki za ciasne na prędkość linii, ułożone z prędkością, na jaką pozwalają. Od mapy: jak daleko zaprojektowana linia leży od punktów mapy, średnio i w najgorszym miejscu; na czerwono tam, gdzie daleko, do obejrzenia na ortofotomapie przed ułożeniem. Do ułożenia: kawałki w obszarze jeszcze nieułożone, ze wszystkich kawałków odcinka"
+
+msgid "Chunks round the one under the camera##rails"
+msgstr "Chunki wokół tego pod kamerą##rails"
+
+msgid "The area the tracks are laid in: the chunk of the terrain under the camera and as many chunks round it; drawn yellow on the ground"
+msgstr "Obszar, w którym układane są tory: chunk terenu pod kamerą i tyle chunków wokół niego; narysowany na żółto na ziemi"
+
+msgid "Between the tracks of a double line (m)##rails"
+msgstr "Odstęp torów linii dwutorowej (m)##rails"
+
+msgid "The map gives the axis of the line: its two tracks are laid half of this to either side of it"
+msgstr "Mapa podaje oś linii: jej dwa tory są układane po połowie tego odstępu z każdej strony osi"
+
+msgid "Pieces of track up to (m)##rails"
+msgstr "Kawałki toru do (m)##rails"
+
+msgid "Speed where the map gives none (km/h)##rails"
+msgstr "Prędkość tam, gdzie mapa jej nie podaje (km/h)##rails"
+
+msgid "A point of the map is a bend from (m)##rails"
+msgstr "Punkt mapy jest załomem od (m)##rails"
+
+msgid "How far a point of the map has to lie from the straight through its neighbours to be a bend of the line: lower follows the map closer, and takes its inaccuracies for curves"
+msgstr "Jak daleko punkt mapy musi leżeć od prostej przez sąsiednie punkty, żeby był załomem linii: mniejsza wartość trzyma się mapy bliżej, ale bierze jej niedokładności za łuki"
+
+msgid "The lines of a railway map laid as tracks: designed by the norms from the axes of the map, with the speeds, the cants and the transition curves, their heights a grade line fitted to the ground. The tracks of stations, the switches and the shaping of the terrain under the tracks aren't made here yet"
+msgstr "Linie z mapy kolejowej ułożone jako tory: zaprojektowane według norm z osi mapy, z prędkościami, przechyłkami i krzywymi przejściowymi, a ich wysokości to niweleta dopasowana do terenu. Torów stacyjnych, rozjazdów i kształtowania terenu pod torami jeszcze tu nie ma"
+
+msgid "Read the map again##rails"
+msgstr "Wczytaj mapę ponownie##rails"
+
+msgid "The files .geojson (PUWG 1992, EPSG:2180) of the folder tory/ beside the terrain of the scenery: the axes of the lines with LN, km_s, km_e, v_k, NT, EL"
+msgstr "Pliki .geojson (PUWG 1992, EPSG:2180) z folderu tory/ obok terenu scenerii: osie linii z atrybutami LN, km_s, km_e, v_k, NT, EL"
+
+msgid "Design the tracks of the area##rails"
+msgstr "Zaprojektuj tory w obszarze##rails"
+
+msgid "Designing the tracks"
+msgstr "Projektowanie torów"
+
+msgid "Each stretch of a line going through the area is designed whole, which takes up to some seconds a stretch; the tracks are shown green, orange where a curve makes them slower than the line, red where they lie far from the map"
+msgstr "Każdy odcinek linii przechodzący przez obszar jest projektowany w całości, co trwa do kilku sekund na odcinek; tory są pokazane na zielono, na pomarańczowo tam, gdzie łuk wymusza prędkość niższą niż na linii, a na czerwono tam, gdzie leżą daleko od mapy"
+
+msgid "Lay the tracks of the area##rails"
+msgstr "Ułóż tory w obszarze##rails"
+
+msgid "Laying the tracks"
+msgstr "Układanie torów"
+
+msgid "The pieces of the tracks designed which lie within the area are laid, the ones laid before left as they are; they go on from the tracks laid in the areas next to it. Ctrl+Z takes all of it back"
+msgstr "Układane są kawałki zaprojektowanych torów leżące w obszarze, a ułożone wcześniej zostają bez zmian; nowe tory są kontynuacją torów ułożonych w sąsiednich obszarach. Ctrl+Z cofa wszystko"
+
+msgid "Tracks##geotools"
+msgstr "Tory##geotools"
+
+msgid "The lines of a railway map within the chunks round the camera designed by the norms and laid as tracks on the ground"
+msgstr "Linie z mapy kolejowej w chunkach wokół kamery, zaprojektowane według norm i ułożone jako tory na terenie"

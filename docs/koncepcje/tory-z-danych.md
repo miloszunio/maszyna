@@ -1,6 +1,6 @@
 # Koncepcja: tory z danych (GeoTools → Tory)
 
-Stan: **koncepcja do omówienia**, nic z tego nie jest jeszcze w kodzie edytora. Pisane 12.11.2026, uzupełnione o nasze skrypty IRT v4/v5.
+Stan: **etapy 1 i 2 w kodzie** (GeoTools → Tory: dane, podgląd, projekt według norm, układanie torów szlakowych z wysokościami z terenu; opis na końcu). Reszta to nadal koncepcja. Pisane 12.11.2026, uzupełnione o nasze skrypty IRT v4/v5.
 
 Cel: zaznaczyć kawałek scenerii (chunk + promień), pobrać dla niego przebieg torów z geoportalu, ułożyć je w edytorze jako **połączone tory MaSzyny z pełnymi parametrami**, wyprostowane do przepisów (ST-T1-A6), posadzone na danych wysokościowych (NMT), z terenem dociągniętym do torowiska. To, co robiły nasze skrypty w Pythonie, tylko w edytorze i kawałkami.
 
@@ -108,3 +108,19 @@ Do poprawienia, zanim to trafi do edytora:
 8. Drobne: `--cache` wczytuje `_cache.pkl` bez sprawdzenia, czy zmieniły się parametry albo dane; profil próbkowany tylko po osi toru 1; brak układów stacyjnych (338 stacji trafia tylko do `stacje.txt`).
 
 Bez zastrzeżeń do przeniesienia: tabele A6 (przechyłka, niedomiar, przejściówki, proste), lokalne ograniczenie prędkości z wygładzaniem krótkich odcinków, katalog Rz i zapis rozjazdu, most przechyłkowy na łukach koszowych, wiadukty na skrzyżowaniach linii, podział na kawałki (proste do 1000 m, łuki do 100 m i 10°, przejściówki do 10 m).
+
+## Co jest wdrożone (13.11.2026)
+
+Pliki: `editor/editorRailData` (dane, bez silnika), `editor/editorRailDesign` (projekt na `editorAlignment` maj00ra), `application/editormoderails.cpp` (zakładka, podgląd, układanie), testy `tests/unit/test_rail_data.cpp`.
+
+- **Dane**: GeoJSON → łańcuchy linii (łączenie odcinków po kilometrażu, usuwanie „wąsów”) → odcinki o jednej prędkości i liczbie torów. Zmiana prędkości jest przesuwana na prostą w pobliżu (do 1,5 km), krótkie wstawki poniżej 300 m idą z dłuższym sąsiadem.
+- **Bloki projektowe**: odcinek ma najwyżej ok. 12 załomów i jest cięty w połowie prostych. Powód: `ease_corners` projektuje łuki odcinka razem i czas rośnie szybciej niż liniowo (25-37 załomów to już kilka sekund, 139 załomów nie skończyło się w 9 minut). Cięcia zależą tylko od mapy, więc każde miejsce jest projektowane tak samo niezależnie od obszaru. To realizuje punkt 5 przeglądu.
+- **Projekt**: załomy → `ease_corners` (łuki tak duże, jak się mieszczą; rzędy załomów w jedną stronę dopasowane jako łuk przez punkty) → przechyłki i przejściówki z norm dla prędkości, na jaką łuk pozwala; gdzie przejściówka się nie mieści, jest skracana tylko dla tego łuku (75, 50, 35, 25 %).
+- **Dwa tory**: po połowie odstępu z każdej strony osi (punkt 4 przeglądu), liczone z kawałków osi, więc kawałki obu torów odpowiadają sobie 1:1 i mają te same wysokości.
+- **Wysokości**: `ground_follow::follow` maj00ra na osi, z dowiązaniem do wolnych końców torów ułożonych wcześniej.
+
+Sprawdzone na całym pliku IRT poza edytorem (ten sam kod, program testowy): 1098 odcinków, wszystkie zaprojektowane, 2251 km, 5022 łuki, z tego 2103 z lokalnym ograniczeniem (386 km, 17 % długości), 40 670 kawałków po 100 m; odchyłka od punktów mapy średnio 1,9 m (RMS), najgorzej 35,7 m (v4: 110 m); końce odcinków dokładnie w punktach cięcia, kawałki stykają się bez przerw, odstęp pary torów 4,000-4,014 m. Czas: 0,4 s na odcinek średnio, najdłużej 9,5 s.
+
+Nie sprawdzone poza edytorem, do sprawdzenia w grze: samo układanie (tworzenie torów, nazwy, dowiązanie wysokości na styku obszarów), podgląd i zakładka.
+
+Następne kroki: zapis projektu przy torach (`alignment_store`), teren pod torami z ochroną przepustów i skarpami wewnętrznymi (punkty 1-3 przeglądu, pisane od nowa), rozjazdy i dowiązania linii, stacje.

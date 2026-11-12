@@ -29,6 +29,9 @@ add_executable(${UNIT_TESTS_NAME}
 	"${CMAKE_SOURCE_DIR}/editor/editorProfile.cpp"
 	# and the switches laid into the curves
 	"${CMAKE_SOURCE_DIR}/editor/editorSwitchCurve.cpp"
+	# and the tracks designed from the lines of a railway map
+	"${CMAKE_SOURCE_DIR}/editor/editorRailData.cpp"
+	"${CMAKE_SOURCE_DIR}/editor/editorRailDesign.cpp"
 	${UNIT_TEST_CASES})
 
 # the core library brings the game's build settings along

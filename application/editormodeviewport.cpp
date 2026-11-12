@@ -279,6 +279,9 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::grass, STR_C("Trees"), nullptr,
 		                   STR_C("ZIELSKO from space: the trees of the 3D tree models of geoportal.gov.pl, where they stand and as tall as they are, planted along the tracks"),
 		                   m_feature_tool == feature_tool::zielsko, [this]() { choose_feature_tool(feature_tool::zielsko); }});
+		Buttons.push_back({icon::profile, STR_C("Tracks"), nullptr,
+		                   STR_C("The lines of a railway map within the chunks round the camera designed by the norms and laid as tracks on the ground"),
+		                   m_feature_tool == feature_tool::rails, [this]() { choose_feature_tool(feature_tool::rails); }});
 		Buttons.push_back({icon::profile, STR_C("Track bed and slopes"), nullptr,
 		                   STR_C("The track bed, the embankments and the cuttings along the tracks cut into pieces up to 100 m, to texture them"),
 		                   m_feature_tool == feature_tool::track_bed, [this]() { choose_feature_tool(feature_tool::track_bed); }});

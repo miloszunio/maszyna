@@ -81,11 +81,71 @@
 		track_bed, // the track bed, embankments and cuttings along the formation modifiers, in pieces up to 100 m
 		go_to, // the map with the camera on it, a search of towns and the places of the camera kept
 		zielsko, // ZIELSKO z kosmosu: the trees of the 3D tree models of geoportal.gov.pl planted along the tracks
-		fields // the Fields: cultivated fields, parcels of the cadastre, surfaces cut out of the terrain
+		fields, // the Fields: cultivated fields, parcels of the cadastre, surfaces cut out of the terrain
+		rails // the Tracks: the lines of a railway map designed by the norms and laid on the ground
 	};
 	// a tool of GeoTools chosen, with the tool of the terrain it works with
 	void choose_feature_tool(feature_tool Tool);
 	feature_tool m_feature_tab_shown{feature_tool::fields}; // the tab shown last: one chosen in the toolbar is selected in the tabs
+
+	// the tracks of the lines of a railway map (editormoderails.cpp, editor/editorRailData.cpp, editor/editorRailDesign.cpp)
+	struct rails_settings
+	{
+		int radius{1}; // chunks round the one under the camera
+		float spacing{4.0f}; // m between the axes of the two tracks of a double line
+		float piece{100.0f}; // m, the pieces of track no longer
+		rail_data::stretch_settings data;
+	};
+	// a stretch of a line of the map in the plan of the scenery
+	struct rails_line
+	{
+		rail_data::stretch stretch;
+		std::vector<glm::dvec2> bends;
+		std::vector<glm::dvec2> points; // of the map, the ones the stretch was made of
+	};
+	// a stretch designed as the axis of its line, in pieces
+	struct rails_plan
+	{
+		std::size_t line{0};
+		float spacing{4.0f}; // the settings it was designed with
+		float piece{100.0f};
+		bool pair{false}; // two tracks, either side of the axis
+		rail_design::plan design;
+		rail_design::deviation deviation;
+		std::vector<segment_data> axis;
+		std::vector<double> speeds; // km/h, of the pieces
+		std::vector<std::vector<segment_data>> tracks; // in the plan, not at their heights yet: the axis, or the two beside it
+		std::size_t waiting{0}; // pieces within the area not laid yet
+	};
+	std::array<int, 3> m_rails_counted{0, 0, -1}; // the chunk of the camera and the radius the waiting pieces were counted for
+	void rails_count();
+	rails_settings m_rails;
+	rail_data::stretch_settings m_rails_cut; // the settings the stretches were made with
+	rail_data::dataset m_rails_data;
+	std::vector<rails_line> m_rails_lines;
+	std::vector<rails_plan> m_rails_plans;
+	bool m_rails_read{false};
+	std::string m_rails_status;
+	std::string rails_folder() const;
+	glm::dvec2 rails_world(glm::dvec2 const &Map) const; // east and north of PUWG 1992 as x and z of the scenery
+	void rails_read();
+	void rails_make_lines();
+	void rails_area(glm::dvec2 &Low, glm::dvec2 &High) const;
+	std::vector<std::size_t> rails_lines_in_area() const;
+	void rails_design();
+	std::vector<std::pair<std::size_t, std::size_t>> rails_runs(rails_plan const &Plan) const;
+	std::optional<editor_track::snap_target> rails_joint(glm::dvec2 const &At) const;
+	void rails_heights(std::vector<segment_data> &Run, double Speed, double Offset) const;
+	void rails_create(rails_plan const &Plan, std::vector<segment_data> const &Pieces, std::size_t Track, std::size_t First, std::vector<TTrack *> &Created) const;
+	std::size_t rails_lay_plan(rails_plan const &Plan, std::vector<TTrack *> &Created) const;
+	void rails_lay();
+	using rails_pen = std::function<void(std::vector<glm::dvec2> const &, unsigned int, float)>; // draws a line on the ground
+	void draw_rails_plan(rails_pen const &Line, rails_plan const &Plan) const;
+	void draw_rails_preview(ImDrawList *Drawlist);
+	void render_rails_lines();
+	void render_rails_plans();
+	void render_rails_settings();
+	void render_rails_ui();
 
 	// ZIELSKO z kosmosu (editormodezielsko.cpp, editor/editorZielsko.cpp)
 	struct zielsko_settings
