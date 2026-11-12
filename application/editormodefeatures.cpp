@@ -684,7 +684,10 @@ void editor_mode::render_fields_ui()
 		ImGui::SetTooltip("%s", STR_C("The area within the outline gets the material chosen in the palette, turned by the angle above, with the transition\n"
 		                              "and the noise above; it's kept in the list below, where its material can be changed later"));
 	if (ImGui::Button(STR_C("Clear the outline##fields"), ImVec2(-FLT_MIN, 0.0f)))
+	{
 		m_paint_outline.clear();
+		m_patch_reoutline.clear(); // the next cut is a new field
+	}
 	ImGui::Spacing();
 	if (ImGui::TreeNodeEx(STR_C("Fields and surfaces cut out##fields"), ImGuiTreeNodeFlags_DefaultOpen))
 	{
@@ -1193,11 +1196,17 @@ void editor_mode::cut_track_bed()
 		return glm::distance(glm::clamp(camera, low, high), camera) <= settings.radius + reach;
 	};
 	auto const before{patches.size()};
-	// the ones made before with a hole of their own get it closed
+	// the ones made before with a hole of their own get it closed, the holes of other fields over them kept
+	std::vector<heightmap::surface_patch> closed;
 	for (auto const &patch : patches)
 		if (false == patch.paint && replaced(patch))
+		{
 			m_streamer.cut_field(patch.outline, false);
+			closed.push_back(patch);
+		}
 	patches.erase(std::remove_if(patches.begin(), patches.end(), replaced), patches.end());
+	for (auto const &gone : closed)
+		m_streamer.recut_fields_over(patches, gone);
 	auto const removed{before - patches.size()};
 	std::vector<std::size_t> made_now;
 	for (auto &made : pieces)
@@ -1399,6 +1408,7 @@ void editor_mode::cut_out_surface()
 		if (false == patch.paint)
 		{
 			m_streamer.cut_field(old.outline, false);
+			m_streamer.recut_fields_over(patches, old);
 			m_streamer.cut_field(patch.outline, true);
 			m_streamer.patches(std::move(patches));
 			forget_ground();
@@ -2267,6 +2277,9 @@ void editor_mode::convert_patches_to_paint()
 		m_terrain_status = STR_C("No surface with a hole of its own there");
 		return;
 	}
+	// the holes of the separate ones left over them, closed with theirs, cut again
+	for (auto const i : converted)
+		m_streamer.recut_fields_over(patches, patches[i]);
 	repaint_patches(std::move(patches), converted);
 	m_terrain_status = format(STR_C("%zu surfaces painted into the terrain, their holes closed. Ctrl+Z takes it back"), converted.size());
 	WriteLog("Editor: " + m_terrain_status);

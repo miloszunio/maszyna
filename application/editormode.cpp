@@ -2045,7 +2045,10 @@ void editor_mode::render_terrain_ui()
         ImGui::EndDisabled();
         ImGui::SameLine();
         if (ImGui::Button(STR_C("Clear the outline##fill")))
+        {
             m_paint_outline.clear();
+            m_patch_reoutline.clear();
+        }
         // the same outline for the holes and the grass, its curves made
         auto const outline{shaped_outline()};
         ImGui::BeginDisabled(outline.size() < 3);
@@ -4814,7 +4817,7 @@ std::size_t editor_mode::place_fill_area(fill_store::area const &Area, std::size
         return 0;
 
     // every random number of the fill comes from its seed, so the area filled again with the same settings gets the same objects
-    std::mt19937 random{Area.seed};
+    std::mt19937 random{Area.seed}; // NOSONAR(cpp:S2245) the placement of models, not security: it must repeat from the seed
     auto const uniform = [&](double const Low, double const High) { return std::uniform_real_distribution<double>{Low, High}(random); };
 
     // area bounds

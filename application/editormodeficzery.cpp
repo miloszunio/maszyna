@@ -325,7 +325,11 @@ void editor_mode::render_patches_ui()
             ImGui::PushID(static_cast<int>(i));
             auto const material = patches[i].material.empty() ? std::string(STR_C("default material")) : patches[i].material;
             if (ImGui::Selectable(format(STR_C("%s, %zu points, %s"), patches[i].name.c_str(), patches[i].outline.size(), material.c_str()).c_str(), static_cast<int>(i) == m_patch_selected))
+            {
+                if (static_cast<int>(i) != m_patch_selected)
+                    m_patch_reoutline.clear(); // another field chosen: the outline put back no longer stands for the one before
                 m_patch_selected = static_cast<int>(i);
+            }
             // a texture dropped on an entry becomes the material of that surface
             std::string name;
             if (material_drop(name))
@@ -452,6 +456,7 @@ void editor_mode::render_patches_ui()
             return;
         }
         m_streamer.cut_field(gone.outline, false);
+        m_streamer.recut_fields_over(all, gone);
         m_streamer.patches(std::move(all));
         forget_ground();
         m_terrain_status = STR_C("Surface removed, the hole under it closed");

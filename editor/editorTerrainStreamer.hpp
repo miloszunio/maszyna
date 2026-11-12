@@ -144,6 +144,9 @@ class terrain_streamer
 	// the hole of a field of its own surface cut (Cut true) or closed: marked as the field's, so closing it leaves the holes
 	// cut otherwise (the Holes tool) there as they are; a hole of a field cut before the mark is closed whole
 	bool cut_field(std::vector<glm::dvec2> const &Outline, bool Cut);
+	// every hole of a separate field has the same mark, so closing one closes it under another field over it too: the separate
+	// fields of the list over that box are cut again (a cut leaves the holes there are as they are)
+	void recut_fields_over(std::vector<heightmap::surface_patch> const &Patches, heightmap::surface_patch const &Closed);
 	// the same in the chunk Key alone, as it's in memory: the hole of a field over a chunk added after the field was cut
 	void mark_field_hole(chunk_key const &Key, std::vector<glm::dvec2> const &Outline);
 	// the chunks added since asked last (made by hand, from the ground, from the terrain model): the fields over them go onto them

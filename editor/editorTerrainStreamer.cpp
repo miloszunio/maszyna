@@ -926,7 +926,14 @@ bool terrain_streamer::waits_for_ground(heightmap::surface_patch const &Patch) c
 		for (auto x{std::min(first.first, last.first)}; x <= std::max(first.first, last.first); ++x)
 		{
 			chunk_key const key{x, z};
-			if (m_chunks.find(key) == m_chunks.end() && exists(key))
+			if (m_chunks.count(key) > 0 || m_removed.count(key) > 0)
+				continue;
+			// still coming while its pack isn't read yet (just after opening the scenery none is); not coming only when
+			// the pack is missing, or read and without that chunk
+			auto const pack{m_packs.find(heightmap::pack_of(key))};
+			if (pack == m_packs.end() || pack->second.status == pack_state::state::unknown || pack->second.status == pack_state::state::loading)
+				return true;
+			if (pack->second.status == pack_state::state::ready && pack->second.file->has(key))
 				return true;
 		}
 	return false;
@@ -1688,6 +1695,22 @@ void terrain_streamer::mark_field_hole(chunk_key const &Key, std::vector<glm::dv
 	if (from.x > to.x || from.y > to.y)
 		return;
 	cut_area(from, to, true, false, [&](double const Px, double const Pz) { return inside_outline(Outline, Px, Pz); }, kFieldHole);
+}
+
+void terrain_streamer::recut_fields_over(std::vector<heightmap::surface_patch> const &Patches, heightmap::surface_patch const &Closed)
+{
+	glm::dvec2 low, high;
+	Closed.bounds(low, high);
+	for (auto const &patch : Patches)
+	{
+		if (patch.paint || patch.outline.size() < 3)
+			continue;
+		glm::dvec2 otherlow, otherhigh;
+		patch.bounds(otherlow, otherhigh);
+		if (otherlow.x > high.x || otherhigh.x < low.x || otherlow.y > high.y || otherhigh.y < low.y)
+			continue;
+		cut_field(patch.outline, true);
+	}
 }
 
 bool terrain_streamer::cut_area(glm::dvec2 const &Min, glm::dvec2 const &Max, bool const Cut, bool const Load, std::function<bool(double X, double Z)> const &Inside,
