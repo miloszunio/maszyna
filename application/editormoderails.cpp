@@ -392,14 +392,14 @@ void editor_mode::draw_rails_plan(rails_pen const &Line, rails_plan const &Plan)
 		return;
 	}
 	glm::dvec2 const camera{Camera.Pos.x, Camera.Pos.z};
-	auto const far{Plan.deviation.worst > kFar};
+	auto const astray{Plan.deviation.worst > kFar};
 	for (auto const &track : Plan.tracks)
 		for (std::size_t i = 0; i < track.size(); ++i)
 		{
 			if (glm::distance(middle_of(track[i]), camera) > kPreviewReach)
 				continue;
 			auto const slow{Plan.speeds[i] < line.stretch.speed};
-			Line({point_on(track[i], 0.0), point_on(track[i], 0.25), point_on(track[i], 0.5), point_on(track[i], 0.75), point_on(track[i], 1.0)}, far ? kBadColour : slow ? kSlowColour : kTrackColour, 2.5f);
+			Line({point_on(track[i], 0.0), point_on(track[i], 0.25), point_on(track[i], 0.5), point_on(track[i], 0.75), point_on(track[i], 1.0)}, astray ? kBadColour : slow ? kSlowColour : kTrackColour, 2.5f);
 		}
 }
 
