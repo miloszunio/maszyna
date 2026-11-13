@@ -102,6 +102,7 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
 2. Okno profilu → **Obiekt pod torem**: rodzaj (**łuk sklepiony**, **sklepienie półkoliste**, **wiadukt ramowy**, **przęsło belkowe na przyczółkach**, **przepust skrzynkowy**), skrajnia nad drogą, szerokość w świetle (0 = jak droga), tekstura.
    „Szukaj tekstur” zbiera z `textures/` te z betonem, cegłą, kamieniem, murem w nazwie. Jedna tekstura pokrywa mur i beton; „Tekstura powtarza się co (m)” ją zagęszcza albo rozciąga. Stal (dźwigary, balustrady) jest w kolorze, bez tekstury.
    „Na czołach”: attyka z muru, stalowa balustrada albo nic; domyślnie według rodzaju obiektu.
+   „Przęsła”: więcej niż jedno stawia filary; ustaw wtedy „szerokość w świetle” na całość (np. droga i rzeka). „Rura z blachy falistej” to okrągły przekrój szerszy niż dno. „Tekstura stali” dotyczy dźwigarów, balustrad i rury; puste pole daje ciemny kolor.
    Obiekt to **jeden model `.t3d`** z podmodelami: `obiekt` (przyczółki, skrzydła, dno), `sklepienie` / `plyta`, `czola`, `attyka` / `balustrady`, `dzwigary`, `lozyska`.
 3. Żółty **„Postaw obiekty pod torami”**. Na każdym skrzyżowaniu drogi z nasypem toru (modyfikatorem terenu) powstaje obiekt:
    czoła równoległe do toru, skrzydła wzdłuż skarp do miejsca, gdzie teren schodzi do drogi, teren przed czołami wycięty, podłoga przy drodze.
