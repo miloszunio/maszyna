@@ -17754,3 +17754,21 @@ msgstr "Nierówności [cm]"
 
 msgid "A dirt road: what's seen of it rises and falls by this much; 0: even"
 msgstr "Droga gruntowa: to, co widać, faluje o tyle; 0: równa"
+
+msgid "As the kind has it##parapet"
+msgstr "Jak dla rodzaju obiektu##parapet"
+
+msgid "Nothing##parapet"
+msgstr "Nic##parapet"
+
+msgid "Railing (steel)##parapet"
+msgstr "Balustrada (stal)##parapet"
+
+msgid "Wall##parapet"
+msgstr "Attyka (mur)##parapet"
+
+msgid "On top of the faces##structure"
+msgstr "Na czołach##structure"
+
+msgid "What stands over each face along the track: an arch has a wall of its masonry, a viaduct and a span of girders a railing of steel, a culvert nothing"
+msgstr "Co stoi nad każdym czołem wzdłuż toru: sklepienie ma attykę z muru, wiadukt i przęsło belkowe stalową balustradę, przepust nic"

@@ -237,6 +237,7 @@ set(SOURCES
 "editor/editorZielsko.cpp"
 "editor/editorRailData.cpp"
 "editor/editorRailDesign.cpp"
+"editor/editorStructure.cpp"
 "editor/editorParcel.cpp"
 "application/editormodezielsko.cpp"
 "application/editormoderails.cpp"

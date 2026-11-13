@@ -3367,6 +3367,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float terrain_beside{1.5f}; // m of flat ground past each edge of the road before the slope begins
 		bool terrain_grass{true}; // the grass of the terrain taken away under the road, so it doesn't stand out of the surface
 		float structure_tile{2.0f}; // m the texture of a structure repeats over
+		int structure_parapet{0}; // on top of the faces: 0 as the kind has it, 1 nothing, 2 a railing, 3 a wall
 		bool structure_fit{true}; // a structure with no room for the clearance asked for is built as high as the formation lets
 		// the structures where the road runs under the formation of a track
 		int structure_type{0}; // 0 an arch, 1 a frame viaduct, 2 a box culvert, 3 a semicircular arch, 4 a span of girders

@@ -15,6 +15,7 @@ http://mozilla.org/MPL/2.0/.
 #include "application/editormodeshared.h"
 #include "editor/editorFormat.hpp"
 #include "editor/editorRoad.hpp"
+#include "editor/editorStructure.hpp"
 #include "utilities/translation.h"
 #include "world/Road.h"
 #include "simulation/simulation.h"
@@ -51,55 +52,6 @@ std::vector<std::array<glm::dvec3, 4> *> parts(segment_data &Path)
 double constexpr kJoin{0.5}; // m: ends this close are the same point
 
 // a model of the structure of a tunnel, written as a .t3d: triangles of one material, both faces of each so it's seen from
-// anywhere; the points are metres from Origin, the way the scenery has them
-struct structure_mesh
-{
-	std::vector<glm::dvec3> points;
-	std::vector<glm::vec2> uvs;
-
-	void quad(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &D, glm::vec2 const &Ta, glm::vec2 const &Tb, glm::vec2 const &Tc, glm::vec2 const &Td)
-	{
-		triangle(A, B, C, Ta, Tb, Tc);
-		triangle(A, C, D, Ta, Tc, Td);
-	}
-	void triangle(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::vec2 const &Ta, glm::vec2 const &Tb, glm::vec2 const &Tc)
-	{
-		points.insert(points.end(), {A, B, C, A, C, B});
-		uvs.insert(uvs.end(), {Ta, Tb, Tc, Ta, Tc, Tb});
-	}
-	bool write(std::string const &Path, glm::dvec3 const &Origin, std::string const &Material) const
-	{
-		std::ofstream file{Path};
-		if (false == file.good())
-			return false;
-		file << "// a structure under a track (an arch, a frame, a box culvert), made by the editor\n"
-		     << "Parent: none\nType: Mesh\nName: obiekt\nAnim: false\nAmbient: 255 255 255\nDiffuse: 255 255 255\nSpecular: 0 0 0\n"
-		     << "SelfIllum: false\nWire: false\nWireSize: 1\nOpacity: 1\nMap: " << Material << "\nMaxDistance: 3000\nMinDistance: 0\n"
-		     << "Transform:\n 1 0 0 0\n 0 1 0 0\n 0 0 1 0\n 0 0 0 1\n\n";
-		file << "NumIndices: " << points.size() << "\n";
-		for (std::size_t i = 0; i < points.size(); i += 3)
-			file << i << ' ' << i + 1 << ' ' << i + 2 << "\n";
-		file << "NumVerts: " << points.size() << "\n";
-		file.precision(4);
-		file << std::fixed;
-		for (std::size_t i = 0; i < points.size(); i += 3)
-		{
-			auto const a{points[i] - Origin}, b{points[i + 1] - Origin}, c{points[i + 2] - Origin};
-			auto normal{glm::cross(b - a, c - a)};
-			normal = glm::length(normal) > 1e-12 ? glm::normalize(normal) : glm::dvec3{0.0, 1.0, 0.0};
-			// the models have their own axes: x the other way, the height third (the simulator turns them into the ones of
-			// the scenery as it reads them, see TSubModel::InitialRotate)
-			for (int k = 0; k < 3; ++k)
-			{
-				auto const p{points[i + k] - Origin};
-				file << -p.x << ' ' << p.z << ' ' << p.y << ' ' << -normal.x << ' ' << normal.z << ' ' << normal.y << ' ' << uvs[i + k].x << ' ' << uvs[i + k].y
-				     << " 1 0 0 1\n";
-			}
-		}
-		return file.good();
-	}
-};
-
 struct oriented_piece
 {
 	road_node *road;
@@ -996,31 +948,6 @@ std::vector<track_crossing> crossings_of(std::vector<road_node *> const &Pieces,
 	return result;
 }
 
-// the mesh of a structure, with the texture laid on each face: a wall along its length and up, a floor or a top from above
-struct structure_builder
-{
-	structure_mesh &mesh;
-	double tile{2.0}; // m the texture repeats over
-
-	glm::vec2 uv_wall(glm::dvec3 const &P, glm::dvec2 const &Along) const
-	{
-		return {static_cast<float>(glm::dot(flat2(P), Along) / tile), static_cast<float>(P.y / tile)};
-	}
-	glm::vec2 uv_top(glm::dvec3 const &P) const
-	{
-		return {static_cast<float>(P.x / tile), static_cast<float>(P.z / tile)};
-	}
-	// a quad of a vertical face running along Along
-	void wall(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &D, glm::dvec2 const &Along)
-	{
-		mesh.quad(A, B, C, D, uv_wall(A, Along), uv_wall(B, Along), uv_wall(C, Along), uv_wall(D, Along));
-	}
-	void top(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &D)
-	{
-		mesh.quad(A, B, C, D, uv_top(A), uv_top(B), uv_top(C), uv_top(D));
-	}
-};
-
 } // namespace
 
 void editor_mode::road_structures(bool const Remove)
@@ -1215,6 +1142,11 @@ void editor_mode::road_structures(bool const Remove)
 		// the arch: a circle through the springings and the crown; the frame and the culvert: a flat soffit
 		auto const rise{type != 0 ? 0.0 : semicircle ? std::min(half, clearance - 0.3) : std::min(half, std::max(0.5, clearance - 2.5))};
 		auto const springing{soffit - rise};
+		double const bearing{0.12}; // m, the height of the bearings of a girder
+		// how far over the soffit the slab of a span of girders lies: the girders hang under it down to the soffit
+		auto const slab_over{girders ? deck - 0.35 : 0.0};
+		// what stands on top of the faces: 0 nothing, 1 a railing, 2 a wall; left to the kind of the structure when not set
+		auto const parapet{tool.structure_parapet > 0 ? tool.structure_parapet - 1 : type == 0 ? 2 : kind == 2 ? 0 : 1};
 		auto const radius{type == 0 ? (rise * rise + half * half) / (2.0 * rise) : 0.0};
 		auto const opening = [&](double const X) {
 			if (type != 0)
@@ -1247,8 +1179,18 @@ void editor_mode::road_structures(bool const Remove)
 				tips[face][side] = s + outward * 0.5;
 			}
 
-		structure_mesh mesh;
-		structure_builder build{mesh, std::clamp(static_cast<double>(tool.structure_tile), 0.25, 50.0)};
+		// one model, its parts the submodels: the masonry or the concrete textured with the material chosen, the steel plain
+		structure::model mesh;
+		auto const tile{std::clamp(static_cast<double>(tool.structure_tile), 0.25, 50.0)};
+		glm::ivec3 const steel{70, 78, 72};
+		structure::builder const body{&mesh.add("obiekt", tool.structure_material), tile}; // the abutments, the wings, the floor
+		structure::builder const span{&mesh.add(type == 0 ? "sklepienie" : "plyta", tool.structure_material, {255, 255, 255}, type == 0), tile};
+		structure::builder const fronts{&mesh.add("czola", tool.structure_material), tile}; // the faces and their cornices
+		glm::dvec3 const up{0.0, 1.0, 0.0};
+		glm::dvec3 const across{n.x, 0.0, n.y}; // the way x grows, across the road
+		glm::dvec3 const along{r.x, 0.0, r.y}; // the way s grows, along the road
+		// away from the axis of the track on its side where the distance from it grows
+		auto const trackside{glm::normalize(along * rm + across * nm)};
 		auto const point = [&](double const X, double const S, double const Y) {
 			auto const p{place(X, S)};
 			return glm::dvec3{p.x, Y, p.y};
@@ -1260,7 +1202,7 @@ void editor_mode::road_structures(bool const Remove)
 			for (double s = from; s < to; s += 1.0)
 			{
 				auto const e{std::min(to, s + 1.0)};
-				build.top(point(-half, s, road_y(s) - 0.06), point(half, s, road_y(s) - 0.06), point(half, e, road_y(e) - 0.06), point(-half, e, road_y(e) - 0.06));
+				body.quad(point(-half, s, road_y(s) - 0.06), point(half, s, road_y(s) - 0.06), point(half, e, road_y(e) - 0.06), point(-half, e, road_y(e) - 0.06), up);
 			}
 		}
 		// the abutments and the wings, each side of the road one wall from the tip of one wing to the other
@@ -1295,15 +1237,17 @@ void editor_mode::road_structures(bool const Remove)
 				auto const between{mid > low && mid < high};
 				auto const h0{between ? inner_top : wing_top(s0)}, h1{between ? inner_top : wing_top(s1)};
 				auto const f0{road_y(s0) - 0.06}, f1{road_y(s1) - 0.06};
-				build.wall(point(inner, s0, f0), point(inner, s1, f1), point(inner, s1, h1), point(inner, s0, h0), r);
-				build.top(point(inner, s0, h0), point(inner, s1, h1), point(outer, s1, h1), point(outer, s0, h0));
-				build.wall(point(outer, s0, f0), point(outer, s1, f1), point(outer, s1, h1), point(outer, s0, h0), r);
+				// the face to the road, the top, the face to the ground behind
+				auto const roadward{side == 0 ? across : -across};
+				body.quad(point(inner, s0, f0), point(inner, s1, f1), point(inner, s1, h1), point(inner, s0, h0), roadward);
+				body.quad(point(inner, s0, h0), point(inner, s1, h1), point(outer, s1, h1), point(outer, s0, h0), up);
+				body.quad(point(outer, s0, f0), point(outer, s1, f1), point(outer, s1, h1), point(outer, s0, h0), -roadward);
 			}
 			// the ends of the wings
 			for (auto const s : {tip_low, tip_high})
 			{
 				auto const h{wall_top(s)};
-				build.wall(point(inner, s, road_y(s) - 0.06), point(outer, s, road_y(s) - 0.06), point(outer, s, h), point(inner, s, h), n);
+				body.quad(point(inner, s, road_y(s) - 0.06), point(outer, s, road_y(s) - 0.06), point(outer, s, h), point(inner, s, h), s == tip_low ? -along : along);
 			}
 		}
 		// the vault or the deck, between the faces
@@ -1313,7 +1257,8 @@ void editor_mode::road_structures(bool const Remove)
 			{
 				auto const x0{-half + 2.0 * half * i / parts}, x1{-half + 2.0 * half * (i + 1) / parts};
 				auto const y0{opening(x0)}, y1{opening(x1)};
-				build.top(point(x0, s_at(x0, -reach), y0), point(x1, s_at(x1, -reach), y1), point(x1, s_at(x1, reach), y1), point(x0, s_at(x0, reach), y0));
+				// seen from below; under a span of girders the slab lies over them
+				span.quad(point(x0, s_at(x0, -reach), y0 + slab_over), point(x1, s_at(x1, -reach), y1 + slab_over), point(x1, s_at(x1, reach), y1 + slab_over), point(x0, s_at(x0, reach), y0 + slab_over), -up);
 			}
 		}
 		// the faces: from the opening (or the ground beside it) up to the top, along the line of the track; the cornice over them
@@ -1340,19 +1285,51 @@ void editor_mode::road_structures(bool const Remove)
 				auto const b0{over ? opening(x0) : bottom(x0 <= -half || x0 >= half ? x0 : (x0 < 0.0 ? -half - 1.0 : half + 1.0))};
 				auto const b1{over ? opening(x1) : bottom(x1 <= -half || x1 >= half ? x1 : (x1 < 0.0 ? -half - 1.0 : half + 1.0))};
 				if (k != 0 && k + 2 != xs.size())
-					build.wall(point(x0, s0, b0), point(x1, s1, b1), point(x1, s1, top), point(x0, s0, top), c.track);
+					fronts.quad(point(x0, s0, b0), point(x1, s1, b1), point(x1, s1, top), point(x0, s0, top), trackside * sign);
 				// the cornice: a band over the face, sticking out of it a little
 				auto const out{(sign * reach + sign * 0.15)};
 				auto const so0{s_at(x0, out)}, so1{s_at(x1, out)};
 				auto const back0{s_at(x0, sign * (reach - headwall))}, back1{s_at(x1, sign * (reach - headwall))};
-				build.wall(point(x0, so0, top), point(x1, so1, top), point(x1, so1, top + coping), point(x0, so0, top + coping), c.track);
-				build.top(point(x0, so0, top + coping), point(x1, so1, top + coping), point(x1, back1, top + coping), point(x0, back0, top + coping));
+				fronts.quad(point(x0, so0, top), point(x1, so1, top), point(x1, so1, top + coping), point(x0, so0, top + coping), trackside * sign);
+				fronts.quad(point(x0, so0, top + coping), point(x1, so1, top + coping), point(x1, back1, top + coping), point(x0, back0, top + coping), up);
+				// the underside of the cornice where it sticks out of the face
+				fronts.quad(point(x0, so0, top), point(x1, so1, top), point(x1, s1, top), point(x0, s0, top), -up);
 			}
 			// the ends of the cornice
 			for (auto const x : {-(half + wall + 0.2), half + wall + 0.2})
 			{
 				auto const so{s_at(x, sign * (reach + 0.15))}, back{s_at(x, sign * (reach - headwall))};
-				build.wall(point(x, so, top), point(x, back, top), point(x, back, top + coping), point(x, so, top + coping), r);
+				fronts.quad(point(x, so, top), point(x, back, top), point(x, back, top + coping), point(x, so, top + coping), x < 0.0 ? -across : across);
+			}
+			// on top of the cornice, along the track: a wall of the masonry over an arch, a railing of steel over the others
+			auto const edge{sign * (reach - 0.1)};
+			auto const end0{-(half + wall + 0.2)};
+			auto const end1{half + wall + 0.2};
+			auto const from{point(end0, s_at(end0, edge), top + coping)};
+			auto const to{point(end1, s_at(end1, edge), top + coping)};
+			if (parapet == 2)
+				structure::builder{&mesh.add("attyka", tool.structure_material), tile}.bar(from, to, 0.4, 0.9);
+			else if (parapet == 1)
+				structure::builder{&mesh.add("balustrady", "", steel), tile}.railing(from, to, 1.1, 2.0);
+		}
+		// a span of girders: the girders under the slab, along the track from one abutment to the other, on their bearings
+		if (girders)
+		{
+			structure::builder const steelwork{&mesh.add("dzwigary", "", steel), tile};
+			structure::builder const bearings{&mesh.add("lozyska", "", {40, 40, 40}), tile};
+			auto const count{std::max(2, static_cast<int>(std::ceil((2.0 * reach - 1.2) / 2.2)) + 1)};
+			auto const seat{0.45 * wall}; // how far a girder lies on an abutment
+			for (int i = 0; i < count; ++i)
+			{
+				auto const distance{-(reach - 0.6) + 2.0 * (reach - 0.6) * i / (count - 1)};
+				auto const x0{-(half + seat)};
+				auto const x1{half + seat};
+				steelwork.girder(point(x0, s_at(x0, distance), soffit + bearing), point(x1, s_at(x1, distance), soffit + bearing), 0.4, slab_over - bearing);
+				for (auto const x : {-(half + 0.5 * seat), half + 0.5 * seat})
+				{
+					auto const middle{point(x, s_at(x, distance), soffit)};
+					bearings.bar(middle - across * 0.2, middle + across * 0.2, 0.4, bearing);
+				}
 			}
 		}
 
@@ -1373,7 +1350,7 @@ void editor_mode::road_structures(bool const Remove)
 		auto const base{clean + "_" + std::to_string(number) + "_" + std::to_string(stamp)};
 		std::error_code error;
 		std::filesystem::create_directories(folder, error);
-		if (false == mesh.write(folder + base + ".t3d", c.at, tool.structure_material))
+		if (false == mesh.write(folder + base + ".t3d", c.at))
 		{
 			refused.push_back(format(STR_C("%s: the model couldn't be written in %s"), c.name.c_str(), folder.c_str()));
 			continue;
@@ -1973,6 +1950,10 @@ void editor_mode::render_road_profile_window()
 		item_tooltip("Between the walls; 0: the road with its shoulders and kerbs, half a metre more");
 		ImGui::Checkbox(STR_C("As high as fits where the clearance doesn't##structure"), &tool.structure_fit);
 		item_tooltip(STR_C("Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.2 m at least) and says so, instead of being refused"));
+		std::array<char const *, 4> const parapets{STR_C("As the kind has it##parapet"), STR_C("Nothing##parapet"), STR_C("Railing (steel)##parapet"), STR_C("Wall##parapet")};
+		ImGui::SetNextItemWidth(160.0f);
+		ImGui::Combo(STR_C("On top of the faces##structure"), &tool.structure_parapet, parapets.data(), static_cast<int>(parapets.size()));
+		item_tooltip(STR_C("What stands over each face along the track: an arch has a wall of its masonry, a viaduct and a span of girders a railing of steel, a culvert nothing"));
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::InputFloat(STR_C("Texture repeats every (m)##structure"), &tool.structure_tile, 0.25f, 1.0f, "%.2f");
 		tool.structure_tile = std::clamp(tool.structure_tile, 0.25f, 50.0f);
