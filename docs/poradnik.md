@@ -99,12 +99,14 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
 ## Droga pod torem: łuk, wiadukt, przepust
 
 1. Ustaw drogę na **właściwej rzędnej** pod nasypem (okno profilu: Poziomo / Stałe pochylenie / W górę-w dół o). Droga ma przechodzić w nasypie, pod jego powierzchnią.
-2. Okno profilu → **Obiekt pod torem**: rodzaj (**łuk sklepiony**, **wiadukt ramowy**, **przepust skrzynkowy**), skrajnia nad drogą, szerokość w świetle (0 = jak droga), tekstura.
-   „Szukaj tekstur” zbiera z `textures/` te z betonem, cegłą, kamieniem, murem w nazwie; jedna tekstura pokrywa cały obiekt.
+2. Okno profilu → **Obiekt pod torem**: rodzaj (**łuk sklepiony**, **sklepienie półkoliste**, **wiadukt ramowy**, **przęsło belkowe na przyczółkach**, **przepust skrzynkowy**), skrajnia nad drogą, szerokość w świetle (0 = jak droga), tekstura.
+   „Szukaj tekstur” zbiera z `textures/` te z betonem, cegłą, kamieniem, murem w nazwie. Jedna tekstura pokrywa mur i beton; „Tekstura powtarza się co (m)” ją zagęszcza albo rozciąga. Stal (dźwigary, balustrady) jest w kolorze, bez tekstury.
+   „Na czołach”: attyka z muru, stalowa balustrada albo nic; domyślnie według rodzaju obiektu.
+   Obiekt to **jeden model `.t3d`** z podmodelami: `obiekt` (przyczółki, skrzydła, dno), `sklepienie` / `plyta`, `czola`, `attyka` / `balustrady`, `dzwigary`, `lozyska`.
 3. Żółty **„Postaw obiekty pod torami”**. Na każdym skrzyżowaniu drogi z nasypem toru (modyfikatorem terenu) powstaje obiekt:
    czoła równoległe do toru, skrzydła wzdłuż skarp do miejsca, gdzie teren schodzi do drogi, teren przed czołami wycięty, podłoga przy drodze.
    Teren nad obiektem i tor zostają bez zmian. Jeśli droga była dociągnięta do terenu, dociąganie robi się od nowa z przerwą na obiekty.
-4. Jeśli nasyp jest za niski, status mówi, o ile obniżyć drogę albo zmniejszyć skrajnię.
+4. Jeśli nasyp jest za niski na ustawioną skrajnię, obiekt powstaje ze skrajnią, jaka się mieści (min. 2,2 m), i status to mówi; po odznaczeniu „Tak wysoki, jak się zmieści…” status mówi, o ile obniżyć drogę.
 5. „Usuń je” zdejmuje obiekty tej drogi i zamyka dziury. Modele są w `models/kabina_obiekty/`.
 
 ## Z filmu z kabiny
