@@ -40,6 +40,16 @@ bool scenarioloader_mode::update() {
 		// waiting for network connection
 		return true;
 
+	if (m_closing > 0) {
+		// two frames with the note on the screen, then on to the simulation
+		if (++m_closing <= 3)
+			return true;
+		m_closing = 0;
+		Application.pop_mode();
+		Application.push_mode( eu07_application::mode::driver );
+		return true;
+	}
+
 	if (!state) {
 		WriteLog("using simulation seed: " + std::to_string(Global.random_seed), logtype::generic);
         WriteLog("using simulation starting timestamp: " + std::to_string(Global.starting_timestamp), logtype::generic);
@@ -97,8 +107,8 @@ bool scenarioloader_mode::update() {
 	WriteLog( "Scenario loading time: " + std::to_string( std::chrono::duration_cast<std::chrono::seconds>( std::chrono::system_clock::now() - timestart ).count() ) + " seconds" );
 	// TODO: implement and use next mode cue
 
-	Application.pop_mode();
-	Application.push_mode( eu07_application::mode::driver );
+	m_userinterface->set_progress(STR("Preparing the graphics (takes longer at the first start of a new version)"));
+	m_closing = 1;
 
     return true;
 }

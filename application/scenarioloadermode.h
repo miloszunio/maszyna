@@ -15,6 +15,10 @@ http://mozilla.org/MPL/2.0/.
 class scenarioloader_mode : public application_mode {
 	std::shared_ptr<simulation::deserializer_state> state;
 	std::chrono::system_clock::time_point timestart;
+	// the scenery is loaded: frames of the loading screen shown since, saying the graphics are being prepared. The first frame
+	// of the simulation takes long where the shaders are compiled for the first time (a new version of the program), and the
+	// screen keeps what was shown last: this, not a frame of the loading bar that looks stuck
+	int m_closing{0};
 
 public:
 // constructors

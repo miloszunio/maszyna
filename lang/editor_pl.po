@@ -17787,3 +17787,6 @@ msgstr "Tekstura stali##structure"
 
 msgid "Of the girders, the railings and the tube; empty: a plain dark colour with no texture"
 msgstr "Dźwigarów, balustrad i rury; puste: ciemny kolor bez tekstury"
+
+msgid "Preparing the graphics (takes longer at the first start of a new version)"
+msgstr "Przygotowanie grafiki (przy pierwszym uruchomieniu nowej wersji trwa dłużej)"
