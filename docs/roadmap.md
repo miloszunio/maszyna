@@ -37,7 +37,7 @@ Bieżący stan PR-ów i testów: arkusz „MaSzyna ficzery2: PR-y i testy”.
 2. **Tory z danych**: etapy 1-2 wdrożone (GeoTools → Tory: mapa IRT, projekt według norm, układanie torów szlakowych w chunkach wokół kamery); do sprawdzenia w grze. Dalej: teren pod torami z przepustami i skarpami wewnętrznymi, rozjazdy, stacje (`docs/koncepcje/tory-z-danych.md`).
 3. **Kawałki ortofoto jadące za kamerą**: czekamy na screen.
 4. **Drogi, zgłoszone 13.11** (kolejne wersje, po kolei):
-   - obrót mapowania tekstury drogi o kąt (pole obok miniaturki tekstury);
+   - ~~obrót mapowania tekstury drogi o kąt~~ (zrobione 13.11: „Obrót tekstury [°]”);
    - dwa rodzaje drogi: asfaltowa (jak dziś) i gruntowa: bez malowania pasów, wymagania na promienie, krzywe przejściowe i profil 3 razy luźniejsze, z opcją nierówności jak przy polach (bywają też gruntowe równe jak stół, więc do wyłączenia);
    - rondo: więcej zjazdów (do ustalenia, co dziś ogranicza);
    - ~~wycinanie pod torem na wiadukt~~ (poprawione 13.11, do sprawdzenia w grze): było zepsute (screen 13.11: przekop pod torem wychodzi jako klin, skarpy wchodzą na jezdnię, nad drogą zostaje trójkąt terenu);

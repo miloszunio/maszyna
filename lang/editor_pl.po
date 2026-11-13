@@ -17718,3 +17718,9 @@ msgstr "Mniejsza wartość zagęszcza teksturę na ścianach, większa ją rozci
 
 msgid "%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"
 msgstr "%s: zbudowany ze skrajnią %.2f m, torowisko leży za nisko nad drogą na %.2f m"
+
+msgid "Texture turned by [deg]"
+msgstr "Obrót tekstury [°]"
+
+msgid "The image of the surface is laid flat over the world, the same way at every road; this turns it, for a surface with a grain (ruts, slabs) to go along the road"
+msgstr "Obraz nawierzchni jest położony płasko na świecie, tak samo na każdej drodze; to pole go obraca, żeby nawierzchnia z wyraźnym kierunkiem (koleiny, płyty) szła wzdłuż drogi"

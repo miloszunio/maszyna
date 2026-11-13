@@ -136,6 +136,7 @@ class road_node : public scene::basic_node
 		std::array<float, 2> taper{1.f, 1.f}; // what the widths of the lanes are multiplied by at the start and at the end of the axis
 		std::string surface{"asphaltdark1"};
 		float texturelength{4.f};
+		float textureangle{0.f}; // degrees the image of the surface is turned by on the ground
 		std::array<side_data, 2> sides; // left, right
 		float kerbheight{0.12f};
 		glm::vec2 slope{1.f, 0.4f}; // width and drop of the bank which closes a shoulder
@@ -408,6 +409,7 @@ class junction_node : public scene::basic_node
 		std::vector<arm_data> arms;
 		std::string surface{"asphaltdark1"};
 		float texturelength{4.f};
+		float textureangle{0.f}; // degrees the image of the surface is turned by on the ground
 		road_node::marking_colour markings{road_node::marking_colour::white};
 		road_node::side_data side; // what the corners between the roads are lined with, the way the sides of a road are
 		bool kerbs{false}; // a kerb runs around the corners, the way it runs along the edges of a road

@@ -755,6 +755,11 @@ void editor_mode::render_junction_layout(junction_node &Junction)
 		state.texturelength = std::max(0.1f, state.texturelength);
 		changed = true;
 	}
+	if (number(STR_C("Texture turned by [deg]"), state.textureangle, 5.0f, "%.0f"))
+	{
+		state.textureangle = std::fmod(state.textureangle, 360.0f);
+		changed = true;
+	}
 	item_tooltip("How many metres of the surface one copy of the texture covers");
 	// what the corners between the roads are lined with
 	if (ImGui::Checkbox(STR_C("Kerb around the corners"), &state.kerbs))
@@ -2304,6 +2309,12 @@ bool editor_mode::render_road_layout(road_node::state &State)
 			State.texturelength = std::max(0.1f, State.texturelength);
 			changed = true;
 		}
+		if (number(STR_C("Texture turned by [deg]"), State.textureangle, 5.0f, "%.0f"))
+		{
+			State.textureangle = std::fmod(State.textureangle, 360.0f);
+			changed = true;
+		}
+		item_tooltip(STR_C("The image of the surface is laid flat over the world, the same way at every road; this turns it, for a surface with a grain (ruts, slabs) to go along the road"));
 		item_tooltip("How many metres of the surface one copy of the texture covers");
 		if (State.kerbs[0] || State.kerbs[1] || island)
 		{

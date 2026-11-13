@@ -463,12 +463,18 @@ void cap(std::vector<world_vertex> &Output, axis_frame const &Frame, std::vector
 // proportions of the image specified material is painted with
 // the asphalt laid out flat over the world, the same way at every road and every junction, so nothing shows where they meet
 // whatever way they go: Tile metres across the image, Length metres along it, as along a road
-void flatten_texture(std::vector<world_vertex> &Vertices, std::size_t const From, double const Tile, double const Length)
+// Angle: degrees the image is turned by, for a surface with a grain to go along the road or across it
+void flatten_texture(std::vector<world_vertex> &Vertices, std::size_t const From, double const Tile, double const Length, double const Angle = 0.0)
 {
+	auto const turn{glm::radians(Angle)};
+	auto const cosine{std::cos(turn)};
+	auto const sine{std::sin(turn)};
 	for (auto i = From; i < Vertices.size(); ++i)
 	{
 		auto &vertex{Vertices[i]};
-		vertex.texture = {static_cast<float>(std::fmod(vertex.position.x / Tile, 4096.0)), static_cast<float>(std::fmod(vertex.position.z / Length, 4096.0))};
+		auto const across{vertex.position.x * cosine + vertex.position.z * sine};
+		auto const along{vertex.position.z * cosine - vertex.position.x * sine};
+		vertex.texture = {static_cast<float>(std::fmod(across / Tile, 4096.0)), static_cast<float>(std::fmod(along / Length, 4096.0))};
 	}
 }
 
@@ -971,6 +977,11 @@ void road_node::import(cParser &Input, glm::dvec3 const &Offset)
 		{
 			Input.getTokens();
 			Input >> m_state.texturelength;
+		}
+		else if (token == "texangle")
+		{
+			Input.getTokens();
+			Input >> m_state.textureangle;
 		}
 		else if (token == "side")
 		{
@@ -1561,7 +1572,7 @@ std::vector<scene::shape_node> road_node::create_shapes() const
 			}
 			loft(surface, axis, {corner(anchor_middle, -0.5), corner(anchor_right, -0.5)}, 0.0, length, step, texturelength, road);
 		}
-		flatten_texture(surface, first, tile, texturelength);
+		flatten_texture(surface, first, tile, texturelength, road.textureangle);
 	}
 
 	// an island between the roadways: a kerb facing each of them, and what's between the kerbs
@@ -2368,6 +2379,11 @@ void junction_node::import(cParser &Input, glm::dvec3 const &Offset)
 			Input.getTokens();
 			Input >> m_state.texturelength;
 		}
+		else if (token == "texangle")
+		{
+			Input.getTokens();
+			Input >> m_state.textureangle;
+		}
 		else if (token == "markings")
 		{
 			auto const colour{Input.getToken<std::string>()};
@@ -2608,6 +2624,7 @@ bool junction_node::as_road(road_node::state &Road) const
 	road.median.width = {from.median, to.median};
 	road.surface = m_state.surface;
 	road.texturelength = m_state.texturelength;
+	road.textureangle = m_state.textureangle;
 	road.markings = m_state.markings;
 	road.sides = {m_state.side, m_state.side};
 	road.kerbs = {m_state.kerbs, m_state.kerbs};
@@ -3480,7 +3497,7 @@ std::vector<scene::shape_node> junction_node::create_transition_shapes() const
 		{
 			strip(surface, along(&edges::left), along(&edges::right), 0, whole);
 		}
-		flatten_texture(surface, first, tile, m_state.texturelength);
+		flatten_texture(surface, first, tile, m_state.texturelength, m_state.textureangle);
 	}
 	// an island where the two directions part
 	if (apart && m_state.median == road_node::median_type::island && (usable(m_state.medianmaterial) || (m_state.kerbs && usable(m_state.kerbmaterial))))
@@ -3969,6 +3986,8 @@ void junction_node::export_as_text_(std::ostream &Output) const
 		Output << "arm " << arm.position.x << ' ' << arm.position.y << ' ' << arm.position.z << ' ' << arm.direction.x << ' ' << arm.direction.y << ' ' << arm.incoming << ' ' << arm.outgoing << ' ' << arm.width << ' ';
 	}
 	Output.precision(precision);
+	if (m_state.textureangle != 0.f)
+		Output << "texangle " << m_state.textureangle << ' ';
 	Output << "surface " << m_state.surface << ' ' << "texlength " << m_state.texturelength << ' ' << "markings "
 	       << (m_state.markings == road_node::marking_colour::white ? "white" : m_state.markings == road_node::marking_colour::orange ? "orange" : "none") << ' ';
 	if (m_state.side.type != road_node::side_type::none)
@@ -4151,6 +4170,8 @@ void road_node::export_as_text_(std::ostream &Output) const
 	}
 	// appearance
 	Output << "surface " << road.surface << ' ' << "texlength " << road.texturelength << ' ';
+	if (road.textureangle != 0.f)
+		Output << "texangle " << road.textureangle << ' ';
 	char const *sidenames[]{"left", "right"};
 	for (int side = 0; side < 2; ++side)
 	{
