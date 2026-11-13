@@ -156,7 +156,7 @@ def main(source, out):
 
     # no autumn of their own: a crop in the field in autumn is a crop still (which crop the season has is the editor's to say)
     for name, texture, snow in made:
-        with open(os.path.join(folder, name + '.mat'), 'w', newline='\n') as file:
+        with open(os.path.join(folder, name + '.mat'), 'w', newline='\n') as file:  # NOSONAR a tool run by hand: the folder is the one its user names
             file.write(MAT.format(texture=texture, snow=snow, snow_specular='1.25' if snow == 'pole' else '0.75'))
     print('\n'.join(name for name, _, _ in made))
 

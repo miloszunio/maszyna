@@ -456,7 +456,7 @@ std::size_t editor_mode::zielsko_replace_near(char const *Group)
 	for (auto *model : simulation::Instances.sequence())
 		if (model != nullptr && starts_with(model->name(), zielsko_near_prefix) && zielsko_in_scope(glm::dvec2{model->location().x, model->location().z}))
 			found.push_back(model);
-	std::mt19937 random{2026u};
+	std::mt19937 random{2026u}; // NOSONAR(cpp:S2245) picks models and sizes of plants, not security: it must repeat from the seed
 	// how tall a model of a template is at the scale of 1: given, or about its radius, as when planting
 	std::unordered_map<std::string, double> heights;
 	auto const own_height = [&](std::string const &Source, TAnimModel *Model) {
@@ -562,7 +562,7 @@ void editor_mode::zielsko_plant()
 	for (auto *model : simulation::Instances.sequence())
 		if (model != nullptr && starts_with(model->name(), zielsko_prefix))
 			number = std::max<std::size_t>(number, zielsko_number(model->name()) + 1);
-	std::mt19937 random{1992u};
+	std::mt19937 random{1992u}; // NOSONAR(cpp:S2245) picks models and sizes of plants, not security: it must repeat from the seed
 	auto const uniform = [&](double const Low, double const High) { return std::uniform_real_distribution<double>{Low, High}(random); };
 	// the height of each template: given, or about the radius of its model, which stands on its foot
 	std::unordered_map<std::string, double> heights;
