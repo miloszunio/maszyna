@@ -711,6 +711,51 @@ void editor_mode::road_profile_operation()
 		tool.status = done + ". " + STR_C("Ctrl+Z takes it back");
 }
 
+namespace
+{
+
+// the formations of tracks (the modifiers of the terrain not made by roads) which may reach the box
+std::vector<heightmap::modifier const *> formations_near(std::vector<heightmap::modifier> const &Modifiers, glm::dvec2 const &Low, glm::dvec2 const &High)
+{
+	std::vector<heightmap::modifier const *> near_ones;
+	for (auto const &modifier : Modifiers)
+	{
+		if (modifier.name.starts_with("road ") || modifier.points.size() < 2)
+			continue;
+		auto const [low, high]{modifier.bounds()};
+		if (low.x <= High.x && high.x >= Low.x && low.y <= High.y && high.y >= Low.y)
+			near_ones.push_back(&modifier);
+	}
+	return near_ones;
+}
+
+// whether the point of a road lies under the embankment of a track: within its formation and the slopes going down from it
+// to the height of the road, the formation a metre or more over the road. There the ground is the track's: the road gets
+// through it in a structure, not in a cutting
+bool under_formation(std::vector<heightmap::modifier const *> const &Formations, glm::dvec3 const &Point)
+{
+	glm::dvec2 const place{Point.x, Point.z};
+	for (auto const *modifier : Formations)
+		for (std::size_t i = 0; i + 1 < modifier->points.size(); ++i)
+		{
+			auto const &from{modifier->points[i]};
+			auto const &to{modifier->points[i + 1]};
+			auto const leg{to.position - from.position};
+			auto const length{glm::dot(leg, leg)};
+			auto const share{length > 1e-9 ? std::clamp(glm::dot(place - from.position, leg) / length, 0.0, 1.0) : 0.0};
+			auto const formation{glm::mix(from.formation, to.formation, share)};
+			auto const over{formation - Point.y};
+			if (over < 1.0)
+				continue;
+			auto const reach{glm::mix(from.half_width, to.half_width, share) + over * std::max(0.5, modifier->slope)};
+			if (glm::distance(place, from.position + leg * share) <= reach)
+				return true;
+		}
+	return false;
+}
+
+} // namespace
+
 void editor_mode::road_terrain(bool const Remove)
 {
 	auto &tool{m_roadtool};
@@ -748,6 +793,8 @@ void editor_mode::road_terrain(bool const Remove)
 	}
 	std::vector<heightmap::modifier> modifiers;
 	std::size_t done_pieces{0};
+	std::size_t under_tracks{0}; // stretches left alone under the embankments of tracks
+	auto const bench{std::clamp(static_cast<double>(tool.terrain_beside), 0.0, 20.0)};
 	for (auto const *road : pieces)
 	{
 		editor_busy_progress(0.3 * static_cast<double>(done_pieces++) / static_cast<double>(pieces.size()));
@@ -758,14 +805,16 @@ void editor_mode::road_terrain(bool const Remove)
 		modifier.reach = 40.0;
 		modifier.rounding = 1.0;
 		modifier.natural = m_natural;
-		// past the roadway: the kerbs and what lies beside it, half a metre more for the shoulder of the earth
-		double beside{0.5};
+		// past the roadway: the kerbs and what lies beside it, then the bench of flat earth set, so the grade line of the ground
+		// is wider than the road and its edges don't hang over the slope
+		double built{0.0};
 		for (int side = 0; side < 2; ++side)
 		{
 			auto const &data{state.sides[side]};
 			auto const extra{(state.kerbs[side] ? state.kerbwidth : 0.f) + (data.type != road_node::side_type::none ? data.width : 0.f)};
-			beside = std::max(beside, 0.5 + static_cast<double>(extra));
+			built = std::max(built, static_cast<double>(extra));
 		}
+		auto const beside{built + bench};
 		glm::dvec3 previous{state.point(0.0)};
 		double length{0.0};
 		for (int i = 1; i <= 32; ++i)
@@ -790,6 +839,33 @@ void editor_mode::road_terrain(bool const Remove)
 			modifier.points.clear();
 			modifier.open_start = Into;
 		};
+		glm::dvec2 low{state.point(0.0).x, state.point(0.0).z};
+		auto high{low};
+		std::vector<glm::dvec2> left;
+		std::vector<glm::dvec2> right;
+		for (int i = 0; i <= steps; ++i)
+		{
+			auto const t{i / static_cast<double>(steps)};
+			auto const point{state.point(t)};
+			low = glm::min(low, glm::dvec2{point.x, point.z});
+			high = glm::max(high, glm::dvec2{point.x, point.z});
+			auto const tangent{state.tangent(t)};
+			if (glm::dvec2 across{tangent.z, -tangent.x}; glm::length(across) > 1e-9)
+			{
+				across = glm::normalize(across) * (0.5 * state.span(t) + built + 0.25);
+				left.push_back(glm::dvec2{point.x, point.z} + across);
+				right.push_back(glm::dvec2{point.x, point.z} - across);
+			}
+		}
+		// the grass of the terrain goes from under the surface and what's built beside it
+		if (tool.terrain_grass && left.size() >= 2)
+		{
+			auto outline{left};
+			outline.insert(outline.end(), right.rbegin(), right.rend());
+			m_streamer.grass(outline, 0, true);
+		}
+		auto const formations{formations_near(m_streamer.modifiers(), low - glm::dvec2{80.0}, high + glm::dvec2{80.0})};
+		auto beneath{false};
 		for (int i = 0; i <= steps; ++i)
 		{
 			auto const t{i / static_cast<double>(steps)};
@@ -800,6 +876,17 @@ void editor_mode::road_terrain(bool const Remove)
 				flush(true);
 				continue;
 			}
+			// under the embankment of a track the ground stays the track's, also between the faces of a structure built there:
+			// the cutting of the road ends square at the foot of the embankment
+			if (under_formation(formations, point))
+			{
+				if (false == beneath)
+					++under_tracks;
+				beneath = true;
+				flush(true);
+				continue;
+			}
+			beneath = false;
 			// just under the surface, so the ground doesn't show through the road
 			modifier.points.push_back({{point.x, point.z}, point.y - 0.05, 0.5 * state.span(t) + beside});
 		}
@@ -820,6 +907,8 @@ void editor_mode::road_terrain(bool const Remove)
 	terrain_history_step();
 	forget_ground();
 	tool.status = format(STR_C("The terrain shaped to the roads, pieces: %zu, slopes 1:%.2f. Ctrl+Z takes it back"), count, static_cast<double>(tool.bankgrade));
+	if (under_tracks > 0)
+		tool.status += "\n" + format(STR_C("Left alone under the embankments of tracks at %zu places: the road gets through there in a structure (below)"), under_tracks);
 }
 
 namespace
@@ -1057,12 +1146,18 @@ void editor_mode::road_structures(bool const Remove)
 	}
 
 	auto const crossings{crossings_of(pieces, m_streamer.modifiers())};
-	int const type{std::clamp(tool.structure_type, 0, 2)}; // 0 an arch, 1 a frame, 2 a box culvert
-	double const wall{type == 0 ? 1.2 : type == 1 ? 1.0 : 0.4}; // thickness of the abutments and the wings
-	double const deck{type == 0 ? 0.7 : type == 1 ? 0.8 : 0.4}; // of the ring of the arch, or of the deck
+	// 0 an arch, 1 a frame, 2 a box culvert, 3 a semicircular arch, 4 a span of girders on abutments
+	int const kind{std::clamp(tool.structure_type, 0, 4)};
+	auto const semicircle{kind == 3};
+	auto const girders{kind == 4};
+	int const type{semicircle ? 0 : girders ? 1 : kind}; // the shape of the opening: 0 a vault, else a flat soffit
+	double const wall{girders ? 1.6 : type == 0 ? 1.2 : type == 1 ? 1.0 : 0.4}; // thickness of the abutments and the wings
+	double const deck{girders ? 1.3 : type == 0 ? 0.7 : type == 1 ? 0.8 : 0.4}; // of the ring of the arch, of the deck, or of the girders
 	double const headwall{type == 0 ? 0.9 : 0.6}; // into the embankment from the face
 	double const coping{0.25}; // the cornice on top of the faces
-	double const clearance{std::max(1.5, static_cast<double>(tool.structure_clearance))};
+	double const asked{std::max(1.5, static_cast<double>(tool.structure_clearance))};
+	double const lowest{2.2}; // m, the least clearance a structure is built with where the one asked for has no room
+	std::vector<std::string> lowered;
 	std::size_t built{0};
 	std::vector<std::string> refused;
 	auto const ground_at = [this](glm::dvec2 const &P, double &Height) { return m_streamer.height_at(P.x, P.y, Height, true); };
@@ -1086,17 +1181,31 @@ void editor_mode::road_structures(bool const Remove)
 		// where along the road a line at a distance from the axis of the track lies, for a place across the road
 		auto const s_at = [&](double const X, double const Distance) { return (Distance - X * nm) / rm; };
 		// the soffit level over the whole length, from the higher end of the road under it; refined once the length is known
-		double soffit{c.at.y + clearance};
-		double reach{0.0}, top{0.0};
-		for (int pass = 0; pass < 2; ++pass)
-		{
+		double clearance{asked};
+		double soffit{0.0};
+		double reach{0.0};
+		double top{0.0};
+		auto const shape = [&]() {
+			soffit = c.at.y + clearance;
+			for (int pass = 0; pass < 2; ++pass)
+			{
+				top = soffit + deck + 0.3;
+				reach = c.half_width + (c.formation - top) * c.slope; // the faces, from the axis of the track
+				auto const extent{std::abs(s_at(half + wall, reach)) + std::abs(s_at(-half - wall, reach))};
+				soffit = c.at.y + clearance + std::abs(c.grade) * extent * 0.5;
+			}
 			top = soffit + deck + 0.3;
-			reach = c.half_width + (c.formation - top) * c.slope; // the faces, from the axis of the track
-			auto const extent{std::abs(s_at(half + wall, reach)) + std::abs(s_at(-half - wall, reach))};
-			soffit = c.at.y + clearance + std::abs(c.grade) * extent * 0.5;
+			reach = c.half_width + (c.formation - top) * c.slope;
+		};
+		shape();
+		if (c.formation < top + 0.2 && tool.structure_fit)
+		{
+			// no room for the clearance asked for: the one there's room for, if it's one to drive or walk under
+			clearance = std::max(lowest, clearance - (top + 0.2 - c.formation) - 0.05);
+			shape();
+			if (c.formation >= top + 0.2)
+				lowered.push_back(format(STR_C("%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"), c.name.c_str(), clearance, asked));
 		}
-		top = soffit + deck + 0.3;
-		reach = c.half_width + (c.formation - top) * c.slope;
 		if (c.formation < top + 0.2)
 		{
 			refused.push_back(format(STR_C("%s: the formation is %.1f m over the road, the structure needs %.1f m: lower the road by %.1f m or the clearance"),
@@ -1104,7 +1213,7 @@ void editor_mode::road_structures(bool const Remove)
 			continue;
 		}
 		// the arch: a circle through the springings and the crown; the frame and the culvert: a flat soffit
-		auto const rise{type == 0 ? std::min(half, std::max(0.5, clearance - 2.5)) : 0.0};
+		auto const rise{type != 0 ? 0.0 : semicircle ? std::min(half, clearance - 0.3) : std::min(half, std::max(0.5, clearance - 2.5))};
 		auto const springing{soffit - rise};
 		auto const radius{type == 0 ? (rise * rise + half * half) / (2.0 * rise) : 0.0};
 		auto const opening = [&](double const X) {
@@ -1127,6 +1236,10 @@ void editor_mode::road_structures(bool const Remove)
 				{
 					double ground{0.0};
 					auto const next{s + outward * 0.5};
+					// no farther than the foot of the embankment at the height of the road: past it a road in a cutting has the
+					// slopes of its own cutting, not walls
+					if (std::abs(next * rm + x * nm) > c.half_width + std::max(0.0, c.formation - road_y(next)) * c.slope + 1.0)
+						break;
 					if (false == ground_at(place(x + (side == 0 ? -0.6 : 0.6), next), ground) || ground <= road_y(next) + 0.3)
 						break;
 					s = next;
@@ -1135,7 +1248,7 @@ void editor_mode::road_structures(bool const Remove)
 			}
 
 		structure_mesh mesh;
-		structure_builder build{mesh};
+		structure_builder build{mesh, std::clamp(static_cast<double>(tool.structure_tile), 0.25, 50.0)};
 		auto const point = [&](double const X, double const S, double const Y) {
 			auto const p{place(X, S)};
 			return glm::dvec3{p.x, Y, p.y};
@@ -1296,6 +1409,8 @@ void editor_mode::road_structures(bool const Remove)
 	else
 		tool.status = format(STR_C("Structures under the tracks: %zu built of %zu crossings. Ctrl+Z brings the terrain back, \"Take them away\" the models too"), built,
 		                     crossings.size());
+	for (auto const &reason : lowered)
+		tool.status += "\n" + reason;
 	for (auto const &reason : refused)
 		tool.status += "\n" + reason;
 }
@@ -1808,6 +1923,12 @@ void editor_mode::render_road_profile_window()
 	ImGui::SetNextItemWidth(120.0f);
 	if (ImGui::InputFloat(STR_C("Bank slope 1:n"), &tool.bankgrade, 0.25f, 0.5f, "%.2f"))
 		tool.bankgrade = std::clamp(tool.bankgrade, 0.25f, 10.0f);
+	ImGui::SetNextItemWidth(120.0f);
+	if (ImGui::InputFloat(STR_C("Flat ground past the road (m)##roadterrain"), &tool.terrain_beside, 0.25f, 1.0f, "%.2f"))
+		tool.terrain_beside = std::clamp(tool.terrain_beside, 0.0f, 20.0f);
+	item_tooltip(STR_C("The ground is levelled wider than the road by this much either side, then the slopes begin: the edges of the road don't hang over them"));
+	ImGui::Checkbox(STR_C("Take the grass from under the road##roadterrain"), &tool.terrain_grass);
+	item_tooltip(STR_C("The grass grown on the terrain is taken away under the surface of the road and what's built beside it, so it doesn't stand out of the asphalt"));
 	ImGui::Checkbox(STR_C("All the roads of the scenery##roadterrain"), &tool.every_road);
 	if (change_button(STR_C("Lead the terrain to the road")))
 	{
@@ -1835,11 +1956,12 @@ void editor_mode::render_road_profile_window()
 	item_tooltip("The terrain no longer shaped by the road (of the selected one, or of all of them)");
 	ImGui::SeparatorText(STR_C("Structure under the track##roadprofile"));
 	{
-		char const *const types[]{STR_C("Arch (stone, brick)"), STR_C("Frame viaduct (concrete)"), STR_C("Box culvert")};
-		float const clearances[]{4.7f, 4.7f, 3.0f};
+		std::array<char const *, 5> const types{STR_C("Arch (stone, brick)"), STR_C("Frame viaduct (concrete)"), STR_C("Box culvert"), STR_C("Semicircular arch (stone, brick)"),
+		                                        STR_C("Span of girders on abutments (steel, concrete)")};
+		std::array<float, 5> const clearances{4.7f, 4.7f, 3.0f, 4.7f, 4.7f};
 		ImGui::SetNextItemWidth(220.0f);
-		if (ImGui::Combo(STR_C("Kind##structure"), &tool.structure_type, types, IM_ARRAYSIZE(types)))
-			tool.structure_clearance = clearances[std::clamp(tool.structure_type, 0, 2)];
+		if (ImGui::Combo(STR_C("Kind##structure"), &tool.structure_type, types.data(), static_cast<int>(types.size())))
+			tool.structure_clearance = clearances[static_cast<std::size_t>(std::clamp(tool.structure_type, 0, 4))];
 		item_tooltip("Where the road crosses the formation of a track (its modifier of the terrain): an arch on abutments, a frame of walls and a deck,\n"
 		             "or a box culvert; faces along the track, wing walls along the slopes, the ground before the faces cut away down to the road");
 		ImGui::SetNextItemWidth(120.0f);
@@ -1849,6 +1971,12 @@ void editor_mode::render_road_profile_window()
 		ImGui::InputFloat(STR_C("Width of the opening (m)##structure"), &tool.structure_width, 0.5f, 1.0f, tool.structure_width > 0.5f ? "%.1f" : STR_C("as the road"));
 		tool.structure_width = std::max(0.0f, tool.structure_width);
 		item_tooltip("Between the walls; 0: the road with its shoulders and kerbs, half a metre more");
+		ImGui::Checkbox(STR_C("As high as fits where the clearance doesn't##structure"), &tool.structure_fit);
+		item_tooltip(STR_C("Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.2 m at least) and says so, instead of being refused"));
+		ImGui::SetNextItemWidth(120.0f);
+		ImGui::InputFloat(STR_C("Texture repeats every (m)##structure"), &tool.structure_tile, 0.25f, 1.0f, "%.2f");
+		tool.structure_tile = std::clamp(tool.structure_tile, 0.25f, 50.0f);
+		item_tooltip(STR_C("Lower lays the texture denser on the walls, higher stretches it"));
 		char material[256];
 		std::snprintf(material, sizeof(material), "%s", tool.structure_material.c_str());
 		ImGui::SetNextItemWidth(220.0f);

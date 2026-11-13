@@ -17682,3 +17682,39 @@ msgstr "Chunk utworzony z podłoża scenerii"
 
 msgid "No terrain here: the chunk is made from the terrain model (NMT) where the terrain knows its place, else from the ground of the scenery and the edges of the chunks beside it"
 msgstr "Tu nie ma terenu: chunk powstaje z modelu terenu (NMT), jeśli teren zna swoje położenie, a inaczej z podłoża scenerii i krawędzi sąsiednich chunków"
+
+msgid "Left alone under the embankments of tracks at %zu places: the road gets through there in a structure (below)"
+msgstr "Pod nasypami torów teren zostawiony w %zu miejscach: tam droga przechodzi w obiekcie (niżej)"
+
+msgid "Flat ground past the road (m)##roadterrain"
+msgstr "Płaski teren poza drogą (m)##roadterrain"
+
+msgid "The ground is levelled wider than the road by this much either side, then the slopes begin: the edges of the road don't hang over them"
+msgstr "Teren jest wyrównany szerzej niż droga o tyle z każdej strony i dopiero potem zaczynają się skarpy: krawędzie drogi nie wiszą nad nimi"
+
+msgid "Take the grass from under the road##roadterrain"
+msgstr "Usuń trawę spod drogi##roadterrain"
+
+msgid "The grass grown on the terrain is taken away under the surface of the road and what's built beside it, so it doesn't stand out of the asphalt"
+msgstr "Trawa rosnąca na terenie jest usuwana pod nawierzchnią drogi i tym, co zbudowane obok, żeby nie wystawała z asfaltu"
+
+msgid "Semicircular arch (stone, brick)"
+msgstr "Sklepienie półkoliste (kamień, cegła)"
+
+msgid "Span of girders on abutments (steel, concrete)"
+msgstr "Przęsło belkowe na przyczółkach (stal, beton)"
+
+msgid "As high as fits where the clearance doesn't##structure"
+msgstr "Tak wysoki, jak się zmieści, gdy skrajnia się nie mieści##structure"
+
+msgid "Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.2 m at least) and says so, instead of being refused"
+msgstr "Gdzie torowisko nie leży dość wysoko nad drogą na ustawioną skrajnię, obiekt powstaje ze skrajnią, na jaką jest miejsce (co najmniej 2,2 m), i jest to zgłoszone, zamiast odmowy"
+
+msgid "Texture repeats every (m)##structure"
+msgstr "Tekstura powtarza się co (m)##structure"
+
+msgid "Lower lays the texture denser on the walls, higher stretches it"
+msgstr "Mniejsza wartość zagęszcza teksturę na ścianach, większa ją rozciąga"
+
+msgid "%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"
+msgstr "%s: zbudowany ze skrajnią %.2f m, torowisko leży za nisko nad drogą na %.2f m"

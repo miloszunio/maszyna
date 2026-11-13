@@ -3,6 +3,11 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 ## Zmiany w tym wydaniu
 
 - **Uwaga przy pierwszym uruchomieniu nowej wersji:** po wczytaniu scenerii do ~minuty czarnego ekranu, bo sterownik kompiluje shadery dla nowego exe od zera. Trzeba poczekać; drugie uruchomienie startuje szybko (opis w poradniku).
+- **Droga i teren (okno profilu drogi → Teren):**
+  - „Doprowadź teren do drogi” zostawia teren pod nasypem toru w spokoju (wcześniej ciął tam klin, z którym walczyła formacja toru); wykop drogi kończy się prosto u podnóża nasypu, a przejście robi obiekt;
+  - nowe pole „Płaski teren poza drogą (m)”, domyślnie 1,5 m: niweleta terenu szersza niż droga;
+  - „Usuń trawę spod drogi”: trawa terenu znika pod nawierzchnią i poboczami.
+- **Obiekty pod torem:** dwa nowe kształty (sklepienie półkoliste, przęsło belkowe na przyczółkach), „Tekstura powtarza się co (m)”, a gdy skrajnia się nie mieści, obiekt powstaje z taką, jaka się mieści (min. 2,2 m), zamiast odmowy; skrzydła nie wychodzą poza podnóże nasypu.
 - **Okno „Opcje narzędzia” wraca samo:** wybranie obszaru pracy albo narzędzia GeoTools otwiera je, jeśli było zamknięte, i wysuwa, jeśli jego dok był odpięty. Zamknięcie okna jest odnotowane w `log.txt`.
 - **UTWÓRZ nad brakującym chunkiem:** w GeoTools nad każdym brakującym chunkiem w pobliżu kamery (do 3 chunków) wisi żółty przycisk; tworzy chunk z NMT albo z podłoża scenerii.
 - **Esc:** w GeoTools czyści obrys, wybrane pole, działki, podgląd drzew, projekt torów i zaznaczenie; w Drogach kończy budowanie albo stawianie i wraca do zaznaczania.

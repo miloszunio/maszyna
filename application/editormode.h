@@ -3363,8 +3363,12 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float crest{1500.0f}; // m
 		float sag{800.0f}; // m
 		bool every_road{false}; // the terrain led to all the roads of the scenery, not only to the selected one
+		float terrain_beside{1.5f}; // m of flat ground past each edge of the road before the slope begins
+		bool terrain_grass{true}; // the grass of the terrain taken away under the road, so it doesn't stand out of the surface
+		float structure_tile{2.0f}; // m the texture of a structure repeats over
+		bool structure_fit{true}; // a structure with no room for the clearance asked for is built as high as the formation lets
 		// the structures where the road runs under the formation of a track
-		int structure_type{0}; // 0 an arch, 1 a frame viaduct, 2 a box culvert
+		int structure_type{0}; // 0 an arch, 1 a frame viaduct, 2 a box culvert, 3 a semicircular arch, 4 a span of girders
 		float structure_clearance{4.7f}; // m over the road to the soffit or the crown
 		float structure_width{0.0f}; // m between the walls, 0: as the road
 		std::string structure_material{"beton001"}; // the one texture of the whole structure
