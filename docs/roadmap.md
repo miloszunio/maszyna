@@ -38,7 +38,7 @@ Bieżący stan PR-ów i testów: arkusz „MaSzyna ficzery2: PR-y i testy”.
 3. **Kawałki ortofoto jadące za kamerą**: czekamy na screen.
 4. **Drogi, zgłoszone 13.11** (kolejne wersje, po kolei):
    - ~~obrót mapowania tekstury drogi o kąt~~ (zrobione 13.11: „Obrót tekstury [°]”);
-   - dwa rodzaje drogi: asfaltowa (jak dziś) i gruntowa: bez malowania pasów, wymagania na promienie, krzywe przejściowe i profil 3 razy luźniejsze, z opcją nierówności jak przy polach (bywają też gruntowe równe jak stół, więc do wyłączenia);
+   - ~~dwa rodzaje drogi: asfaltowa i gruntowa~~ (zrobione 13.11; do sprawdzenia w grze, zwłaszcza uskok na styku gruntowej ze skrzyżowaniem);
    - rondo: więcej zjazdów (do ustalenia, co dziś ogranicza);
    - ~~wycinanie pod torem na wiadukt~~ (poprawione 13.11, do sprawdzenia w grze): było zepsute (screen 13.11: przekop pod torem wychodzi jako klin, skarpy wchodzą na jezdnię, nad drogą zostaje trójkąt terenu);
    - ~~dociąganie terenu do drogi niweletą szerszą niż sama droga~~ (pole „Płaski teren poza drogą”), żeby pobocza nie odstawały;

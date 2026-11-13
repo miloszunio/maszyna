@@ -478,6 +478,42 @@ void flatten_texture(std::vector<world_vertex> &Vertices, std::size_t const From
 	}
 }
 
+// a number of -1 to 1 for a square of the plan, the same whenever it's asked for
+double square_noise(int const X, int const Z)
+{
+	auto hash{static_cast<std::uint32_t>(X) * 374761393u + static_cast<std::uint32_t>(Z) * 668265263u};
+	hash = (hash ^ (hash >> 13)) * 1274126177u;
+	hash ^= hash >> 16;
+	return static_cast<double>(hash & 0xffffu) / 32767.5 - 1.0;
+}
+
+// smooth noise of -1 to 1 over the plan, about a wave for a unit of X and Z, with a finer one half as high on it
+double ground_noise(double const X, double const Z)
+{
+	double sum{0.0};
+	double height{1.0};
+	double scale{1.0};
+	for (int octave = 0; octave < 2; ++octave)
+	{
+		auto const x{X * scale};
+		auto const z{Z * scale};
+		auto const cellx{std::floor(x)};
+		auto const cellz{std::floor(z)};
+		auto const fx{x - cellx};
+		auto const fz{z - cellz};
+		auto const sx{fx * fx * (3.0 - 2.0 * fx)};
+		auto const sz{fz * fz * (3.0 - 2.0 * fz)};
+		auto const ix{static_cast<int>(cellx) + octave * 131};
+		auto const iz{static_cast<int>(cellz) + octave * 71};
+		auto const low{glm::mix(square_noise(ix, iz), square_noise(ix + 1, iz), sx)};
+		auto const high{glm::mix(square_noise(ix, iz + 1), square_noise(ix + 1, iz + 1), sx)};
+		sum += height * glm::mix(low, high, sz);
+		height *= 0.5;
+		scale *= 2.3;
+	}
+	return sum / 1.5;
+}
+
 float texture_ratio(std::string const &Material)
 {
 	auto const material{GfxRenderer->Fetch_Material(Material)};
@@ -1108,6 +1144,12 @@ void road_node::import(cParser &Input, glm::dvec3 const &Offset)
 		else if (token == "roundabout")
 		{
 			m_state.roundabout = true;
+		}
+		else if (token == "rough")
+		{
+			// rough <metres up and down> <metres a wave>
+			Input.getTokens(2);
+			Input >> m_state.rough >> m_state.roughscale;
 		}
 		else
 		{
@@ -1943,6 +1985,15 @@ std::vector<scene::shape_node> road_node::create_shapes() const
 				lines.push_back({leftend, upwards, {0.f, 1.f}});
 			}
 		}
+	}
+
+	// a dirt road: all that's seen of it rises and falls with the ground noise, the surface, its sides and its banks alike
+	if (road.rough > 0.f)
+	{
+		auto const wave{std::max(0.5, static_cast<double>(road.roughscale))};
+		for (auto &entry : batches)
+			for (auto &vertex : entry.vertices)
+				vertex.position.y += road.rough * ground_noise(vertex.position.x / wave, vertex.position.z / wave);
 	}
 
 	std::vector<scene::shape_node> shapes;
@@ -4217,6 +4268,10 @@ void road_node::export_as_text_(std::ostream &Output) const
 	if (road.roundabout)
 	{
 		Output << "roundabout ";
+	}
+	if (road.rough > 0.f)
+	{
+		Output << "rough " << road.rough << ' ' << road.roughscale << ' ';
 	}
 	// footer
 	Output << "endroad"

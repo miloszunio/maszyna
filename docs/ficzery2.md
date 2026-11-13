@@ -7,6 +7,7 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
   - „Doprowadź teren do drogi” zostawia teren pod nasypem toru w spokoju (wcześniej ciął tam klin, z którym walczyła formacja toru); wykop drogi kończy się prosto u podnóża nasypu, a przejście robi obiekt;
   - nowe pole „Płaski teren poza drogą (m)”, domyślnie 1,5 m: niweleta terenu szersza niż droga;
   - „Usuń trawę spod drogi”: trawa terenu znika pod nawierzchnią i poboczami.
+- **Droga gruntowa:** w budowaniu drogi wybór „Rodzaj drogi”: asfaltowa albo gruntowa. Gruntowa: bez pasów, pochylenie 3 razy większe i promienie łuków pionowych 3 razy mniejsze, nierówna (domyślnie 5 cm, fale co ok. 6 m) albo „Równa jak stół”. Nierówność dotyczy tego, co widać; pojazdy jadą po osi. W scenerii: `rough <m> <m>`. Ograniczeń promieni i przejściówek w planie narzędzie dróg nie ma, więc nie było czego luzować.
 - **Obrót tekstury drogi:** pole „Obrót tekstury [°]” przy długości tekstury (drogi i skrzyżowania); w scenerii zapisywane jako `texangle`, tylko gdy różne od zera.
 - **Obiekty pod torem:** dwa nowe kształty (sklepienie półkoliste, przęsło belkowe na przyczółkach), „Tekstura powtarza się co (m)”, a gdy skrajnia się nie mieści, obiekt powstaje z taką, jaka się mieści (min. 2,2 m), zamiast odmowy; skrzydła nie wychodzą poza podnóże nasypu.
 - **Okno „Opcje narzędzia” wraca samo:** wybranie obszaru pracy albo narzędzia GeoTools otwiera je, jeśli było zamknięte, i wysuwa, jeśli jego dok był odpięty. Zamknięcie okna jest odnotowane w `log.txt`.

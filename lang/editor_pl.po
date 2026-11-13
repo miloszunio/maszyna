@@ -17724,3 +17724,33 @@ msgstr "Obrót tekstury [°]"
 
 msgid "The image of the surface is laid flat over the world, the same way at every road; this turns it, for a surface with a grain (ruts, slabs) to go along the road"
 msgstr "Obraz nawierzchni jest położony płasko na świecie, tak samo na każdej drodze; to pole go obraca, żeby nawierzchnia z wyraźnym kierunkiem (koleiny, płyty) szła wzdłuż drogi"
+
+msgid "Asphalt road"
+msgstr "Droga asfaltowa"
+
+msgid "Dirt road"
+msgstr "Droga gruntowa"
+
+msgid "Kind of the road##roadkind"
+msgstr "Rodzaj drogi##roadkind"
+
+msgid "Dirt: no markings are painted, the steepest grade is three times what it was and the radii of the vertical curves a third, and the road is uneven. Choose its surface below as for any road"
+msgstr "Gruntowa: bez malowania pasów, największe pochylenie trzy razy większe, promienie łuków pionowych trzy razy mniejsze, a droga jest nierówna. Nawierzchnię wybierz niżej jak dla każdej drogi"
+
+msgid "Even as a table##roadkind"
+msgstr "Równa jak stół##roadkind"
+
+msgid "Up and down by (cm)##roadkind"
+msgstr "Nierówności do (cm)##roadkind"
+
+msgid "Waves about (m)##roadkind"
+msgstr "Fale co około (m)##roadkind"
+
+msgid "What's seen of the road rises and falls, the same way over the same ground, so its pieces meet; the vehicles go by its axis. Where it meets an even road or a junction there's a step of up to that much"
+msgstr "To, co widać z drogi, faluje, tak samo nad tym samym miejscem, więc kawałki się stykają; pojazdy jadą po osi. Na styku z równą drogą albo skrzyżowaniem jest uskok do tej wysokości"
+
+msgid "Uneven by [cm]"
+msgstr "Nierówności [cm]"
+
+msgid "A dirt road: what's seen of it rises and falls by this much; 0: even"
+msgstr "Droga gruntowa: to, co widać, faluje o tyle; 0: równa"

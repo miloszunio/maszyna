@@ -3363,6 +3363,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float crest{1500.0f}; // m
 		float sag{800.0f}; // m
 		bool every_road{false}; // the terrain led to all the roads of the scenery, not only to the selected one
+		int kind{0}; // of the roads built: 0 asphalt, 1 dirt (no markings, the limits of the profile three times looser, uneven)
 		float terrain_beside{1.5f}; // m of flat ground past each edge of the road before the slope begins
 		bool terrain_grass{true}; // the grass of the terrain taken away under the road, so it doesn't stand out of the surface
 		float structure_tile{2.0f}; // m the texture of a structure repeats over
@@ -3417,6 +3418,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::string status;
 	};
 	void render_road_tool_options();
+	void render_road_kind();
 	// the change of the road tool
 	void road_choose_tool(int const Tool);
 	void render_road_selection();

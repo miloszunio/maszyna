@@ -2315,6 +2315,12 @@ bool editor_mode::render_road_layout(road_node::state &State)
 			changed = true;
 		}
 		item_tooltip(STR_C("The image of the surface is laid flat over the world, the same way at every road; this turns it, for a surface with a grain (ruts, slabs) to go along the road"));
+		if (auto centimetres{State.rough * 100.0f}; number(STR_C("Uneven by [cm]"), centimetres, 1.0f, "%.0f"))
+		{
+			State.rough = std::clamp(centimetres, 0.0f, 25.0f) / 100.0f;
+			changed = true;
+		}
+		item_tooltip(STR_C("A dirt road: what's seen of it rises and falls by this much; 0: even"));
 		item_tooltip("How many metres of the surface one copy of the texture covers");
 		if (State.kerbs[0] || State.kerbs[1] || island)
 		{
@@ -2412,6 +2418,42 @@ void editor_mode::road_choose_tool(int const Tool)
 }
 
 // the road tools and what the next pieces get, in the tool options window; the selection is drawn in the inspector by render_road_selection()
+// what the roads built are: asphalt as set, or dirt. A dirt road has no markings, the limits of its profile (the steepest grade,
+// the radii of the curves over a crest and in a dip) are three times looser, and it's uneven unless it's told to be even
+void editor_mode::render_road_kind()
+{
+	auto &tool{m_roadtool};
+	std::array<char const *, 2> const kinds{STR_C("Asphalt road"), STR_C("Dirt road")};
+	auto kind{std::clamp(tool.kind, 0, 1)};
+	ImGui::SetNextItemWidth(160.0f);
+	if (ImGui::Combo(STR_C("Kind of the road##roadkind"), &kind, kinds.data(), static_cast<int>(kinds.size())) && kind != tool.kind)
+	{
+		float const looser{kind == 1 ? 3.0f : 1.0f / 3.0f};
+		tool.kind = kind;
+		tool.maxgrade = std::clamp(tool.maxgrade * looser, 0.5f, 20.0f);
+		tool.crest = std::clamp(tool.crest / looser, 50.0f, 50000.0f);
+		tool.sag = std::clamp(tool.sag / looser, 50.0f, 50000.0f);
+		tool.settings.markings = kind == 1 ? road_node::marking_colour::none : road_node::marking_colour::white;
+		tool.settings.rough = kind == 1 ? 0.05f : 0.0f;
+	}
+	item_tooltip(STR_C("Dirt: no markings are painted, the steepest grade is three times what it was and the radii of the vertical curves a third, and the road is uneven. "
+	                   "Choose its surface below as for any road"));
+	if (tool.kind != 1)
+		return;
+	auto even{tool.settings.rough <= 0.0f};
+	if (ImGui::Checkbox(STR_C("Even as a table##roadkind"), &even))
+		tool.settings.rough = even ? 0.0f : 0.05f;
+	if (even)
+		return;
+	auto centimetres{tool.settings.rough * 100.0f};
+	ImGui::SetNextItemWidth(160.0f);
+	if (ImGui::SliderFloat(STR_C("Up and down by (cm)##roadkind"), &centimetres, 1.0f, 25.0f, "%.0f"))
+		tool.settings.rough = centimetres / 100.0f;
+	ImGui::SetNextItemWidth(160.0f);
+	ImGui::SliderFloat(STR_C("Waves about (m)##roadkind"), &tool.settings.roughscale, 1.0f, 30.0f, "%.0f");
+	item_tooltip(STR_C("What's seen of the road rises and falls, the same way over the same ground, so its pieces meet; the vehicles go by its axis. Where it meets an even road or a junction there's a step of up to that much"));
+}
+
 void editor_mode::render_road_tool_options()
 {
 	auto &tool{m_roadtool};
@@ -2423,6 +2465,7 @@ void editor_mode::render_road_tool_options()
 
 	if (tool.tool == 1)
 	{
+		render_road_kind();
 		if (ImGui::Checkbox(STR_C("Roundabout"), &tool.ring))
 			road_cancel();
 		item_tooltip("A one-way road going around, with the lanes set below as the lanes along the axis.\nThen untick this and lead the roads out of its side, or into it");

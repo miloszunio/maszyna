@@ -153,6 +153,10 @@ class road_node : public scene::basic_node
 		std::array<bank_data, 2> banks; // left, right
 		std::string bankmaterial{"none"}; // what a bank is covered with, other than one of a shoulder, which goes with the shoulder
 		bool roundabout{false}; // the piece is a part of a roundabout: traffic on it goes ahead of the traffic joining it
+		// a dirt road isn't even: what's seen of the piece rises and falls by up to this much (m) in waves about roughscale m
+		// long, the same way at every piece over the same ground, so the pieces meet. 0: even. The traffic goes by the axis
+		float rough{0.f};
+		float roughscale{6.f};
 		// lanes the piece is short of at an end of its axis: [end][0: the ones going along the axis, 1: the ones going against it].
 		// these are the outermost lanes of the direction, which the road gains or loses along the piece;
 		// forward and backward say how many lanes there are where the piece has the most of them
