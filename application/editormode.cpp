@@ -2003,6 +2003,9 @@ void editor_mode::render_terrain_ui()
         ImGui::TextDisabled("%s", STR_C("The holes follow the ground every metre (every grid point of finer chunks), whatever the drawn grid"));
     }
 
+    if (ImGui::CollapsingHeader(STR_C("Fields"), m_terrain_tool == terrain_tool::fields ? ImGuiTreeNodeFlags_DefaultOpen : 0))
+        render_fields_ui();
+
     if (ImGui::CollapsingHeader(STR_C("Fill"), m_terrain_tool == terrain_tool::fill ? ImGuiTreeNodeFlags_DefaultOpen : 0))
     {
         auto const &layers{m_streamer.manifest().layers};
@@ -2029,7 +2032,10 @@ void editor_mode::render_terrain_ui()
         ImGui::EndDisabled();
         ImGui::SameLine();
         if (ImGui::Button(STR_C("Clear the outline##fill")))
+        {
             m_paint_outline.clear();
+            m_patch_reoutline.clear();
+        }
         // the same outline for the holes and the grass
         std::vector<glm::dvec2> outline;
         for (auto const &point : m_paint_outline)
@@ -2386,7 +2392,7 @@ void editor_mode::draw_terrain_overlay()
             outline.emplace_back(point.x, water[i].level, point.y);
         polyline(outline, static_cast<int>(i) == m_water_selected ? IM_COL32(120, 200, 255, 255) : IM_COL32(60, 120, 220, 160), true, static_cast<int>(i) == m_water_selected ? 2.5f : 1.5f);
     }
-    if (m_terrain_tool == terrain_tool::fill && false == m_paint_outline.empty())
+    if ((m_terrain_tool == terrain_tool::fill || m_terrain_tool == terrain_tool::fields) && false == m_paint_outline.empty())
     {
         // laid over the ground, the edges followed every few metres
         std::vector<glm::dvec3> outline;
@@ -2956,6 +2962,7 @@ void editor_mode::handle_terrain_click(bool const Shift)
         break;
     }
     case terrain_tool::fill:
+    case terrain_tool::fields:
     {
         if (Shift)
         {
@@ -6525,8 +6532,12 @@ void editor_mode::render_gizmo()
         snapvalue = glm::vec3(0.1f);
     float const *snap = Global.ctrlState && snapvalue.x > 0.0f ? glm::value_ptr(snapvalue) : nullptr;
 
+    // the change of this frame alone: a turn is taken from it, not from the angles the whole matrix decomposes into,
+    // which can't tell a turn of more than 90 degrees about the vertical axis (it comes out as 180 - angle with the
+    // other two axes flipped, and the model turned back and forth while dragged one way)
+    glm::mat4 delta(1.0f);
     ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(projection),
-                         operation, mode, glm::value_ptr(matrix), nullptr, snap);
+                         operation, mode, glm::value_ptr(matrix), glm::value_ptr(delta), snap);
 
     if (ImGuizmo::IsUsing())
     {
@@ -6543,9 +6554,11 @@ void editor_mode::render_gizmo()
 
         if (operation == ImGuizmo::ROTATE && model)
         {
-            // apply the rotation delta relative to the model's current orientation
-            glm::vec3 const newangles(newrotation[0], newrotation[1], newrotation[2]);
-            auto const turned{newangles - model->Angles()};
+            // the turn of this frame, small, so its angles decompose with no ambiguity
+            float deltatranslation[3], deltarotation[3], deltascale[3];
+            ImGuizmo::DecomposeMatrixToComponents(glm::value_ptr(delta), deltatranslation, deltarotation, deltascale);
+            auto const wrapped = [](float Angle) { return Angle - 360.0f * std::floor((Angle + 180.0f) / 360.0f); };
+            glm::vec3 const turned{wrapped(deltarotation[0]), wrapped(deltarotation[1]), wrapped(deltarotation[2])};
             m_editor.rotate(model, turned, 0.0f);
             selection_follow(glm::dvec3(0.0), turned, model->location());
         }
