@@ -2,6 +2,10 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 
 ## Zmiany w tym wydaniu
 
+Lista zmian wydanie po wydaniu, z zaznaczeniem, co jest w PR-ach do mastera: [changelog.md](changelog.md).
+
+- **Mosty z torem na konstrukcji (nr 164):** dwa nowe rodzaje obiektu pod torem: „Most blachownicowy, tor na konstrukcji” i „Most kratownicowy, tor między kratownicami”. Nasyp jest wycinany na całej szerokości między przyczółkami, przyczółek ma ławę pod łożyska i ściankę żwirową do poziomu torowiska, tor leży na pomoście (podmodel `pomost`). Blachownicowy: dźwigary pod pomostem co ok. 2 m, wysokość 1/12 rozpiętości (0,8–2,6 m). Kratownicowy: poprzecznice pod pomostem, dwie kratownice (podmodel `kratownice`): pasy, słupki, krzyżulce opadające ku środkowi; przęsło od 24 m wysokie (min. 7,5 m) ze stężeniami nad torem, krótsze niskie. Wieloprzęsłowe: filary, na nich łożyska (także w przęśle belkowym pod nasypem). `builder::member` w `editor/editorStructure`, test w `test_structure.cpp`.
+- **Ekran ładowania przed pierwszą klatką (nr 163):** po wczytaniu scenerii ekran ładowania pokazuje „Przygotowanie grafiki…” przez dwie klatki i dopiero wtedy przełącza na symulację, więc przy kompilacji shaderów nowego exe zostaje napis, a nie czarny obraz.
 - **Uwaga przy pierwszym uruchomieniu nowej wersji:** po wczytaniu scenerii do ~minuty czarnego ekranu, bo sterownik kompiluje shadery dla nowego exe od zera. Trzeba poczekać; drugie uruchomienie startuje szybko (opis w poradniku).
 - **Droga i teren (okno profilu drogi → Teren):**
   - „Doprowadź teren do drogi” zostawia teren pod nasypem toru w spokoju (wcześniej ciął tam klin, z którym walczyła formacja toru); wykop drogi kończy się prosto u podnóża nasypu, a przejście robi obiekt;

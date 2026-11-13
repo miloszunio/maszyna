@@ -14,6 +14,7 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 
 ## Pierwsze uruchomienie nowej wersji: czarny ekran do ~minuty
 
+- Od nr 163 ekran ładowania zostaje na ten czas z napisem „Przygotowanie grafiki (przy pierwszym uruchomieniu nowej wersji trwa dłużej)” zamiast czarnego obrazu. Reszta poniżej bez zmian: trzeba poczekać.
 - Po wczytaniu scenerii pierwsza klatka przygotowuje shadery wszystkich materiałów. Przy **pierwszym uruchomieniu nowego exe** sterownik karty kompiluje je od zera (u nas ok. 35 s, w `log.txt` widać to jako „slow frame before, … ms” zaraz po „scenery lamp shadow maps”), a ekran ładowania już wtedy zniknął: obraz jest czarny i wygląda, jakby gra się zawiesiła. **Trzeba poczekać**, nie zamykać.
 - Dzieje się tak, bo sterownik trzyma skompilowane shadery osobno dla każdego programu, a każdy build ma inną nazwę exe (`eu07-x64_<data>_<hash>.exe`). Drugie uruchomienie tego samego exe startuje już szybko.
 
@@ -90,6 +91,13 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
    - **Klasa drogi** (polna … autostrada) ustawia największe pochylenie i promienie łuków; „Wyrównaj całą drogę” stosuje je do całej drogi.
 4. Droga z pasami „w niebie” (po wyrównaniu ze starej wersji): Profil → „Zaznacz wszystkie” → „Po terenie” → Zastosuj, albo Ctrl+Z.
 
+## Budowanie dróg: rodzaj, tekstura, rondo
+
+1. Drogi (F4) → budowanie. **Rodzaj drogi**: asfaltowa (jak dotąd) albo **gruntowa**: bez malowanych pasów, pochylenie 3 razy większe, łuki pionowe 3 razy ciaśniejsze, nawierzchnia nierówna („Nierówna o [cm]”, domyślnie 5) albo „Równa jak stół”. Nierówność dotyczy tego, co widać; pojazdy jadą po osi.
+2. **Obrót tekstury [°]** obok miniatury tekstury: obraca mapowanie nawierzchni drogi i skrzyżowania.
+3. **Rondo**: zjazdy mogą leżeć blisko siebie (między nimi zostaje 2 m ronda), więc mieści się ich więcej niż dawniej.
+4. **Esc** kończy budowanie albo stawianie i wraca do zaznaczania.
+
 ## Teren pod drogą
 
 1. W oknie profilu: „Pochylenie skarpy 1:n”, potem żółty **„Dociągnij teren do drogi”**. Pod jezdnią robi się płasko, skarpy schodzą lub wchodzą do terenu.
@@ -103,6 +111,7 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
    „Szukaj tekstur” zbiera z `textures/` te z betonem, cegłą, kamieniem, murem w nazwie. Jedna tekstura pokrywa mur i beton; „Tekstura powtarza się co (m)” ją zagęszcza albo rozciąga. Stal (dźwigary, balustrady) jest w kolorze, bez tekstury.
    „Na czołach”: attyka z muru, stalowa balustrada albo nic; domyślnie według rodzaju obiektu.
    „Przęsła”: więcej niż jedno stawia filary; ustaw wtedy „szerokość w świetle” na całość (np. droga i rzeka). „Rura z blachy falistej” to okrągły przekrój szerszy niż dno. „Tekstura stali” dotyczy dźwigarów, balustrad i rury; puste pole daje ciemny kolor.
+   **Mosty z torem na konstrukcji** (od nr 164): „Most blachownicowy, tor na konstrukcji” i „Most kratownicowy, tor między kratownicami”. Nasyp kończy się na przyczółkach i jest wycięty na całej szerokości między nimi; tor leży na pomoście (`pomost`), pod nim dźwigary blachownicowe na łożyskach albo, w kratownicowym, poprzecznice i dwie kratownice po bokach (`kratownice`). Przęsło krótsze niż 24 m dostaje niskie kratownice bez stężeń górnych, dłuższe wysokie (min. 7,5 m) ze stężeniami nad torem. „Przęsła” stawia filary, na nich łożyska. Skrajnia liczy się do spodu dźwigarów: wysokość konstrukcji pod torem to 1/12 rozpiętości przęsła (0,8–2,6 m), w kratownicowym 0,5 m.
    Obiekt to **jeden model `.t3d`** z podmodelami: `obiekt` (przyczółki, skrzydła, dno), `sklepienie` / `plyta`, `czola`, `attyka` / `balustrady`, `dzwigary`, `lozyska`.
 3. Żółty **„Postaw obiekty pod torami”**. Na każdym skrzyżowaniu drogi z nasypem toru (modyfikatorem terenu) powstaje obiekt:
    czoła równoległe do toru, skrzydła wzdłuż skarp do miejsca, gdzie teren schodzi do drogi, teren przed czołami wycięty, podłoga przy drodze.
@@ -160,6 +169,14 @@ Co dostajesz:
 Sąsiednie obszary stykają się zawsze, bo podział linii na odcinki i projekt każdego odcinka zależą tylko od mapy, a nie od obszaru. Warunek: nie zmieniaj między obszarami pól „Kawałki toru do”, „Punkt mapy jest załomem od”, „Prędkość tam, gdzie mapa jej nie podaje” ani norm, bo wtedy projekt wyjdzie inny i tory się rozejdą.
 
 Czego jeszcze nie ma: torów stacyjnych i rozjazdów (mapa ma tylko osie linii), kształtowania terenu pod torami (nasyp, przekop: na razie przyciskami modelu terenu po ułożeniu), mostów i wiaduktów, sieci trakcyjnej. Mapa IRT jest poglądowa: punkty co ok. 50 m, miejscami co 2 km, więc tor może leżeć kilka metrów od prawdziwego.
+
+## Drobne rzeczy w edytorze
+
+- **~** pokazuje albo chowa ortofoto, **Ctrl+~** pobiera najpierw to, co widzi kamera. Prędkość kamery: menu Widok.
+- **Kółko myszy wciśnięte i ciągnięte** przesuwa widok także w perspektywie; teren pod kursorem jedzie z nim.
+- **Wypełnienie obszaru:** Enter kończy obszar, Esc porzuca obrys; wypełnione obszary są na liście i dają się zmienić później.
+- **Paleta materiałów terenu:** ▲▼ zmienia kolejność, X usuwa materiał (wybierasz, czym go zastąpić).
+- **Ustawienia użytkownika:** `eu07_user.ini` jest czytany po `eu07.ini`, którego starter nadpisuje; własne klucze trzymaj tam.
 
 ## Idź do
 

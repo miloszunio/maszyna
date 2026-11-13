@@ -17790,3 +17790,12 @@ msgstr "Dźwigarów, balustrad i rury; puste: ciemny kolor bez tekstury"
 
 msgid "Preparing the graphics (takes longer at the first start of a new version)"
 msgstr "Przygotowanie grafiki (przy pierwszym uruchomieniu nowej wersji trwa dłużej)"
+
+msgid "Bridge of plate girders, the track on it"
+msgstr "Most blachownicowy, tor na konstrukcji"
+
+msgid "Bridge of trusses, the track between them"
+msgstr "Most kratownicowy, tor między kratownicami"
+
+msgid "%s: the formation is %.1f m over the road, a bridge with the track on it needs %.1f m: lower the road by %.1f m or the clearance"
+msgstr "%s: torowisko jest %.1f m nad drogą, most z torem na konstrukcji potrzebuje %.1f m: obniż drogę o %.1f m albo skrajnię"

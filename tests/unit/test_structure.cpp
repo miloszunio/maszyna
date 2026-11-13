@@ -79,3 +79,20 @@ TEST_CASE("structure: the model is one file of submodels, the first the parent o
 	// the railing: three posts and two rails
 	CHECK(model.parts()[1].points.size() == 5 * 36);
 }
+
+TEST_CASE("structure: a member of a truss is a closed box round its line, standing, lying or leaning")
+{
+	for (auto const &to : {glm::dvec3{6.0, 0.0, 0.0}, glm::dvec3{0.0, 5.0, 0.0}, glm::dvec3{3.0, 4.0, 2.0}})
+	{
+		structure::model model;
+		structure::builder const builder{&model.add("kratownice", ""), 2.0};
+		builder.member({0.0, 0.0, 0.0}, to, 0.4);
+		auto const &part{model.parts().front()};
+		CHECK(part.points.size() == 36);
+		CHECK(facing_inwards(part, to * 0.5) == 0);
+		// the line runs through the middle of the section: no point farther from it than half the diagonal
+		auto const along{glm::normalize(to)};
+		for (auto const &point : part.points)
+			CHECK(glm::length(point - along * glm::dot(point, along)) < 0.4 * 0.7072);
+	}
+}

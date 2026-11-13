@@ -183,6 +183,19 @@ void builder::bar(glm::dvec3 const &From, glm::dvec3 const &To, double const Wid
 	quad(start[1], end[1], end[2], start[2], side);
 }
 
+void builder::member(glm::dvec3 const &From, glm::dvec3 const &To, double const Size) const
+{
+	auto const axis{To - From};
+	if (glm::length(axis) < 1e-6)
+		return;
+	auto const along{glm::normalize(axis)};
+	auto side{glm::cross(kUp, along)};
+	side = glm::length(side) > 1e-6 ? glm::normalize(side) : glm::dvec3{1.0, 0.0, 0.0};
+	// the bar grows from its line the way its section rises: moved back by half of it
+	auto const back{glm::normalize(glm::cross(along, side)) * (0.5 * Size)};
+	bar(From - back, To - back, Size, Size);
+}
+
 void builder::girder(glm::dvec3 const &From, glm::dvec3 const &To, double const Flange, double const Height) const
 {
 	auto const plate{std::min(0.06, 0.2 * Height)};

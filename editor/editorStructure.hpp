@@ -63,6 +63,8 @@ struct builder
 	void quad(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &D, glm::dvec3 const &Away) const;
 	// a bar of a rectangular section from From to To: Width across, Height up from the line
 	void bar(glm::dvec3 const &From, glm::dvec3 const &To, double Width, double Height) const;
+	// a member of a truss, of a square section Size wide, the line its middle; it may stand or lean any way
+	void member(glm::dvec3 const &From, glm::dvec3 const &To, double Size) const;
 	// a girder of an I section from From to To, the line its bottom: flanges Flange wide, Height high
 	void girder(glm::dvec3 const &From, glm::dvec3 const &To, double Flange, double Height) const;
 	// a railing along the line: posts every Spacing or so, a handrail Height over the line and a rail halfway
