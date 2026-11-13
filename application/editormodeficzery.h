@@ -255,6 +255,11 @@
 	bool grass_choice(char const *Label, int &Choice);
 	feature_tool m_feature_tool{feature_tool::fields};
 	bool m_features_open{false};
+	// Esc in GeoTools: the outline, the choices and the previews of its tools dropped; false when there was nothing to drop
+	bool features_escape();
+	// over the chunks missing round the camera, a button each which makes the chunk
+	void render_create_chunks();
+	void create_chunk(heightmap::chunk_key const &Key);
 	struct track_bed_settings
 	{
 		float length{100.0f}; // the longest piece along the axis

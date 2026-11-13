@@ -85,6 +85,9 @@ class terrain_streamer
 	std::string stats() const;
 	// chunks in the pack files and in memory, less the removed ones; the files known so far
 	bool exists(chunk_key const &Key) const;
+	// known not to be there: removed, in no pack file, or in none read so far though its pack was read. A chunk whose pack
+	// isn't read yet is neither there nor absent
+	bool absent(chunk_key const &Key) const;
 	// the chunks of all the pack files in the folder of the terrain, each with the cells along its side (0: unknown), ordered
 	// by key, as the files are on the disk: the chunks added or removed since the last save are as they were. reads the
 	// headers of the files, so it's for a list made now and then, not for every frame

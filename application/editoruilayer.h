@@ -45,6 +45,12 @@ class editor_ui : public ui_layer
 	const std::string *get_active_node_template(bool bypassRandom = false);
 	nodebank_panel::edit_mode mode();
 	void set_mode(nodebank_panel::edit_mode const Mode);
+	// a tool or a field of work was chosen: its options are to be seen, whatever closed their window or put its dock away
+	void show_tool_options()
+	{
+		m_tooloptionsopen = true;
+		m_tooloptionsraise = true;
+	}
 	float getSpacing();
 	// node bank and model set access (set selection widgets, set contents)
 	nodebank_panel &nodebank()
@@ -237,6 +243,8 @@ class editor_ui : public ui_layer
 	double m_statustime{-100.0};
 	int m_savequeued{0}; // the frame of a save asked for from a field being typed in
 	bool m_tooloptionsopen{true};
+	bool m_tooloptionswereopen{true}; // in the frame before, to tell in the log when the window was closed
+	bool m_tooloptionsraise{false}; // a tool was chosen: the window is opened if it was closed, shown if its dock is put away
 	bool m_inspectoropen{true};
 	bool m_sceneopen{true};
 	std::function<void(scene::basic_node *, bool)> m_sceneselect;

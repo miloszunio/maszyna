@@ -164,6 +164,10 @@ GeoTools → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie zn
 
 ## Gdy coś nie działa
 
+- **Zniknęło okno „Opcje narzędzia” (boks narzędzia):** kliknij dowolne narzędzie GeoTools albo obszar pracy, okno wróci. Ręcznie: menu Okna → Opcje narzędzia. Okno zamyka tylko jego X albo kliknięcie środkowym przyciskiem w jego zakładkę.
+- **Brak terenu pod kamerą:** w GeoTools nad pustym chunkiem wisi żółty przycisk UTWÓRZ.
+- **Esc** w GeoTools czyści obrys i zaznaczenia, w Drogach wraca do zaznaczania.
+
 - Sprawdź numer wersji w tytule okna.
 - Długa operacja bez klepsydry albo z „Nie odpowiada”: zapisz, co klikałeś, i `log.txt`.
 - Zrzut ekranu z widocznymi podpowiedziami na dole bardzo pomaga.

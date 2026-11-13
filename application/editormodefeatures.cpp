@@ -19,6 +19,7 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulation.h"
 #include "utilities/Globals.h"
 #include "utilities/Logs.h"
+#include "application/editorprojection.h"
 #include "utilities/translation.h"
 
 #include "application/editormodeshared.h"
@@ -761,8 +762,76 @@ void editor_mode::render_cut_surfaces()
 	render_patches_ui();
 }
 
+bool editor_mode::features_escape()
+{
+	auto const outlined{false == m_paint_outline.empty() || false == m_patch_reoutline.empty() || false == m_parcels.empty()};
+	auto const chosen{m_patch_selected >= 0 || false == m_zielsko_preview.empty() || false == m_rails_plans.empty() || false == m_selection.empty() || m_node != nullptr};
+	if (false == outlined && false == chosen)
+		return false;
+	m_paint_outline.clear();
+	m_patch_reoutline.clear();
+	m_parcels.clear();
+	m_parcel_ids.clear();
+	m_outline_stroke.clear();
+	m_outline_moving = -1;
+	m_outline_pressed = false;
+	m_patch_selected = -1;
+	m_zielsko_preview.clear();
+	m_rails_plans.clear();
+	m_selection.clear();
+	m_node = nullptr;
+	ui()->set_node(nullptr);
+	return true;
+}
+
+void editor_mode::create_chunk(heightmap::chunk_key const &Key)
+{
+	if (m_streamer.manifest().georeferenced)
+	{
+		nmt_make({Key});
+		m_terrain_status = m_nmt_state.status;
+		return;
+	}
+	if (ensure_terrain() && add_chunk_from_ground(Key, m_terrain_spacing))
+		m_terrain_status = STR_C("The chunk was made from the ground of the scenery");
+}
+
+void editor_mode::render_create_chunks()
+{
+	if (false == m_streamer.active())
+		return;
+	auto const home{heightmap::chunk_at(Camera.Pos.x, Camera.Pos.z)};
+	double ground{Camera.Pos.y - 50.0};
+	m_streamer.height_at(Camera.Pos.x, Camera.Pos.z, ground);
+	screen_projection const projection;
+	auto const *viewport{ImGui::GetMainViewport()};
+	int const reach{3};
+	for (auto x{home.first - reach}; x <= home.first + reach; ++x)
+		for (auto z{home.second - reach}; z <= home.second + reach; ++z)
+		{
+			heightmap::chunk_key const key{x, z};
+			if (false == m_streamer.absent(key))
+				continue;
+			glm::dvec3 const middle{(x + 0.5) * heightmap::chunk_size, ground, (z + 0.5) * heightmap::chunk_size};
+			ImVec2 at;
+			if (false == projection.project(middle, at) || at.x < viewport->WorkPos.x || at.y < viewport->WorkPos.y || at.x > viewport->WorkPos.x + viewport->WorkSize.x || at.y > viewport->WorkPos.y + viewport->WorkSize.y)
+				continue;
+			ImGui::SetNextWindowPos(at, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+			auto const name{format("##createchunk%d_%d", x, z)};
+			auto const flags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav};
+			if (ImGui::Begin(name.c_str(), nullptr, flags))
+			{
+				if (main_button(STR_C("CREATE##chunk")))
+					create_chunk(key);
+				item_tooltip(STR_C("No terrain here: the chunk is made from the terrain model (NMT) where the terrain knows its place, else from the ground of the scenery and the edges of the chunks beside it"));
+			}
+			ImGui::End();
+		}
+}
+
 void editor_mode::choose_feature_tool(feature_tool const Tool)
 {
+	ui()->show_tool_options();
 	m_feature_tool = Tool;
 	// the outline of the trees and of the fields is drawn as with Fill, the fields with their own tool
 	m_terrain_tool = Tool == feature_tool::fields ? terrain_tool::fields : Tool == feature_tool::zielsko ? terrain_tool::fill : terrain_tool::none;

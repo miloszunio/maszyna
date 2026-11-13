@@ -1053,6 +1053,18 @@ bool terrain_streamer::owns(gfx::geometry_handle const &Geometry) const
 	return false;
 }
 
+bool terrain_streamer::absent(chunk_key const &Key) const
+{
+	if (m_chunks.contains(Key))
+		return false;
+	if (m_removed.contains(Key))
+		return true;
+	auto const pack{m_packs.find(heightmap::pack_of(Key))};
+	if (pack == m_packs.end() || pack->second.status == pack_state::state::unknown || pack->second.status == pack_state::state::loading)
+		return false;
+	return pack->second.status != pack_state::state::ready || false == pack->second.file->has(Key);
+}
+
 bool terrain_streamer::exists(chunk_key const &Key) const
 {
 	if (m_chunks.count(Key) > 0)

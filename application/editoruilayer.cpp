@@ -9,6 +9,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "application/editoruilayer.h"
+#include "utilities/Logs.h"
 #include "application/application.h"
 
 #include "utilities/Globals.h"
@@ -728,8 +729,21 @@ void editor_ui::render_mode_options(nodebank_panel::edit_mode const Mode)
 
 void editor_ui::render_tool_options()
 {
+	if (m_tooloptionswereopen != m_tooloptionsopen)
+	{
+		// closed by its X or by a middle click on its tab: nothing else closes it, and the log tells when
+		WriteLog(m_tooloptionsopen ? "Editor: the Tool options window opened again" : "Editor: the Tool options window was closed (its X, or a middle click on its tab)");
+		m_tooloptionswereopen = m_tooloptionsopen;
+	}
 	if (false == m_tooloptionsopen)
 		return;
+	if (m_tooloptionsraise)
+	{
+		m_tooloptionsraise = false;
+		// its dock unpinned and put away at an edge: shown as by pointing at its tab there
+		if (auto const *window{ImGui::FindWindowByName("###tooloptions")}; window != nullptr && autohide_group_of(window->ID) != static_cast<std::size_t>(-1))
+			autohide_show(window->ID, false);
+	}
 	ImGui::SetNextWindowSize(ImVec2S(400, 300), ImGuiCond_FirstUseEver);
 	auto const current{mode()};
 	auto const active{m_workspace == workspace::terrain || (m_workspace == workspace::roads && current != nodebank_panel::TRACK) ? m_workspace : workspace::none};

@@ -3,6 +3,9 @@ Gałąź `ficzery2`: nowa generacja `ficzery`. Na kodzie Hirka, mastera i jerrrr
 ## Zmiany w tym wydaniu
 
 - **Uwaga przy pierwszym uruchomieniu nowej wersji:** po wczytaniu scenerii do ~minuty czarnego ekranu, bo sterownik kompiluje shadery dla nowego exe od zera. Trzeba poczekać; drugie uruchomienie startuje szybko (opis w poradniku).
+- **Okno „Opcje narzędzia” wraca samo:** wybranie obszaru pracy albo narzędzia GeoTools otwiera je, jeśli było zamknięte, i wysuwa, jeśli jego dok był odpięty. Zamknięcie okna jest odnotowane w `log.txt`.
+- **UTWÓRZ nad brakującym chunkiem:** w GeoTools nad każdym brakującym chunkiem w pobliżu kamery (do 3 chunków) wisi żółty przycisk; tworzy chunk z NMT albo z podłoża scenerii.
+- **Esc:** w GeoTools czyści obrys, wybrane pole, działki, podgląd drzew, projekt torów i zaznaczenie; w Drogach kończy budowanie albo stawianie i wraca do zaznaczania.
 - **GeoTools → Tory (nowe):** linie z mapy IRT (GeoJSON w `terrain/<teren>/tory/`) projektowane według norm narzędziami maj00ra i układane jako tory w chunkach wokół kamery: łuki, przejściówki, przechyłki, lokalne ograniczenia prędkości, dwa tory na liniach dwutorowych, niweleta dopasowana do terenu. Bez stacji, rozjazdów i kształtowania terenu. Opis w poradniku („Tory z mapy”) i w `docs/koncepcje/tory-z-danych.md`.
 - **Poprawki z recenzji PR-ów** przeniesione: dziura osobnego pola po wczytaniu sceny, „Obrysuj ponownie” po wyczyszczeniu obrysu, dziury nakładających się pól, „Wyrównaj” na wolnym końcu drogi.
 - **GeoTools** zamiast Ficzery (F7): zakładki Pola, Drzewa, Torowisko i skarpy, Idź do; Pola przeniesione tu z Terenu.

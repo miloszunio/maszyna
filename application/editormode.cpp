@@ -2404,6 +2404,8 @@ void editor_mode::draw_terrain_overlay()
         draw_zielsko_preview(drawlist);
     if (m_features_open && m_feature_tool == feature_tool::rails)
         draw_rails_preview(drawlist);
+    if (m_features_open)
+        render_create_chunks();
     if (m_terrain_tool == terrain_tool::water && false == m_water_points.empty())
     {
         std::vector<glm::dvec3> outline;
@@ -5694,6 +5696,7 @@ editor_mode::work_area editor_mode::current_work_area() const
 
 void editor_mode::choose_work_area(work_area const Area)
 {
+	ui()->show_tool_options();
 	switch (Area)
 	{
 	case work_area::surroundings:
@@ -6968,9 +6971,18 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
             cancel_area_fill();
             break;
         }
+        // GeoTools: what's outlined, chosen or designed there is dropped
+        if (is_press(Action) && current_work_area() == work_area::features && false == ImGui::GetIO().WantTextInput && features_escape())
+            break;
         if (is_press(Action))
         {
             road_cancel();
+            // the roads: building or placing given up, back to selecting
+            if (current_work_area() == work_area::roads && m_roadtool.tool != 0 && false == ImGui::GetIO().WantTextInput)
+            {
+                road_choose_tool(0);
+                break;
+            }
         }
         // the first Esc drops what is going on in the track mode, the next one goes back to the selection
         if (is_press(Action) && ui()->mode() == nodebank_panel::TRACK)

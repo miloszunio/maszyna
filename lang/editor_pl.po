@@ -17673,3 +17673,12 @@ msgstr "Tory##geotools"
 
 msgid "The lines of a railway map within the chunks round the camera designed by the norms and laid as tracks on the ground"
 msgstr "Linie z mapy kolejowej w chunkach wokół kamery, zaprojektowane według norm i ułożone jako tory na terenie"
+
+msgid "CREATE##chunk"
+msgstr "UTWÓRZ##chunk"
+
+msgid "The chunk was made from the ground of the scenery"
+msgstr "Chunk utworzony z podłoża scenerii"
+
+msgid "No terrain here: the chunk is made from the terrain model (NMT) where the terrain knows its place, else from the ground of the scenery and the edges of the chunks beside it"
+msgstr "Tu nie ma terenu: chunk powstaje z modelu terenu (NMT), jeśli teren zna swoje położenie, a inaczej z podłoża scenerii i krawędzi sąsiednich chunków"
