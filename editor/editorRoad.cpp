@@ -262,7 +262,10 @@ struct road_cut
 
 // follows a road from a point of a piece for specified distance, to find where a junction made at that point ends.
 // Consumed: receives the pieces past the first one which lie within the distance whole
-bool follow(road_node &Road, double const T, bool const Forward, double const Distance, road_cut &Cut, std::vector<road_node *> &Consumed, std::string &Error)
+// Least: where the way runs into a junction before Distance is covered, a cut this far or farther is taken instead, short of
+// that junction by the shortest road there can be: the exits of a roundabout lie closer than the corners of a junction would
+// like. Negative: the whole Distance or nothing
+bool follow(road_node &Road, double const T, bool const Forward, double const Distance, road_cut &Cut, std::vector<road_node *> &Consumed, std::string &Error, double const Least = -1.0)
 {
 	auto *piece{&Road};
 	auto from{T};
@@ -288,11 +291,19 @@ bool follow(road_node &Road, double const T, bool const Forward, double const Di
 			}
 			return true;
 		}
+		auto const end{axis_end(state, forward)};
+		if (auto const room{available - kShortestRoad}; Least >= 0.0 && room > 0.0 && (Distance - remaining) + room >= Least && false == state.changing() && false == junctions_at(end).empty())
+		{
+			// a junction ahead: the arm ends as far as there's room for, the shortest road left between the two junctions
+			Cut.road = piece;
+			Cut.t = parameter_at(lengths, forward ? here + room : here - room);
+			Cut.keepstart = (false == forward);
+			return true;
+		}
 		// the junction takes this piece up to its end, as what would be left of it is too short to be a road
 		remaining = std::max(0.0, remaining - available);
 		if (piece != &Road)
 			Consumed.emplace_back(piece);
-		auto const end{axis_end(state, forward)};
 		if (false == junctions_at(end).empty())
 		{
 			Error = "Too close to a junction";
@@ -1850,7 +1861,9 @@ bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const 
 	// where the road is cut on both sides of the centre
 	road_cut cuts[2];
 	std::vector<road_node *> consumed;
-	if (false == follow(Road, T, false, reach, cuts[0], consumed, Error) || false == follow(Road, T, true, reach, cuts[1], consumed, Error))
+	// on a roundabout the arms may be shorter than the corners ask for, down to where the edges of the two roads meet
+	auto const least{layout.roundabout ? edge_reach(halfwidth, branchhalfwidth, angle) + 0.5 : -1.0};
+	if (false == follow(Road, T, false, reach, cuts[0], consumed, Error, least) || false == follow(Road, T, true, reach, cuts[1], consumed, Error, least))
 		return false;
 	if (cuts[0].road == cuts[1].road && cuts[0].road != &Road)
 	{
