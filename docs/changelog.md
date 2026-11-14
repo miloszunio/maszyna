@@ -23,11 +23,11 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
-## nr 181
+## nr 184
 
 - Porządki pod Sonara z PR-ów do mastera (#375, #376): pętle i warunki pędzla oraz zamiany nazw torów uproszczone, ustawienia „Wiele modeli” wydzielone do osobnej funkcji, π z `std::numbers`. Działanie bez zmian.
 
-## nr 180
+## nr 181
 
 - **Nazwy torów tylko w ASCII**: przy otwarciu scenerii w edytorze tory z nazwami ze znakami spoza ASCII dostają nazwy bez nich (ą→a, ł→l, ß→ss, Č→c itd., reszta znaków → `_`), małymi literami, jak czyta je parser. Nazwy w UTF-8 i w Windows-1250 rozpoznawane same.
   - Na środku ekranu przez **20 s** żółte ostrzeżenie z liczbą zmian i pierwszymi przykładami „stara → nowa”; pełna lista w `log.txt`.
