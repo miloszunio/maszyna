@@ -31,6 +31,8 @@ Bieżący stan PR-ów i testów: arkusz „MaSzyna ficzery2: PR-y i testy”.
 
 ## 3. Teraz
 
+- **Edytor startuje zawsze w rzucie pionowym** (z góry), bez wyjątków: przy innym widoku na starcie zapamiętane ortofoto rysują się źle. Do następnej wersji, razem z poprawkami mostów.
+
 1. **Czarny ekran przy pierwszym starcie nowego exe** (~35 s kompilacji shaderów po zniknięciu ekranu ładowania): ekran
    ładowania z napisem do końca pierwszej klatki (PR upstream), stała nazwa exe w naszych buildach; potem kompilacja w trakcie
    wczytywania z paskiem postępu. Do akceptu.
