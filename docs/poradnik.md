@@ -108,7 +108,7 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
 ## Droga pod torem: przepust, wiadukt, most
 
 1. Ustaw drogę na **właściwej rzędnej** pod nasypem (okno profilu: Poziomo / Stałe pochylenie / W górę-w dół o). Droga ma przechodzić w nasypie, pod jego powierzchnią.
-2. Okno profilu → **Obiekt pod torem** → **Rodzaj** (od nr 165, osiem wyraźnie różnych, według typowych obiektów polskich linii):
+2. Okno profilu → **Obiekt pod torem** → **Rodzaj** (od nr 172, osiem wyraźnie różnych, według typowych obiektów polskich linii):
    - **Rura z blachy falistej**: okrągły przekrój, końce ścięte po skarpie, betonowy wieniec na skarpie wokół wlotu. Bez skrzydeł.
    - **Przepust skrzynkowy (żelbet)**: prostokąt ze skosami w górnych narożach, niska ścianka czołowa nad stropem, skrzydła ukośne (30°) wzdłuż skarp.
    - **Sklepienie murowane (kamień, cegła)**: łuk odcinkowy albo półkolisty, archiwolta wystająca z muru czołowego, gzyms, murowana attyka, skrzydła lekko rozchylone.

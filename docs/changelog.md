@@ -23,7 +23,7 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
-## nr 165
+## nr 172
 
 - **Obiekty pod torem od nowa, osiem wyraźnie różnych rodzajów** wzorowanych na obiektach polskich linii: rura z blachy falistej (końce ścięte po skarpie, wieniec), przepust skrzynkowy (skosy, skrzydła ukośne), sklepienie murowane (archiwolta, gzyms, attyka), wiadukt ramowy (duże skosy, skrzydła w linii ścian), płyta z belek obetonowanych (wysunięta krawędź, przekładki łożysk), blachownica z jazdą górą, blachownica z jazdą dołem, kratownica z jazdą dołem (od 32 m ze stężeniami górą i portalami).
 - **Wysokość pilnowana:** czoło tam, gdzie rzeczywisty teren nasypu schodzi do góry obiektu, skrzydła do końca skarpy. Gdy obiekt się nie mieści, **żółty napis** mówi, o ile obniżyć drogę (wcześniej „nic się nie działo”: odmowa szła do szarego statusu). Najmniej pod torowiskiem zabierają mosty z jazdą dołem (ok. 0,55 m).
