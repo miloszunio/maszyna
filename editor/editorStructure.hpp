@@ -41,6 +41,12 @@ struct part
 class model
 {
   public:
+	model() = default;
+	model(model const &) = default;
+	model(model &&) noexcept = default;
+	model &operator=(model const &) = default;
+	model &operator=(model &&) noexcept = default;
+	~model() = default;
 	// the part of that name, made if there's none; the first one made is the parent of the others
 	part &add(std::string const &Name, std::string const &Material, glm::ivec3 const &Colour = {255, 255, 255}, bool Smooth = false);
 	std::deque<part> const &parts() const { return m_parts; }
