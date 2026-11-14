@@ -523,7 +523,7 @@ class maker
 				low = glm::min(low, p);
 				highest = glm::max(highest, p);
 			}
-			double constexpr step{0.5};
+			double constexpr step{1.0};
 			int const nx{std::max(1, static_cast<int>(std::ceil((highest.x - low.x) / step)))};
 			int const nz{std::max(1, static_cast<int>(std::ceil((highest.y - low.y) / step)))};
 			auto const height = [&](glm::dvec2 const &P) { return cutting_at(P) - 0.05; };

@@ -924,20 +924,49 @@ void editor_mode::road_terrain(bool const Remove)
 			Height = data.height_in(data.base.empty() ? data.heights : data.base, P.x, P.y);
 			return true;
 		};
+		// where along the road the ground is cut out (a structure's opening) and where it's the embankment of a track
+		std::vector<char> holed(static_cast<std::size_t>(steps) + 1, 0), under(static_cast<std::size_t>(steps) + 1, 0);
+		for (int i = 0; i <= steps; ++i)
+		{
+			auto const point{state.point(i / static_cast<double>(steps))};
+			auto const *chunk{m_streamer.terrain_at(point.x, point.z)};
+			holed[i] = chunk != nullptr && chunk->data().hole_at(point.x, point.z) ? 1 : 0;
+			under[i] = holed[i] == 0 && under_formation(formations, point, natural_ground) ? 1 : 0;
+		}
+		// a stretch under the embankment reaching a structure's opening is the way out of it: the cutting goes on up to the
+		// opening, so no bank of the embankment is left across the road between the ends of the wings and the cutting
+		for (int i = 0; i <= steps;)
+		{
+			if (under[i] == 0)
+			{
+				++i;
+				continue;
+			}
+			auto j{i};
+			while (j <= steps && under[j] != 0)
+				++j;
+			// an opening at one end only: between the faces of a buried structure (an opening at both ends) the embankment
+			// stays over it
+			auto const before{i > 0 && holed[i - 1] != 0};
+			auto const after{j <= steps && holed[j] != 0};
+			auto const reaches{before != after};
+			if (reaches)
+				std::fill(under.begin() + i, under.begin() + j, 0);
+			i = j;
+		}
 		auto beneath{false};
 		for (int i = 0; i <= steps; ++i)
 		{
 			auto const t{i / static_cast<double>(steps)};
 			auto const point{state.point(t)};
-			auto const *chunk{m_streamer.terrain_at(point.x, point.z)};
-			if (chunk != nullptr && chunk->data().hole_at(point.x, point.z))
+			if (holed[i] != 0)
 			{
 				flush(true);
 				continue;
 			}
 			// under the embankment of a track the ground stays the track's, also between the faces of a structure built there:
 			// the cutting of the road ends square at the foot of the embankment
-			if (under_formation(formations, point, natural_ground))
+			if (under[i] != 0)
 			{
 				if (false == beneath)
 					++under_tracks;
@@ -1413,7 +1442,12 @@ void editor_mode::ground_of_structure(crossing::result &Made)
 		if (triangles.empty())
 			continue;
 		auto const &layer{layer_of[material]};
-		auto &part{Made.mesh.add("grunt " + material, material)};
+		// one word: the model's text splits the names of its parts on spaces
+		std::string name{"grunt_" + material};
+		for (auto &c : name)
+			if (false == std::isalnum(static_cast<unsigned char>(c)) && c != '_')
+				c = '_';
+		auto &part{Made.mesh.add(name, material)};
 		structure::builder const ground{&part, 8.0};
 		// textured as the terrain is: metres from the corner of its pack along x and -z, turned and scaled as the palette says
 		auto const size{layer.size > 0.f ? static_cast<double>(layer.size) : 8.0};

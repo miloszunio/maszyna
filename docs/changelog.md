@@ -23,6 +23,11 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 175
+
+- **Pas gruntu przy obiekcie naprawdę się wczytuje**: w nr 173 część modelu nazywała się „grunt grass”, ze spacją. Format T3D rozdziela po spacjach, więc model nie wczytywał się od tej części i w komórkach przy murze zostawały białe zęby.
+- **Przekop drogi dochodzi do otworu obiektu**: odcinek pod nasypem, który styka się z otworem tylko z jednej strony, jest wycinany jak przekop. Pod przęsłem przestaje zostawać wał ziemi w poprzek drogi. Między licami obiektu zakopanego nasyp zostaje nad nim.
+
 ## nr 173
 
 - **Dwa tory i więcej**: skrzyżowania drogi z torami leżącymi obok siebie to jeden obiekt. Dźwigary i kratownice mostów z jazdą dołem stoją na zewnątrz skrajnych torów (wcześniej jeden stał między torami); w mostach z jazdą górą balustrady są tylko na krawędziach.
