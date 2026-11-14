@@ -51,7 +51,8 @@ class editor_ui : public ui_layer
 		m_tooloptionsopen = true;
 		m_tooloptionsraise = true;
 	}
-	float getSpacing();
+	// the settings of the brush of models
+	brush_object_list const &brush() const;
 	// node bank and model set access (set selection widgets, set contents)
 	nodebank_panel &nodebank()
 	{

@@ -218,3 +218,26 @@ GeoTools → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie zn
   5. „Dodaj do banku” dopisuje wpis do `nodebank.txt`, przeładowuje bank i w tle robi miniaturę.
 - Miniatura pokazuje się po przeładowaniu banku („Więcej ustawień” → „Przeładuj bank”) albo przy następnym uruchomieniu.
 - Brakujące miniatury pozostałych modeli: „Więcej ustawień” → **„Zrób brakujące miniatury”**.
+
+## Pędzel w Otoczeniu (od nr 179)
+
+Narzędzie **Pędzel** (klawisz 3 w Otoczeniu) ma dwie ścieżki:
+
+- **Pojedynczy model**: LPM stawia jeden model w miejscu żółtego krzyżyka na gruncie.
+- **Wiele modeli**: trzymasz LPM i prowadzisz kursor; modele lądują w żółtym okręgu.
+  - **Promień** okręgu (0,5–100 m).
+  - **Wypełnienie**:
+    - **losowe**: gęstość w sztukach na 100 m², nie bliżej niż odstęp;
+    - **równomierne (siatka)**: modele na siatce trójkątów o kroku równym odstępowi, przypiętej do świata; drugie pociągnięcie po tym samym miejscu nie stawia nic nowego;
+    - **rozmyte do krawędzi**: jak losowe, ale ku brzegowi okręgu coraz rzadziej.
+  - **Odstęp**: najmniejsza odległość między modelami (w równomiernym: krok siatki).
+  - **Gęstość** (losowe i rozmyte).
+  - Nowe pacnięcie przychodzi, gdy kursor przejdzie pół promienia albo odstęp (większe z tych dwóch). Trzymanie myszy w miejscu niczego nie dokłada.
+  - Całe pociągnięcie cofa jedno Ctrl+Z.
+- **Obrót**:
+  - stały: kąty x, y, z;
+  - losowy: ± stopni na każdej osi; x i z przechylają, y obraca wokół pionu, 180 oznacza dowolny kierunek. Domyślnie losowy tylko wokół pionu.
+- **Skala**:
+  - stała: procent x, y, z;
+  - losowa: ± procent, jednakowa na wszystkich osiach (model zachowuje proporcje) albo osobno na każdej osi.
+- „Losowy model z zestawu” działa jak dotąd: każdy model losowany z wybranego zestawu albo ręcznej listy.

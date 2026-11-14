@@ -23,6 +23,18 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 179
+
+- **Pędzel w Otoczeniu od nowa**, dwie ścieżki:
+  - **Pojedynczy model**: LPM stawia jeden model w miejscu krzyżyka na gruncie.
+  - **Wiele modeli**: przy trzymanym LPM modele lądują w okręgu o zadanym **promieniu** wzdłuż drogi kursora (kolejne „pacnięcie” co pół promienia albo co odstęp). Wypełnienie do wyboru:
+    - **losowe**: gęstość w sztukach na 100 m², nie bliżej niż odstęp;
+    - **równomierne**: siatka trójkątów o kroku równym odstępowi, przypięta do świata, więc pociągnięcia na sobie nie dublują modeli;
+    - **rozmyte do krawędzi**: coraz rzadziej ku brzegowi okręgu.
+  - Cofanie: całe pociągnięcie to **jeden krok Ctrl+Z**.
+- **Obrót** każdego modelu: stały (kąty x, y, z) albo losowy w zakresie ± stopni na każdej osi (x i z przechylają, y obraca wokół pionu). **Skala**: stała (procent x, y, z) albo losowa ± procent, jednakowa na wszystkich osiach albo osobna dla każdej.
+- **Krzyżyk na gruncie** pod kursorem i **obrys okręgu** pędzla, położony na terenie.
+
 ## nr 178
 
 - **Bank obiektów: grupy alfabetycznie** (bez względu na wielkość liter i spacje na początku nazwy; plik `nodebank.txt` zostaje w swojej kolejności).
