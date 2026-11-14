@@ -23,6 +23,10 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 176
+
+- **Nasyp nad obiektem nie jest już przecinany przekopem drogi.** W nr 173–175 przekop drogi zatrzymywał się tylko tam, gdzie skarpa nasypu była wyżej niż „grunt rodzimy”. Za grunt rodzimy brałem wysokości sprzed modyfikatorów, a w terenie z NMT ten grunt zawiera już prawdziwy nasyp. Przekop szedł więc przez cały nasyp, także nad obiektem i między torami. Wyglądało to jak zasłony trawy wiszące z nasypu i strzępy terenu przy czołach, a pas gruntu przy murze dziedziczył te strzępy. Teraz o tym, co jest nasypem, decyduje wyłącznie modyfikator toru. Przekop dochodzi do otworu tylko z odcinka, który nie przechodzi pod koroną nasypu.
+
 ## nr 175
 
 - **Pas gruntu przy obiekcie naprawdę się wczytuje**: w nr 173 część modelu nazywała się „grunt grass”, ze spacją. Format T3D rozdziela po spacjach, więc model nie wczytywał się od tej części i w komórkach przy murze zostawały białe zęby.

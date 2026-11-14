@@ -690,7 +690,8 @@ std::vector<heightmap::modifier const *> formations_near(std::vector<heightmap::
 // whether the point of a road lies under the embankment of a track: within its formation and the slopes going down from it
 // to the height of the road, the formation a metre or more over the road. There the ground is the track's: the road gets
 // through it in a structure, not in a cutting
-bool under_formation(std::vector<heightmap::modifier const *> const &Formations, glm::dvec3 const &Point, std::function<bool(glm::dvec2 const &, double &)> const &Natural)
+// Crown_only: under the top of the embankment, where the track lies, not under its slopes
+bool under_formation(std::vector<heightmap::modifier const *> const &Formations, glm::dvec3 const &Point, bool const Crown_only = false)
 {
 	glm::dvec2 const place{Point.x, Point.z};
 	for (auto const *modifier : Formations)
@@ -706,17 +707,9 @@ bool under_formation(std::vector<heightmap::modifier const *> const &Formations,
 			if (over < 1.0)
 				continue;
 			auto const crown{glm::mix(from.half_width, to.half_width, share)};
-			auto const slope{std::max(0.5, modifier->slope)};
-			auto const reach{crown + over * slope};
-			auto const distance{glm::distance(place, from.position + leg * share)};
-			if (distance > reach)
-				continue;
-			// the slope of the embankment comes down to the natural ground before it gets to the road: there the ground beside the
-			// road is the land's own, cut through by the road like anywhere else, up to the foot of the embankment
-			double natural{0.0};
-			if (Natural && Natural(place, natural) && formation - std::max(0.0, distance - crown) / slope < natural + 0.2)
-				continue;
-			return true;
+			auto const reach{Crown_only ? crown : crown + over * std::max(0.5, modifier->slope)};
+			if (glm::distance(place, from.position + leg * share) <= reach)
+				return true;
 		}
 	return false;
 }
@@ -915,15 +908,6 @@ void editor_mode::road_terrain(bool const Remove)
 			m_streamer.grass(outline, 0, true);
 		}
 		auto const formations{formations_near(m_streamer.modifiers(), low - glm::dvec2{80.0}, high + glm::dvec2{80.0})};
-		// the ground as the land has it, before the modifiers of the tracks and the roads shaped it
-		auto const natural_ground = [this](glm::dvec2 const &P, double &Height) {
-			auto const *chunk{m_streamer.terrain_at(P.x, P.y)};
-			if (chunk == nullptr)
-				return false;
-			auto const &data{chunk->data()};
-			Height = data.height_in(data.base.empty() ? data.heights : data.base, P.x, P.y);
-			return true;
-		};
 		// where along the road the ground is cut out (a structure's opening) and where it's the embankment of a track
 		std::vector<char> holed(static_cast<std::size_t>(steps) + 1, 0), under(static_cast<std::size_t>(steps) + 1, 0);
 		for (int i = 0; i <= steps; ++i)
@@ -931,7 +915,7 @@ void editor_mode::road_terrain(bool const Remove)
 			auto const point{state.point(i / static_cast<double>(steps))};
 			auto const *chunk{m_streamer.terrain_at(point.x, point.z)};
 			holed[i] = chunk != nullptr && chunk->data().hole_at(point.x, point.z) ? 1 : 0;
-			under[i] = holed[i] == 0 && under_formation(formations, point, natural_ground) ? 1 : 0;
+			under[i] = holed[i] == 0 && under_formation(formations, point) ? 1 : 0;
 		}
 		// a stretch under the embankment reaching a structure's opening is the way out of it: the cutting goes on up to the
 		// opening, so no bank of the embankment is left across the road between the ends of the wings and the cutting
@@ -949,7 +933,12 @@ void editor_mode::road_terrain(bool const Remove)
 			// stays over it
 			auto const before{i > 0 && holed[i - 1] != 0};
 			auto const after{j <= steps && holed[j] != 0};
-			auto const reaches{before != after};
+			// and never under the top of the embankment: a stretch from a structure's opening going on under the track is the
+			// structure itself (its other opening missed between two points of the road, a short wing on a skew one)
+			auto crosses{false};
+			for (auto k = i; k < j && false == crosses; ++k)
+				crosses = under_formation(formations, state.point(k / static_cast<double>(steps)), true);
+			auto const reaches{before != after && false == crosses};
 			if (reaches)
 				std::fill(under.begin() + i, under.begin() + j, 0);
 			i = j;
