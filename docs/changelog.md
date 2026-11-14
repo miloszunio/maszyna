@@ -23,6 +23,10 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 187
+
+- Dalsze porządki pod Sonara z PR-ów do mastera: bajty nazw czytane jako liczby, `std::format` zamiast sklejania napisów, bez kopii starej nazwy toru, bez nazw zasłaniających inne. Działanie bez zmian.
+
 ## nr 184
 
 - Porządki pod Sonara z PR-ów do mastera (#375, #376): pętle i warunki pędzla oraz zamiany nazw torów uproszczone, ustawienia „Wiele modeli” wydzielone do osobnej funkcji, π z `std::numbers`. Działanie bez zmian.
