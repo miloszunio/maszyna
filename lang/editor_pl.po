@@ -17840,3 +17840,9 @@ msgstr "Tam, gdzie droga przecina torowisko (jego modyfikator terenu). Pod nasyp
 
 msgid "Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.5 m at least) and says so, instead of being refused"
 msgstr "Tam, gdzie torowisko nie jest dość wysoko nad drogą na ustawioną skrajnię, obiekt dostaje skrajnię, na jaką jest miejsce (co najmniej 2,5 m), i o tym mówi, zamiast odmówić"
+
+msgid "The kind as it is built with these settings on an embankment 7 m high; drag to turn it round"
+msgstr "Ten rodzaj tak, jak powstanie z tymi ustawieniami na nasypie wysokim na 7 m; przeciągnij myszą, żeby go obrócić"
+
+msgid "Not built on a 7 m embankment with these settings"
+msgstr "Z tymi ustawieniami nie powstanie na nasypie 7 m"

@@ -43,7 +43,164 @@ bool inside_outline(std::vector<glm::dvec2> const &Outline, double const X, doub
 	}
 	return inside;
 }
+// true if the square from Low, Size wide, and the outline overlap: a corner of one inside the other, or two of their edges crossing
+bool square_touches(glm::dvec2 const &Low, double const Size, std::vector<glm::dvec2> const &Outline)
+{
+	auto const high{Low + glm::dvec2{Size}};
+	std::array<glm::dvec2, 4> const corners{Low, glm::dvec2{high.x, Low.y}, high, glm::dvec2{Low.x, high.y}};
+	for (auto const &corner : corners)
+		if (inside_outline(Outline, corner.x, corner.y))
+			return true;
+	for (auto const &p : Outline)
+		if (p.x > Low.x && p.x < high.x && p.y > Low.y && p.y < high.y)
+			return true;
+	auto const cross = [](glm::dvec2 const &A, glm::dvec2 const &B) { return A.x * B.y - A.y * B.x; };
+	auto const crossing = [&](glm::dvec2 const &A, glm::dvec2 const &B, glm::dvec2 const &C, glm::dvec2 const &D) {
+		auto const r{B - A}, q{D - C};
+		auto const denominator{cross(r, q)};
+		if (std::abs(denominator) < 1e-12)
+			return false;
+		auto const t{cross(C - A, q) / denominator}, u{cross(C - A, r) / denominator};
+		return t > 0.0 && t < 1.0 && u > 0.0 && u < 1.0;
+	};
+	for (std::size_t i = 0; i < Outline.size(); ++i)
+		for (std::size_t j = 0; j < 4; ++j)
+			if (crossing(Outline[i], Outline[(i + 1) % Outline.size()], corners[j], corners[(j + 1) % 4]))
+				return true;
+	return false;
+}
+
+std::pair<glm::dvec2, glm::dvec2> bounds_of(std::vector<glm::dvec2> const &Outline)
+{
+	glm::dvec2 low{Outline.front()}, high{Outline.front()};
+	for (auto const &p : Outline)
+	{
+		low = glm::min(low, p);
+		high = glm::max(high, p);
+	}
+	return {low, high};
+}
 } // namespace
+
+std::vector<terrain_streamer::grid_cell> terrain_streamer::cells_under(std::vector<glm::dvec2> const &Outline)
+{
+	std::vector<grid_cell> cells;
+	if (Outline.size() < 3)
+		return cells;
+	auto const [low, high]{bounds_of(Outline)};
+	for (auto *chunk : chunks_in(low, high, true))
+	{
+		auto const &data{chunk->data()};
+		if (false == data.valid())
+			continue;
+		auto const spacing{data.spacing()};
+		auto const corner{data.corner()};
+		auto const x0{std::clamp(static_cast<int>(std::floor((low.x - corner.x) / spacing)), 0, data.cells - 1)};
+		auto const x1{std::clamp(static_cast<int>(std::floor((high.x - corner.x) / spacing)), 0, data.cells - 1)};
+		auto const z0{std::clamp(static_cast<int>(std::floor((low.y - corner.y) / spacing)), 0, data.cells - 1)};
+		auto const z1{std::clamp(static_cast<int>(std::floor((high.y - corner.y) / spacing)), 0, data.cells - 1)};
+		for (int iz = z0; iz <= z1; ++iz)
+			for (int ix = x0; ix <= x1; ++ix)
+			{
+				glm::dvec2 const at{corner.x + ix * spacing, corner.y + iz * spacing};
+				if (false == square_touches(at, spacing, Outline))
+					continue;
+				cells.push_back({at, spacing, {data.height(ix, iz), data.height(ix + 1, iz), data.height(ix, iz + 1), data.height(ix + 1, iz + 1)}, chunk->key()});
+			}
+	}
+	return cells;
+}
+
+bool terrain_streamer::cut_cells(std::vector<glm::dvec2> const &Outline, bool const Cut)
+{
+	if (Outline.size() < 3)
+		return false;
+	auto const [low, high]{bounds_of(Outline)};
+	bool changed{false};
+	for (auto *chunk : chunks_in(low - glm::dvec2{5.0}, high + glm::dvec2{5.0}, true))
+	{
+		editor_busy_progress(-1.0);
+		auto const &current{chunk->data()};
+		if (false == current.valid() || (false == Cut && false == current.has_holes()))
+			continue;
+		auto data{std::make_shared<heightmap::chunk_data>(current)};
+		data->ensure_holes();
+		auto const cells{data->cells};
+		if (data->holes < 2 * cells)
+		{
+			// two samples a cell at least: one inside each cell, the cut of it not decided by its corners alone
+			auto const finer{2 * cells};
+			std::vector<std::uint8_t> mask(static_cast<std::size_t>(finer + 1) * (finer + 1));
+			auto const step{heightmap::chunk_size / finer};
+			auto const corner{data->corner()};
+			for (int iz = 0; iz <= finer; ++iz)
+				for (int ix = 0; ix <= finer; ++ix)
+					mask[static_cast<std::size_t>(iz) * (finer + 1) + ix] = static_cast<std::uint8_t>(std::lround(255.0 * data->hole_value(corner.x + ix * step, corner.y + iz * step)));
+			data->holes = finer;
+			data->hole_mask = std::move(mask);
+		}
+		auto const spacing{data->spacing()};
+		auto const corner{data->corner()};
+		auto const ratio{data->holes / cells};
+		auto const side{static_cast<std::size_t>(data->holes + 1)};
+		// the cells of this chunk reached into, and one past each edge: a sample on the edge of the chunk sees the cell beyond
+		auto const x0{static_cast<int>(std::floor((low.x - corner.x) / spacing)) - 1}, x1{static_cast<int>(std::floor((high.x - corner.x) / spacing)) + 1};
+		auto const z0{static_cast<int>(std::floor((low.y - corner.y) / spacing)) - 1}, z1{static_cast<int>(std::floor((high.y - corner.y) / spacing)) + 1};
+		if (x1 < -1 || z1 < -1 || x0 > cells || z0 > cells)
+			continue;
+		auto const width{x1 - x0 + 1};
+		std::vector<char> reached(static_cast<std::size_t>(width) * (z1 - z0 + 1), 0);
+		bool any{false};
+		for (int iz = z0; iz <= z1; ++iz)
+			for (int ix = x0; ix <= x1; ++ix)
+				if (square_touches({corner.x + ix * spacing, corner.y + iz * spacing}, spacing, Outline))
+				{
+					reached[static_cast<std::size_t>(iz - z0) * width + (ix - x0)] = 1;
+					any = true;
+				}
+		if (false == any)
+			continue;
+		auto const cut_cell = [&](int const Ix, int const Iz) {
+			return Ix >= x0 && Ix <= x1 && Iz >= z0 && Iz <= z1 && reached[static_cast<std::size_t>(Iz - z0) * width + (Ix - x0)] != 0;
+		};
+		bool touched{false};
+		auto const sx0{std::max(0, x0 * ratio)}, sx1{std::min(data->holes, (x1 + 1) * ratio)};
+		auto const sz0{std::max(0, z0 * ratio)}, sz1{std::min(data->holes, (z1 + 1) * ratio)};
+		for (int iz = sz0; iz <= sz1; ++iz)
+			for (int ix = sx0; ix <= sx1; ++ix)
+			{
+				// the cells the sample belongs to: one inside a cell, two on a line of the grid, four at a grid point
+				int const cx{ix / ratio}, cz{iz / ratio};
+				std::array<int, 2> const xs{ix % ratio == 0 ? cx - 1 : cx, cx};
+				std::array<int, 2> const zs{iz % ratio == 0 ? cz - 1 : cz, cz};
+				int reached_count{0}, total{0};
+				for (auto const zc : zs)
+					for (auto const xc : xs)
+					{
+						++total;
+						if (cut_cell(xc, zc))
+							++reached_count;
+					}
+				if (reached_count == 0)
+					continue;
+				auto &sample{data->hole_mask[static_cast<std::size_t>(iz) * side + ix]};
+				std::uint8_t value{0};
+				if (Cut)
+					value = static_cast<std::uint8_t>(std::max<int>(sample, reached_count == total ? 255 : 127));
+				if (sample == value)
+					continue;
+				sample = value;
+				touched = true;
+			}
+		if (false == touched)
+			continue;
+		data->compact_holes();
+		remember(*chunk);
+		chunk->replace(std::move(data), true, true);
+		changed = true;
+	}
+	return changed;
+}
 
 bool terrain_streamer::height_at(double X, double Z, double &Height) const
 {

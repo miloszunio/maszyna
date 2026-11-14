@@ -22,6 +22,7 @@ namespace
 glm::dvec3 const kUp{0.0, 1.0, 0.0};
 glm::ivec3 const kSteel{70, 78, 72};
 glm::ivec3 const kRubber{35, 35, 35};
+glm::ivec3 const kRust{96, 58, 40};
 double constexpr kPi{3.14159265358979323846};
 // m the edge of a hole lies inside a solid part from its face to the ground: the mask of the holes is a metre or so fine,
 // its edge may lie half a metre either way of where it's asked to
@@ -155,6 +156,37 @@ std::vector<glm::dvec2> grown(std::vector<glm::dvec2> const &Outline, double con
 	return result;
 }
 
+// the part of the polygon inside the outline (convex), cut along its edges; as one piece in a list, none if they don't meet
+std::vector<std::vector<glm::dvec2>> inside_of(std::vector<glm::dvec2> const &Polygon, std::vector<glm::dvec2> const &Outline)
+{
+	double area{0.0};
+	for (std::size_t i = 0; i < Outline.size(); ++i)
+		area += Outline[i].x * Outline[(i + 1) % Outline.size()].y - Outline[(i + 1) % Outline.size()].x * Outline[i].y;
+	auto const keep{area >= 0.0 ? 1.0 : -1.0};
+	auto rest{Polygon};
+	for (std::size_t i = 0; i < Outline.size() && rest.size() >= 3; ++i)
+	{
+		auto const &a{Outline[i]};
+		auto const &b{Outline[(i + 1) % Outline.size()]};
+		std::vector<glm::dvec2> next;
+		auto const side = [&](glm::dvec2 const &P) { return keep * ((b.x - a.x) * (P.y - a.y) - (b.y - a.y) * (P.x - a.x)); };
+		for (std::size_t j = 0; j < rest.size(); ++j)
+		{
+			auto const &p{rest[j]};
+			auto const &q{rest[(j + 1) % rest.size()]};
+			auto const sp{side(p)}, sq{side(q)};
+			if (sp >= 0.0)
+				next.push_back(p);
+			if ((sp >= 0.0) != (sq >= 0.0))
+				next.push_back(p + (q - p) * (sp / (sp - sq)));
+		}
+		rest = std::move(next);
+	}
+	if (rest.size() < 3)
+		return {};
+	return {rest};
+}
+
 // what the kinds are made of, from the span along the track
 struct dimensions
 {
@@ -278,6 +310,14 @@ class maker
 	};
 	std::array<std::array<wing, 2>, 2> wing_of{}; // [side of the track][side of the road]
 	double deck_half{3.5}; // of a ballast trough
+	// the superstructures of a bridge side by side: one under all the tracks, or one for each group of them standing apart; a
+	// bridge with the track between its girders has them outside the tracks, never between two of them
+	struct deck
+	{
+		double centre{0.0}; // from the axis of the site
+		double half{3.5}; // of its trough, the girders or the trusses right outside it
+	};
+	std::vector<deck> decks;
 	double deck_top{0.0}; // of the deck of a frame or a slab
 
 	double span_start(int const Span) const { return -half + Span * (clear + dim.pier); }
@@ -295,6 +335,27 @@ class maker
 		span = clear / std::abs(f.rm);
 		dim = dimensions_of(k, span);
 		deck_half = std::max(1.6, f.c.half_width);
+		decks.clear();
+		auto axes{f.c.axes.empty() ? std::vector<double>{0.0} : f.c.axes};
+		std::sort(axes.begin(), axes.end());
+		if (k == kind::through_girders || k == kind::truss)
+		{
+			// m from the axis of an outer track to the inner face of the girder beside it: the gauge and a walkway
+			double constexpr beside_track{2.2};
+			// tracks closer than that are carried by one superstructure, the girders outside them all; further apart each
+			// group has its own, the ground between them open
+			double constexpr apart{8.0};
+			std::size_t first{0};
+			for (std::size_t i = 1; i <= axes.size(); ++i)
+				if (i == axes.size() || axes[i] - axes[i - 1] > apart)
+				{
+					auto const low{axes[first]}, highest{axes[i - 1]};
+					decks.push_back({0.5 * (low + highest), 0.5 * (highest - low) + beside_track});
+					first = i;
+				}
+		}
+		else
+			decks.push_back({0.0, deck_half});
 	}
 
 	// the clearance there's room for under the formation, and the soffit
@@ -341,7 +402,12 @@ class maker
 		if (open_kind(k))
 		{
 			auto const beside{k == kind::deck_girders ? 0.55 : k == kind::through_girders ? 0.95 : 1.15};
-			reach = {deck_half + beside, deck_half + beside};
+			reach = {0.0, 0.0};
+			for (auto const &one : decks)
+			{
+				reach[0] = std::max(reach[0], one.half - one.centre + beside);
+				reach[1] = std::max(reach[1], one.half + one.centre + beside);
+			}
 			return;
 		}
 		auto const toe{f.c.half_width + std::max(0.0, f.c.formation - f.c.at.y) * f.c.slope + 6.0};
@@ -446,15 +512,45 @@ class maker
 				floor_part.quad(lift(f.place(-half, a)), lift(f.place(half, a)), lift(f.place(half, b)), lift(f.place(-half, b)), kUp);
 			}
 		}
+		// over the holes the ground the road's cutting gives the land: flat beside the road, its slopes rising to the wings, the
+		// land's own where it's lower; a little under it, so where the hole ends the ground beyond goes on from it with no step
 		for (auto const &hole : out.holes)
 		{
-			auto const outline{grown(hole, 0.8)};
-			glm::dvec2 middle{0.0};
+			auto const outline{grown(hole, 0.3)};
+			glm::dvec2 low{outline.front()}, highest{outline.front()};
 			for (auto const &p : outline)
-				middle += p / static_cast<double>(outline.size());
-			for (std::size_t i = 0; i < outline.size(); ++i)
-				floor_part.triangle(lift(middle), lift(outline[i]), lift(outline[(i + 1) % outline.size()]), kUp);
+			{
+				low = glm::min(low, p);
+				highest = glm::max(highest, p);
+			}
+			double constexpr step{0.5};
+			int const nx{std::max(1, static_cast<int>(std::ceil((highest.x - low.x) / step)))};
+			int const nz{std::max(1, static_cast<int>(std::ceil((highest.y - low.y) / step)))};
+			auto const height = [&](glm::dvec2 const &P) { return cutting_at(P) - 0.05; };
+			for (int iz = 0; iz < nz; ++iz)
+				for (int ix = 0; ix < nx; ++ix)
+				{
+					glm::dvec2 const a{low.x + (highest.x - low.x) * ix / nx, low.y + (highest.y - low.y) * iz / nz};
+					glm::dvec2 const b{low.x + (highest.x - low.x) * (ix + 1) / nx, low.y + (highest.y - low.y) * (iz + 1) / nz};
+					// the squares of the grid within the grown hole, cut along its edges
+					for (auto const &piece : inside_of({a, {b.x, a.y}, b, {a.x, b.y}}, outline))
+						for (std::size_t i = 1; i + 1 < piece.size(); ++i)
+							floor_part.triangle(f.lift(piece[0], height(piece[0])), f.lift(piece[i], height(piece[i])), f.lift(piece[i + 1], height(piece[i + 1])), kUp);
+				}
 		}
+	}
+
+	// the ground the road's cutting gives the land at a point near the road: level with the road over its bench, rising with
+	// its slopes beyond, never higher than the land was nor lower than the road
+	double cutting_at(glm::dvec2 const &P) const
+	{
+		auto const s{f.s_of(P)};
+		auto const road{f.road(s)};
+		auto const slope{road + std::max(0.0, std::abs(f.x_of(P)) - f.c.bench) / std::max(0.25, f.c.bank)};
+		double land{road};
+		if (f.c.natural && false == f.c.natural(P, land))
+			land = road;
+		return std::max(road, std::min(land, slope));
 	}
 
 	// the height of the opening over the floor across the road: the soffit, the arch, or the haunched corners
@@ -597,7 +693,10 @@ class maker
 			parapet(sign);
 		}
 		if (k == kind::slab)
+		{
 			slab_joints();
+			slab_flanges();
+		}
 	}
 
 	void soffit_surface()
@@ -754,7 +853,7 @@ class maker
 	{
 		// by the kind: a wall on an arch; a railing on a frame or a slab the track runs right over, none on one deep under the embankment
 		auto const near_track{top >= f.c.formation - 0.1};
-		auto const chosen{o.parapet > 0 ? o.parapet - 1 : k == kind::arch ? 2 : (k == kind::frame || k == kind::slab) && near_track ? 1 : 0};
+		auto const chosen{o.parapet > 0 ? o.parapet - 1 : default_parapet(near_track)};
 		if (chosen == 0)
 			return;
 		auto const d{Sign * (reach_of(Sign) - 0.3)};
@@ -768,6 +867,38 @@ class maker
 			return;
 		}
 		mesh.build("balustrady", false).railing(f.node(-ends, d, base), f.node(ends, d, base), 1.1, 2.0);
+	}
+
+	// by the kind: a wall of the masonry on an arch, a wall of concrete on a frame (cast with it), a railing on a slab; on a frame or
+	// a slab only where the track runs right over it, none on one deep under the embankment
+	int default_parapet(bool const Near_track) const
+	{
+		if (k == kind::arch)
+			return 2;
+		if (false == Near_track)
+			return 0;
+		if (k == kind::frame)
+			return 2;
+		return k == kind::slab ? 1 : 0;
+	}
+
+	// the soffit of a slab of encased beams: the bottom flanges of the rolled beams left bare, side by side across the opening
+	// every 0.45 m or so, rust brown, a little under the concrete between them
+	void slab_flanges()
+	{
+		auto const flanges{mesh.plain("stopki", kRust)};
+		auto const d0{-reach_of(-1) + 0.35}, d1{reach_of(1) - 0.35};
+		int const count{std::max(2, static_cast<int>(std::floor((d1 - d0) / 0.45)))};
+		for (int i = 0; i <= count; ++i)
+		{
+			auto const d{d0 + (d1 - d0) * i / count};
+			for (int j = 0; j < spans; ++j)
+			{
+				auto const a{span_start(j) - 0.25}, b{span_start(j) + clear + 0.25};
+				std::array<glm::dvec2, 4> const plan{f.place(a, f.s_at(a, d - 0.11)), f.place(b, f.s_at(b, d - 0.11)), f.place(b, f.s_at(b, d + 0.11)), f.place(a, f.s_at(a, d + 0.11))};
+				block(flanges, plan, soffit - 0.025, soffit + 0.002);
+			}
+		}
 	}
 
 	// a slab on its abutments and piers: the dark pads of the bearings under its ends, seen as a line at the top of each wall
@@ -790,7 +921,7 @@ class maker
 	{
 		abutment_seats();
 		auto const steel{mesh.build(k == kind::truss ? "kratownice" : "dzwigary", false)};
-		auto const deck{mesh.build("koryto", false)};
+		auto const deck_part{mesh.build("koryto", false)};
 		auto const bearings{mesh.plain("lozyska", kRubber)};
 		auto const blocks{mesh.build("ciosy", true)};
 		for (int i = 0; i < spans; ++i)
@@ -801,33 +932,36 @@ class maker
 			auto const b{i + 1 == spans ? half + 0.45 : span_start(i + 1) - 0.5 * dim.pier - 0.22};
 			auto const ea{i == 0 ? a - 0.35 : a - 0.2};
 			auto const eb{i + 1 == spans ? b + 0.35 : b + 0.2};
-			auto const lines{girder_lines()};
-			for (auto const d : lines)
-				for (auto const x : {a, b})
-				{
-					plate(blocks, f.place(x, f.s_at(x, d)), f.r, 0.4, 0.7, seat(), seat() + kBedBlock);
-					plate(bearings, f.place(x, f.s_at(x, d)), f.r, 0.3, 0.45, seat() + kBedBlock, soffit);
-				}
-			trough(deck, ea, eb);
-			if (k == kind::deck_girders)
-				deck_girders(steel, ea, eb, lines);
-			else if (k == kind::through_girders)
-				through_girders(steel, ea, eb);
-			else
-				truss(steel, ea, eb);
+			for (auto const &one : decks)
+			{
+				auto const lines{girder_lines(one)};
+				for (auto const d : lines)
+					for (auto const x : {a, b})
+					{
+						plate(blocks, f.place(x, f.s_at(x, d)), f.r, 0.4, 0.7, seat(), seat() + kBedBlock);
+						plate(bearings, f.place(x, f.s_at(x, d)), f.r, 0.3, 0.45, seat() + kBedBlock, soffit);
+					}
+				trough(deck_part, ea, eb, one);
+				if (k == kind::deck_girders)
+					deck_girders(steel, ea, eb, lines);
+				else if (k == kind::through_girders)
+					through_girders(steel, ea, eb, one);
+				else
+					truss(steel, ea, eb, one);
+			}
 		}
 	}
 
-	std::vector<double> girder_lines() const
+	std::vector<double> girder_lines(deck const &One) const
 	{
 		if (k == kind::through_girders)
-			return {-(deck_half + 0.3), deck_half + 0.3};
+			return {One.centre - (One.half + 0.3), One.centre + One.half + 0.3};
 		if (k == kind::truss)
-			return {-(deck_half + 0.45), deck_half + 0.45};
-		int const count{std::max(2, static_cast<int>(std::lround(2.0 * deck_half / 2.0)))};
+			return {One.centre - (One.half + 0.45), One.centre + One.half + 0.45};
+		int const count{std::max(2, static_cast<int>(std::lround(2.0 * One.half / 2.0)))};
 		std::vector<double> lines;
 		for (int i = 0; i < count; ++i)
-			lines.push_back(-(deck_half - 0.6) + 2.0 * (deck_half - 0.6) * i / (count - 1));
+			lines.push_back(One.centre - (One.half - 0.6) + 2.0 * (One.half - 0.6) * i / (count - 1));
 		return lines;
 	}
 
@@ -859,17 +993,17 @@ class maker
 	double trough_bottom() const { return f.c.formation - 0.02 - kTrough + 0.02; }
 
 	// the ballast trough: the plate under the formation and its sides, from one end of the span to the other
-	void trough(structure::builder const &Deck, double const A, double const B)
+	void trough(structure::builder const &Deck, double const A, double const B, deck const &One)
 	{
 		auto const level{f.c.formation - 0.02};
-		auto const d0{-deck_half}, d1{deck_half};
+		auto const d0{One.centre - One.half}, d1{One.centre + One.half};
 		block(Deck, {f.place(A, f.s_at(A, d0)), f.place(B, f.s_at(B, d0)), f.place(B, f.s_at(B, d1)), f.place(A, f.s_at(A, d1))}, trough_bottom(), level);
 		if (k != kind::deck_girders)
 			return;
 		// the sides of the trough holding the ballast, a walkway and a railing outside them
 		for (int sign : {-1, 1})
 		{
-			auto const d{sign * deck_half};
+			auto const d{One.centre + sign * One.half};
 			auto const t{sign * 0.15};
 			block(Deck, {f.place(A, f.s_at(A, d - t)), f.place(B, f.s_at(B, d - t)), f.place(B, f.s_at(B, d)), f.place(A, f.s_at(A, d))}, level, level + 0.45);
 			if (o.parapet != 1)
@@ -911,14 +1045,14 @@ class maker
 			}
 	}
 
-	void through_girders(structure::builder const &Steel, double const A, double const B) const
+	void through_girders(structure::builder const &Steel, double const A, double const B, deck const &One) const
 	{
 		auto const height{std::clamp(span / 9.0, 1.4, 3.0)};
-		auto const sides{girder_lines()};
+		auto const sides{girder_lines(One)};
 		for (auto const d : sides)
 		{
 			Steel.girder(f.node(A, d, soffit), f.node(B, d, soffit), 0.5, height);
-			stiffeners(Steel, A, B, d, soffit, soffit + height, d < 0.0 ? -1 : 1);
+			stiffeners(Steel, A, B, d, soffit, soffit + height, d < One.centre ? -1 : 1);
 		}
 		// the cross beams under the trough, from one girder to the other
 		auto const length{std::abs(B - A) / std::abs(f.rm)};
@@ -930,7 +1064,7 @@ class maker
 		}
 	}
 
-	void truss(structure::builder const &Steel, double const A, double const B) const
+	void truss(structure::builder const &Steel, double const A, double const B, deck const &One) const
 	{
 		auto const length{std::abs(B - A) / std::abs(f.rm)};
 		auto const through{length >= 32.0};
@@ -941,7 +1075,7 @@ class maker
 		auto const low{soffit + 0.5 * size}; // the middle of the bottom chord, on the bearings
 		auto const high{low + height};
 		auto const at = [&](int const I) { return A + (B - A) * I / panels; };
-		auto const sides{girder_lines()};
+		auto const sides{girder_lines(One)};
 		for (auto const d : sides)
 		{
 			Steel.member(f.node(A, d, low), f.node(B, d, low), size);
@@ -975,14 +1109,14 @@ class maker
 			}
 			for (int i : {1, panels - 1})
 				for (auto const sign : {-1.0, 1.0})
-					Steel.member(f.node(at(i), sides[sign < 0.0 ? 0 : 1], high - 1.2), f.node(at(i), sign * 0.4 * sides[1], high), 0.3 * size);
+					Steel.member(f.node(at(i), sides[sign < 0.0 ? 0 : 1], high - 1.2), f.node(at(i), One.centre + sign * 0.4 * (sides[1] - One.centre), high), 0.3 * size);
 			return;
 		}
 		// a low truss: a U-frame at each vertical, the knee from the vertical down to the cross beam inside
 		for (int i = 1; i < panels; ++i)
 			for (auto const d : sides)
 			{
-				auto const inward{d < 0.0 ? 0.9 : -0.9};
+				auto const inward{d < One.centre ? 0.9 : -0.9};
 				Steel.member(f.node(at(i), d, low + 0.6 * height), f.node(at(i), d + inward, f.c.formation - 0.1), 0.18);
 			}
 	}
@@ -1127,6 +1261,228 @@ result build(site const &Site, options const &Options)
 {
 	result out;
 	maker{Site, Options, out}.run();
+	return out;
+}
+
+namespace
+{
+
+using flat_polygon = std::vector<glm::dvec2>;
+
+// the part of the polygon on the side of the line through A and B where Keep says (Keep > 0: left of the way from A to B)
+flat_polygon clipped(flat_polygon const &Polygon, glm::dvec2 const &A, glm::dvec2 const &B, double const Keep)
+{
+	flat_polygon result;
+	auto const side = [&](glm::dvec2 const &P) { return Keep * ((B.x - A.x) * (P.y - A.y) - (B.y - A.y) * (P.x - A.x)); };
+	for (std::size_t i = 0; i < Polygon.size(); ++i)
+	{
+		auto const &p{Polygon[i]};
+		auto const &q{Polygon[(i + 1) % Polygon.size()]};
+		auto const sp{side(p)}, sq{side(q)};
+		if (sp >= 0.0)
+			result.push_back(p);
+		if ((sp >= 0.0) != (sq >= 0.0))
+			result.push_back(p + (q - p) * (sp / (sp - sq)));
+	}
+	return result;
+}
+
+double area_of(flat_polygon const &Polygon)
+{
+	double area{0.0};
+	for (std::size_t i = 0; i < Polygon.size(); ++i)
+	{
+		auto const &a{Polygon[i]};
+		auto const &b{Polygon[(i + 1) % Polygon.size()]};
+		area += a.x * b.y - b.x * a.y;
+	}
+	return 0.5 * area;
+}
+
+// the pieces of the polygon outside the convex hole: past each edge of the hole, within those before it
+std::vector<flat_polygon> outside_of(flat_polygon const &Polygon, flat_polygon const &Hole)
+{
+	std::vector<flat_polygon> pieces;
+	auto const turn{area_of(Hole) >= 0.0 ? 1.0 : -1.0}; // the inside of the hole is to the left of its edges when it's counter-clockwise
+	auto rest{Polygon};
+	for (std::size_t i = 0; i < Hole.size() && rest.size() >= 3; ++i)
+	{
+		auto const &a{Hole[i]};
+		auto const &b{Hole[(i + 1) % Hole.size()]};
+		if (glm::distance(a, b) < 1e-9)
+			continue;
+		auto outer{clipped(rest, a, b, -turn)};
+		if (outer.size() >= 3 && std::abs(area_of(outer)) > 1e-8)
+			pieces.push_back(std::move(outer));
+		rest = clipped(rest, a, b, turn);
+	}
+	return pieces;
+}
+
+} // namespace
+
+std::vector<glm::dvec3> ground_outside(std::vector<ground_cell> const &Cells, std::vector<std::vector<glm::dvec2>> const &Holes)
+{
+	std::vector<glm::dvec3> triangles;
+	for (auto const &cell : Cells)
+	{
+		auto const x0{cell.low.x}, z0{cell.low.y}, x1{x0 + cell.size}, z1{z0 + cell.size};
+		std::array<glm::dvec3, 4> const corner{glm::dvec3{x0, cell.heights[0], z0}, glm::dvec3{x1, cell.heights[1], z0}, glm::dvec3{x0, cell.heights[2], z1},
+		                                       glm::dvec3{x1, cell.heights[3], z1}};
+		// the two triangles of the cell as the terrain has them, cut along the diagonal from (x0, z1) to (x1, z0)
+		for (auto const &triangle : {std::array<glm::dvec3, 3>{corner[0], corner[1], corner[2]}, std::array<glm::dvec3, 3>{corner[3], corner[2], corner[1]}})
+		{
+			auto const normal{glm::cross(triangle[1] - triangle[0], triangle[2] - triangle[0])};
+			if (std::abs(normal.y) < 1e-12)
+				continue;
+			auto const height_at = [&](glm::dvec2 const &P) {
+				return triangle[0].y - (normal.x * (P.x - triangle[0].x) + normal.z * (P.y - triangle[0].z)) / normal.y;
+			};
+			std::vector<flat_polygon> pieces{{{triangle[0].x, triangle[0].z}, {triangle[1].x, triangle[1].z}, {triangle[2].x, triangle[2].z}}};
+			for (auto const &hole : Holes)
+			{
+				if (hole.size() < 3)
+					continue;
+				std::vector<flat_polygon> next;
+				for (auto const &piece : pieces)
+					for (auto &outer : outside_of(piece, hole))
+						next.push_back(std::move(outer));
+				pieces = std::move(next);
+			}
+			for (auto const &piece : pieces)
+			{
+				auto const counter{area_of(piece) > 0.0};
+				for (std::size_t i = 1; i + 1 < piece.size(); ++i)
+				{
+					// seen from above (y up, x east, z south): counter-clockwise on the plan of x and z is clockwise from above
+					auto const &a{piece[0]};
+					auto const &b{piece[counter ? i + 1 : i]};
+					auto const &c{piece[counter ? i : i + 1]};
+					triangles.insert(triangles.end(), {glm::dvec3{a.x, height_at(a), a.y}, glm::dvec3{b.x, height_at(b), b.y}, glm::dvec3{c.x, height_at(c), c.y}});
+				}
+			}
+		}
+	}
+	return triangles;
+}
+
+} // namespace crossing
+
+namespace crossing
+{
+
+namespace
+{
+
+glm::dvec3 colour_of(structure::part const &Part)
+{
+	auto const &name{Part.name};
+	if (name == "sklepienie" || name == "archiwolta" || name == "attyka")
+		return {0.66, 0.42, 0.32}; // the masonry: brick
+	if (name == "dno")
+		return {0.50, 0.48, 0.45};
+	if (name == "gzymsy" || name == "wience" || name == "ciosy" || name == "oczepy")
+		return {0.82, 0.82, 0.80};
+	if (Part.material.empty() && Part.colour != glm::ivec3{255, 255, 255})
+		return glm::dvec3{Part.colour} / 255.0;
+	if (name == "dzwigary" || name == "kratownice" || name == "koryto" || name == "balustrady" || name == "rura")
+		return {0.30, 0.38, 0.34}; // the steel, painted green as the plain colour of the model
+	return {0.68, 0.68, 0.66}; // concrete
+}
+
+bool in_outline(std::vector<glm::dvec2> const &Outline, glm::dvec2 const &P)
+{
+	bool inside{false};
+	for (std::size_t i = 0, j = Outline.size() - 1; i < Outline.size(); j = i++)
+	{
+		auto const &a{Outline[i]}, &b{Outline[j]};
+		if ((a.y > P.y) != (b.y > P.y) && P.x < (b.x - a.x) * (P.y - a.y) / (b.y - a.y) + a.x)
+			inside = !inside;
+	}
+	return inside;
+}
+
+} // namespace
+
+std::vector<shaded_triangle> preview(options const &Options)
+{
+	double constexpr formation{7.0};
+	site place;
+	auto const angle{glm::radians(80.0)};
+	place.track = {std::cos(angle), std::sin(angle)};
+	place.formation = formation;
+	place.half_width = 3.5;
+	place.slope = 1.5;
+	place.width = 7.0;
+	place.bench = 4.0;
+	auto const ground = [&](glm::dvec2 const &P) {
+		glm::dvec2 const m{-place.track.y, place.track.x};
+		auto const d{std::abs(glm::dot(P, m))};
+		return std::max(0.0, formation - std::max(0.0, d - place.half_width) / place.slope);
+	};
+	place.ground = [&](glm::dvec2 const &P, double &Height) {
+		Height = ground(P);
+		return true;
+	};
+	auto const made{build(place, Options)};
+	std::vector<shaded_triangle> out;
+	if (false == made.built)
+		return out;
+	// the terrain: a grid of 2 m, the cells the holes reach into left out and laid again outside the holes
+	double constexpr reach{30.0}, cell{2.0};
+	int const count{static_cast<int>(2.0 * reach / cell)};
+	std::vector<ground_cell> cut;
+	glm::dvec3 const grass{0.36, 0.52, 0.24}, road{0.22, 0.22, 0.24};
+	auto const raised = [&](glm::dvec2 const &P) {
+		auto height{ground(P)};
+		for (auto const &area : made.raise)
+			if (in_outline(area.outline, P))
+				height = std::max(height, area.height);
+		return height;
+	};
+	for (int iz = 0; iz < count; ++iz)
+		for (int ix = 0; ix < count; ++ix)
+		{
+			glm::dvec2 const low{-reach + ix * cell, -reach + iz * cell};
+			std::array<glm::dvec2, 4> const plan{low, low + glm::dvec2{cell, 0.0}, low + glm::dvec2{0.0, cell}, low + glm::dvec2{cell}};
+			std::array<double, 4> heights{};
+			for (int i = 0; i < 4; ++i)
+				heights[i] = raised(plan[i]);
+			bool touched{false};
+			for (auto const &hole : made.holes)
+				for (double z = 0.0; z <= cell && false == touched; z += 0.25)
+					for (double x = 0.0; x <= cell && false == touched; x += 0.25)
+						touched = in_outline(hole, low + glm::dvec2{x, z});
+			if (touched)
+			{
+				cut.push_back({low, cell, heights});
+				continue;
+			}
+			auto const colour{std::abs(low.y + 1.0) < 3.5 && heights[0] < 0.05 ? road : grass};
+			std::array<glm::dvec3, 4> const p{glm::dvec3{plan[0].x, heights[0], plan[0].y}, glm::dvec3{plan[1].x, heights[1], plan[1].y}, glm::dvec3{plan[2].x, heights[2], plan[2].y},
+			                                  glm::dvec3{plan[3].x, heights[3], plan[3].y}};
+			out.push_back({{p[0], p[1], p[2]}, colour});
+			out.push_back({{p[3], p[2], p[1]}, colour});
+		}
+	auto const laid{ground_outside(cut, made.holes)};
+	for (std::size_t i = 0; i + 2 < laid.size(); i += 3)
+		out.push_back({{laid[i], laid[i + 1], laid[i + 2]}, grass});
+	// the track's ballast on the formation
+	glm::dvec2 const t{place.track}, m{-t.y, t.x};
+	for (int i = -12; i < 12; ++i)
+	{
+		auto const a{t * (i * 2.5)}, b{t * (i * 2.5 + 2.5)};
+		auto const on = [&](glm::dvec2 const &P, double const D, double const Y) { return glm::dvec3{P.x + m.x * D, Y, P.y + m.y * D}; };
+		glm::dvec3 const ballast{0.55, 0.50, 0.45};
+		out.push_back({{on(a, -1.7, formation + 0.35), on(b, -1.7, formation + 0.35), on(b, 1.7, formation + 0.35)}, ballast});
+		out.push_back({{on(a, -1.7, formation + 0.35), on(b, 1.7, formation + 0.35), on(a, 1.7, formation + 0.35)}, ballast});
+	}
+	for (auto const &part : made.mesh.parts())
+	{
+		auto const colour{colour_of(part)};
+		for (std::size_t i = 0; i + 2 < part.points.size(); i += 3)
+			out.push_back({{part.points[i], part.points[i + 1], part.points[i + 2]}, colour});
+	}
 	return out;
 }
 

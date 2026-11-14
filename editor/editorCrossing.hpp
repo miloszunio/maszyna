@@ -24,6 +24,7 @@ http://mozilla.org/MPL/2.0/.
 // The terrain: wherever the structure stands, the ground is either over it (raised to cover it) or cut out (a hole), and
 // every edge of a hole lies inside a solid part of the structure (a wall, a wing, a headwall), never in the open.
 
+#include <array>
 #include <functional>
 #include <string>
 #include <vector>
@@ -59,8 +60,16 @@ struct site
 	double half_width{3.5}; // of the formation
 	double slope{1.5}; // run of its slopes for a metre of height
 	double width{7.0}; // of the road with what's beside it
+	// the axes of the tracks on the formation, their distances from At across the track (the way of perpendicular(track)):
+	// one track at its middle, or two and more side by side
+	std::vector<double> axes{0.0};
 	// the height of the terrain as it is at a point of the plan; false where there's none
 	std::function<bool(glm::dvec2 const &, double &)> ground;
+	// the ground of the land before the embankments and the roads shaped it; none: level with the road
+	std::function<bool(glm::dvec2 const &, double &)> natural;
+	// the cutting of the road through the land: flat this far from its axis, its slopes rising a metre over this run beyond
+	double bench{4.0};
+	double bank{1.5};
 };
 
 struct options
@@ -111,5 +120,28 @@ double depth_under(kind Type, double Span);
 double constexpr kLeastClearance{2.5};
 
 result build(site const &Site, options const &Options);
+
+// a cell of the grid of the terrain cut out whole under a hole: from Low, Size wide, the heights of its corners (x0, z0) (x1, z0)
+// (x0, z1) (x1, z1); the terrain cuts it along the diagonal from (x0, z1) to (x1, z0)
+struct ground_cell
+{
+	glm::dvec2 low{0.0};
+	double size{2.0};
+	std::array<double, 4> heights{};
+};
+// the ground of the cells where the holes (convex) don't reach: the terrain's own triangles, on the same planes, cut along the
+// edges of the holes; three points a triangle, counter-clockwise seen from above. Laid into the cells cut out whole, it meets
+// the terrain around edge to edge and the structure inside the holes
+// a triangle of a picture of a structure: its corners and its colour (0..1)
+struct shaded_triangle
+{
+	std::array<glm::dvec3, 3> corners;
+	glm::dvec3 colour{0.7};
+};
+// the structure of the options as it's built on an embankment 7 m high over a level road crossing it at 80 degrees, with the
+// terrain round it cut and laid as the editor does it and the track on top: what the list of the kinds shows beside it
+std::vector<shaded_triangle> preview(options const &Options);
+
+std::vector<glm::dvec3> ground_outside(std::vector<ground_cell> const &Cells, std::vector<std::vector<glm::dvec2>> const &Holes);
 
 } // namespace crossing

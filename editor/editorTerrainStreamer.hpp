@@ -10,6 +10,7 @@ http://mozilla.org/MPL/2.0/.
 #pragma once
 #include <utility>
 
+#include <array>
 #include <condition_variable>
 #include <deque>
 #include <map>
@@ -149,6 +150,22 @@ class terrain_streamer
 	bool cut(double X, double Z, double Radius, bool Cut);
 	// the same within Outline (x, z); the chunks are loaded where needed
 	bool cut(std::vector<glm::dvec2> const &Outline, bool Cut);
+	// a square cell of the grid of a chunk, the heights of its corners as the mesh has them: (x0, z0) (x1, z0) (x0, z1) (x1, z1);
+	// the mesh cuts it along the diagonal from (x0, z1) to (x1, z0)
+	struct grid_cell
+	{
+		glm::dvec2 low{0.0};
+		double size{2.0};
+		std::array<double, 4> heights{};
+		chunk_key chunk{0, 0};
+	};
+	// the cells of the grids of the chunks the outline (x, z) reaches into, the chunks loaded where needed
+	std::vector<grid_cell> cells_under(std::vector<glm::dvec2> const &Outline);
+	// holes of whole cells: every cell the outline reaches into cut (Cut true) or closed, the cut ending right at the lines of
+	// the grid, so whatever fills the rest of those cells (the ground of a structure, made of cells_under) meets the terrain
+	// edge to edge. The samples of the mask on the edge of the cut are a little under the half, the rest of the cells cut fully;
+	// a mask with fewer than two samples a cell is made finer first, so every cell has one inside it
+	bool cut_cells(std::vector<glm::dvec2> const &Outline, bool Cut);
 	// the hole of a field of its own surface cut (Cut true) or closed: marked as the field's, so closing it leaves the holes
 	// cut otherwise (the Holes tool) there as they are; a hole of a field cut before the mark is closed whole
 	bool cut_field(std::vector<glm::dvec2> const &Outline, bool Cut);

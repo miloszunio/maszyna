@@ -23,6 +23,14 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 173
+
+- **Dwa tory i więcej**: skrzyżowania drogi z torami leżącymi obok siebie to jeden obiekt. Dźwigary i kratownice mostów z jazdą dołem stoją na zewnątrz skrajnych torów (wcześniej jeden stał między torami); w mostach z jazdą górą balustrady są tylko na krawędziach.
+- **Zszywanie terenu całymi komórkami siatki** i pasem gruntu w modelu obiektu (te same trójkąty i wysokości co teren): koniec z piłą i szparami przy skrzydłach i czołach.
+- **Przekop drogi do stopy nasypu**: przed licem nie zostaje wał ziemi; dno otworu biegnie jak przekop.
+- **Płyta i rama wyglądają inaczej**: płyta ze stopkami belek od spodu, oczepami, łożyskami i balustradą; rama ze skosami, skrzydłami w linii ścian i betonową attyką.
+- **Podgląd obiektu** obok listy rodzajów, obracany myszą.
+
 ## nr 172
 
 - **Obiekty pod torem od nowa, osiem wyraźnie różnych rodzajów** wzorowanych na obiektach polskich linii: rura z blachy falistej (końce ścięte po skarpie, wieniec), przepust skrzynkowy (skosy, skrzydła ukośne), sklepienie murowane (archiwolta, gzyms, attyka), wiadukt ramowy (duże skosy, skrzydła w linii ścian), płyta z belek obetonowanych (wysunięta krawędź, przekładki łożysk), blachownica z jazdą górą, blachownica z jazdą dołem, kratownica z jazdą dołem (od 32 m ze stężeniami górą i portalami).

@@ -71,6 +71,10 @@ struct editor_tool_button;
 class TTrack;
 
 struct catenary_editor; // application/editormodecatenary.h
+namespace crossing
+{
+struct result; // editor/editorCrossing.hpp
+}
 
 class editor_mode : public application_mode, private editor_track::observer, private editor_services
 {

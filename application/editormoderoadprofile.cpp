@@ -17,6 +17,7 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorRoad.hpp"
 #include "editor/editorCrossing.hpp"
 #include "editor/editorStructure.hpp"
+#include "scene/heightmapterrain.h"
 #include "utilities/translation.h"
 #include "world/Road.h"
 #include "simulation/simulation.h"
@@ -26,7 +27,11 @@ http://mozilla.org/MPL/2.0/.
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <map>
+#include <set>
 #include <sstream>
+#include <tuple>
 #include "model/AnimModel.h"
 
 namespace
@@ -685,7 +690,7 @@ std::vector<heightmap::modifier const *> formations_near(std::vector<heightmap::
 // whether the point of a road lies under the embankment of a track: within its formation and the slopes going down from it
 // to the height of the road, the formation a metre or more over the road. There the ground is the track's: the road gets
 // through it in a structure, not in a cutting
-bool under_formation(std::vector<heightmap::modifier const *> const &Formations, glm::dvec3 const &Point)
+bool under_formation(std::vector<heightmap::modifier const *> const &Formations, glm::dvec3 const &Point, std::function<bool(glm::dvec2 const &, double &)> const &Natural)
 {
 	glm::dvec2 const place{Point.x, Point.z};
 	for (auto const *modifier : Formations)
@@ -700,11 +705,103 @@ bool under_formation(std::vector<heightmap::modifier const *> const &Formations,
 			auto const over{formation - Point.y};
 			if (over < 1.0)
 				continue;
-			auto const reach{glm::mix(from.half_width, to.half_width, share) + over * std::max(0.5, modifier->slope)};
-			if (glm::distance(place, from.position + leg * share) <= reach)
-				return true;
+			auto const crown{glm::mix(from.half_width, to.half_width, share)};
+			auto const slope{std::max(0.5, modifier->slope)};
+			auto const reach{crown + over * slope};
+			auto const distance{glm::distance(place, from.position + leg * share)};
+			if (distance > reach)
+				continue;
+			// the slope of the embankment comes down to the natural ground before it gets to the road: there the ground beside the
+			// road is the land's own, cut through by the road like anywhere else, up to the foot of the embankment
+			double natural{0.0};
+			if (Natural && Natural(place, natural) && formation - std::max(0.0, distance - crown) / slope < natural + 0.2)
+				continue;
+			return true;
 		}
 	return false;
+}
+
+// the structure of the kind and the settings chosen as it will be built, drawn beside the list of the kinds: made again when a
+// setting changes, turned round by dragging it, its triangles drawn from the farthest
+void structure_preview(crossing::options const &Options)
+{
+	static std::vector<crossing::shaded_triangle> triangles;
+	static std::string made_for;
+	static float yaw{-0.85f}, pitch{0.42f};
+	auto const key{format("%d %.2f %.2f %d %d %d", static_cast<int>(Options.type), Options.clearance, Options.width, Options.spans, Options.parapet, Options.fit ? 1 : 0)};
+	if (key != made_for)
+	{
+		triangles = crossing::preview(Options);
+		made_for = key;
+	}
+	ImVec2 const size{340.0f, 250.0f};
+	auto const corner{ImGui::GetCursorScreenPos()};
+	ImGui::InvisibleButton("##structurepreview", size);
+	if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f))
+	{
+		auto const delta{ImGui::GetIO().MouseDelta};
+		yaw += delta.x * 0.01f;
+		pitch = std::clamp(pitch + delta.y * 0.01f, 0.05f, 1.45f);
+	}
+	item_tooltip(STR_C("The kind as it is built with these settings on an embankment 7 m high; drag to turn it round"));
+	auto *draw{ImGui::GetWindowDrawList()};
+	draw->AddRectFilled(corner, ImVec2{corner.x + size.x, corner.y + size.y}, IM_COL32(170, 196, 222, 255));
+	if (triangles.empty())
+	{
+		draw->AddText(ImVec2{corner.x + 10.0f, corner.y + 10.0f}, IM_COL32(40, 40, 40, 255), STR_C("Not built on a 7 m embankment with these settings"));
+		return;
+	}
+	// a camera looking at the middle of the structure from Distance, turned by yaw round it and pitch over it
+	double constexpr distance{48.0};
+	glm::dvec3 const target{0.0, 3.0, 0.0};
+	glm::dvec3 const eye{target + distance * glm::dvec3{std::cos(pitch) * std::sin(yaw), std::sin(pitch), std::cos(pitch) * std::cos(yaw)}};
+	auto const forward{glm::normalize(target - eye)};
+	auto const right{glm::normalize(glm::cross(forward, glm::dvec3{0.0, 1.0, 0.0}))};
+	auto const up{glm::cross(right, forward)};
+	auto const focal{0.9 * size.x};
+	glm::dvec3 const light{glm::normalize(glm::dvec3{-0.4, 0.8, 0.45})};
+	struct shown
+	{
+		std::array<ImVec2, 3> points;
+		double depth;
+		ImU32 colour;
+	};
+	std::vector<shown> drawn;
+	drawn.reserve(triangles.size());
+	for (auto const &triangle : triangles)
+	{
+		shown one{};
+		bool visible{true};
+		double depth{0.0};
+		for (int i = 0; i < 3; ++i)
+		{
+			auto const v{triangle.corners[i] - eye};
+			auto const z{glm::dot(v, forward)};
+			if (z < 1.0)
+			{
+				visible = false;
+				break;
+			}
+			depth += z;
+			one.points[i] = ImVec2{static_cast<float>(corner.x + 0.5 * size.x + focal * glm::dot(v, right) / z), static_cast<float>(corner.y + 0.5 * size.y - focal * glm::dot(v, up) / z)};
+		}
+		if (false == visible)
+			continue;
+		auto normal{glm::cross(triangle.corners[1] - triangle.corners[0], triangle.corners[2] - triangle.corners[0])};
+		if (glm::length(normal) < 1e-12)
+			continue;
+		normal = glm::normalize(normal);
+		auto const lit{0.45 + 0.55 * std::abs(glm::dot(normal, light))};
+		auto const c{glm::clamp(triangle.colour * lit, 0.0, 1.0) * 255.0};
+		one.colour = IM_COL32(static_cast<int>(c.r), static_cast<int>(c.g), static_cast<int>(c.b), 255);
+		one.depth = depth;
+		drawn.push_back(one);
+	}
+	std::sort(drawn.begin(), drawn.end(), [](shown const &A, shown const &B) { return A.depth > B.depth; });
+	draw->PushClipRect(corner, ImVec2{corner.x + size.x, corner.y + size.y}, true);
+	for (auto const &one : drawn)
+		draw->AddTriangleFilled(one.points[0], one.points[1], one.points[2], one.colour);
+	draw->PopClipRect();
 }
 
 } // namespace
@@ -818,6 +915,15 @@ void editor_mode::road_terrain(bool const Remove)
 			m_streamer.grass(outline, 0, true);
 		}
 		auto const formations{formations_near(m_streamer.modifiers(), low - glm::dvec2{80.0}, high + glm::dvec2{80.0})};
+		// the ground as the land has it, before the modifiers of the tracks and the roads shaped it
+		auto const natural_ground = [this](glm::dvec2 const &P, double &Height) {
+			auto const *chunk{m_streamer.terrain_at(P.x, P.y)};
+			if (chunk == nullptr)
+				return false;
+			auto const &data{chunk->data()};
+			Height = data.height_in(data.base.empty() ? data.heights : data.base, P.x, P.y);
+			return true;
+		};
 		auto beneath{false};
 		for (int i = 0; i <= steps; ++i)
 		{
@@ -831,7 +937,7 @@ void editor_mode::road_terrain(bool const Remove)
 			}
 			// under the embankment of a track the ground stays the track's, also between the faces of a structure built there:
 			// the cutting of the road ends square at the foot of the embankment
-			if (under_formation(formations, point))
+			if (under_formation(formations, point, natural_ground))
 			{
 				if (false == beneath)
 					++under_tracks;
@@ -878,6 +984,7 @@ struct track_crossing
 	double half_width{3.5}; // of the formation
 	double slope{1.5}; // run of its slopes for a metre of height
 	double width{7.0}; // of the road with what's beside it
+	std::vector<double> axes{0.0}; // of the tracks on the formation, from At across the track
 	std::string name; // of the modifier of the track
 };
 
@@ -889,6 +996,68 @@ glm::dvec2 flat2(glm::dvec3 const &V)
 double cross2(glm::dvec2 const &A, glm::dvec2 const &B)
 {
 	return A.x * B.y - A.y * B.x;
+}
+
+// the crossings of the road with tracks lying side by side on one embankment (a modifier each) made one: the structure
+// carries them all, its middle between the outer ones, the formation as wide as it is over all of them
+std::vector<track_crossing> group_tracks(std::vector<track_crossing> const &Crossings)
+{
+	std::vector<track_crossing> result;
+	std::vector<bool> taken(Crossings.size(), false);
+	for (std::size_t i = 0; i < Crossings.size(); ++i)
+	{
+		if (taken[i])
+			continue;
+		std::vector<std::size_t> members{i};
+		taken[i] = true;
+		// gathered one after another, each near one gathered already: three tracks side by side are one group too
+		for (std::size_t m = 0; m < members.size(); ++m)
+			for (std::size_t j = 0; j < Crossings.size(); ++j)
+			{
+				if (taken[j])
+					continue;
+				auto const &a{Crossings[members[m]]};
+				auto const &b{Crossings[j]};
+				auto const parallel{std::abs(glm::dot(a.track, b.track)) > std::cos(glm::radians(12.0))};
+				auto const close{glm::distance(flat2(a.at), flat2(b.at)) < 14.0};
+				auto const level{std::abs(a.formation - b.formation) < 1.5};
+				if (parallel && close && level)
+				{
+					members.push_back(j);
+					taken[j] = true;
+				}
+			}
+		auto merged{Crossings[i]};
+		if (members.size() > 1)
+		{
+			auto const across{glm::dvec2{-merged.track.y, merged.track.x}};
+			auto const origin{flat2(merged.at)};
+			double low{0.0}, high{0.0};
+			std::vector<double> distances;
+			for (auto const member : members)
+			{
+				auto const d{glm::dot(flat2(Crossings[member].at) - origin, across)};
+				distances.push_back(d);
+				low = std::min(low, d);
+				high = std::max(high, d);
+				merged.formation = std::max(merged.formation, Crossings[member].formation);
+			}
+			// the middle on the road: the road crosses the line half way between the outer axes there
+			auto const middle{0.5 * (low + high)};
+			auto const way{glm::dot(merged.road, across)};
+			if (std::abs(way) > 1e-6)
+			{
+				auto const along{middle / way};
+				merged.at += glm::dvec3{merged.road.x, merged.grade, merged.road.y} * along;
+			}
+			merged.axes.clear();
+			for (auto const d : distances)
+				merged.axes.push_back(d - middle);
+			merged.half_width = 0.5 * (high - low) + Crossings[i].half_width;
+		}
+		result.push_back(merged);
+	}
+	return result;
 }
 
 std::vector<track_crossing> crossings_of(std::vector<road_node *> const &Pieces, std::vector<heightmap::modifier> const &Modifiers)
@@ -940,13 +1109,13 @@ std::vector<track_crossing> crossings_of(std::vector<road_node *> const &Pieces,
 					crossing.width = state.span(glm::mix(t0, t1, u)) + 2.0 * beside;
 					crossing.name = modifier.name;
 					// the same crossing seen from two pieces, or two segments meeting at it
-					if (std::none_of(result.begin(), result.end(), [&](track_crossing const &Other) { return glm::distance(flat2(Other.at), flat2(crossing.at)) < 5.0; }))
+					if (std::none_of(result.begin(), result.end(), [&](track_crossing const &Other) { return glm::distance(flat2(Other.at), flat2(crossing.at)) < 1.0; }))
 						result.push_back(crossing);
 				}
 			}
 		}
 	}
-	return result;
+	return group_tracks(result);
 }
 
 } // namespace
@@ -1047,7 +1216,11 @@ void editor_mode::road_structures(bool const Remove)
 				while (values >> x >> z)
 					outline.emplace_back(x, z);
 				if (outline.size() >= 3)
+				{
+					// cut by whole cells since nr 172, by the outline before: closing the cells closes either
+					m_streamer.cut_cells(outline, false);
 					m_streamer.cut(outline, false);
+				}
 			}
 			if (m_node == model)
 			{
@@ -1073,6 +1246,16 @@ void editor_mode::road_structures(bool const Remove)
 		return;
 	}
 
+	// the road's cutting led first through the land up to the feet of the embankments (not into them): the structures are fitted
+	// to the ground as it will be, their wings ending where its slopes come down to the road
+	if (led)
+	{
+		forget_ground();
+		auto const every{tool.every_road};
+		tool.every_road = false;
+		road_terrain(false);
+		tool.every_road = every;
+	}
 	auto const crossings{crossings_of(pieces, m_streamer.modifiers())};
 	crossing::options options;
 	options.type = static_cast<crossing::kind>(std::clamp(tool.structure_type, 0, static_cast<int>(crossing::kind::count) - 1));
@@ -1087,6 +1270,14 @@ void editor_mode::road_structures(bool const Remove)
 	std::vector<std::string> lowered;
 	std::vector<std::string> refused;
 	std::size_t built{0};
+	struct made_one
+	{
+		std::size_t number;
+		glm::dvec3 at;
+		std::string name;
+		crossing::result made;
+	};
+	std::vector<made_one> made_ones;
 	tool.structure_note.clear();
 	// the ground raised over the structures is a touch-up over the formations of the tracks, kept over them
 	auto const touchup{m_streamer.touch_up()};
@@ -1104,6 +1295,17 @@ void editor_mode::road_structures(bool const Remove)
 		site.half_width = c.half_width;
 		site.slope = c.slope;
 		site.width = c.width;
+		site.axes = c.axes;
+		site.bench = 0.5 * c.width + std::clamp(static_cast<double>(tool.terrain_beside), 0.0, 20.0);
+		site.bank = std::clamp(static_cast<double>(tool.bankgrade), 0.25, 10.0);
+		site.natural = [this](glm::dvec2 const &P, double &Height) {
+			auto const *chunk{m_streamer.terrain_at(P.x, P.y)};
+			if (chunk == nullptr)
+				return false;
+			auto const &data{chunk->data()};
+			Height = data.height_in(data.base.empty() ? data.heights : data.base, P.x, P.y);
+			return true;
+		};
 		site.ground = [this](glm::dvec2 const &P, double &Height) { return m_streamer.height_at(P.x, P.y, Height, true); };
 		auto made{crossing::build(site, options)};
 		if (false == made.built)
@@ -1118,40 +1320,15 @@ void editor_mode::road_structures(bool const Remove)
 		}
 		if (made.lowered)
 			lowered.push_back(format(STR_C("%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"), c.name.c_str(), made.clearance, options.clearance));
-		// written with the outlines of its holes beside it, so it can be taken away again
-		auto const stamp{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
-		auto const base{clean + "_" + std::to_string(number) + "_" + std::to_string(stamp)};
-		std::error_code error;
-		std::filesystem::create_directories(folder, error);
-		if (false == made.mesh.write(folder + base + ".t3d", c.at))
-		{
-			refused.push_back(format(STR_C("%s: the model couldn't be written in %s"), c.name.c_str(), folder.c_str()));
-			continue;
-		}
-		{
-			std::ofstream file{folder + base + ".dziura"};
-			file.precision(3);
-			file << std::fixed;
-			for (auto const &outline : made.holes)
-			{
-				for (auto const &p : outline)
-					file << p.x << ' ' << p.y << ' ';
-				file << '\n';
-			}
-		}
+		// the holes by whole cells of the grid, the ground over the structure raised; the model is written once the road has led the
+		// terrain to it again, with the ground of those cells round the holes in it, on the terrain's last heights
 		for (auto const &outline : made.holes)
-			m_streamer.cut(outline, true);
+			m_streamer.cut_cells(outline, true);
 		for (auto const &area : made.raise)
 			raise_terrain(area.outline, area.height);
-		simulation::State.create_model("node 3000 0 none model 0 0 0 0 kabina_obiekty/" + base + ".t3d none endmodel", "obiekt " + base, c.at);
-		++built;
+		made_ones.push_back({number, c.at, c.name, std::move(made)});
 	}
 	m_streamer.touch_up(touchup);
-	if (false == refused.empty())
-	{
-		for (auto const &reason : refused)
-			tool.structure_note += (tool.structure_note.empty() ? "" : "\n") + reason;
-	}
 	terrain_history_step();
 	forget_ground();
 	if (led)
@@ -1162,6 +1339,39 @@ void editor_mode::road_structures(bool const Remove)
 		road_terrain(false);
 		tool.every_road = every;
 	}
+	for (auto &one : made_ones)
+	{
+		ground_of_structure(one.made);
+		// written with the outlines of its holes beside it, so it can be taken away again
+		auto const stamp{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
+		auto const base{clean + "_" + std::to_string(one.number) + "_" + std::to_string(stamp)};
+		std::error_code error;
+		std::filesystem::create_directories(folder, error);
+		{
+			std::ofstream file{folder + base + ".dziura"};
+			file.precision(3);
+			file << std::fixed;
+			for (auto const &outline : one.made.holes)
+			{
+				for (auto const &p : outline)
+					file << p.x << ' ' << p.y << ' ';
+				file << '\n';
+			}
+		}
+		if (false == one.made.mesh.write(folder + base + ".t3d", one.at))
+		{
+			refused.push_back(format(STR_C("%s: the model couldn't be written in %s"), one.name.c_str(), folder.c_str()));
+			continue;
+		}
+		simulation::State.create_model("node 3000 0 none model 0 0 0 0 kabina_obiekty/" + base + ".t3d none endmodel", "obiekt " + base, one.at);
+		++built;
+	}
+	if (false == refused.empty())
+	{
+		tool.structure_note.clear();
+		for (auto const &reason : refused)
+			tool.structure_note += (tool.structure_note.empty() ? "" : "\n") + reason;
+	}
 	if (crossings.empty())
 		tool.status = STR_C("The road crosses no formation of a track (no modifier of the terrain along a track under it)");
 	else
@@ -1171,6 +1381,57 @@ void editor_mode::road_structures(bool const Remove)
 		tool.status += "\n" + reason;
 	if (false == refused.empty())
 		tool.status += "\n" + format(STR_P("%zu crossing not built, the reason is over the button", "%zu crossings not built, the reasons are over the button", refused.size()), refused.size());
+}
+
+void editor_mode::ground_of_structure(crossing::result &Made)
+{
+	// the cells cut out under the holes, each once, by the material covering most of its chunk
+	std::map<std::string, std::vector<crossing::ground_cell>> by_material;
+	std::map<std::string, heightmap::layer_def> layer_of;
+	std::set<std::tuple<int, int, long long, long long>> seen;
+	auto const &palette{m_streamer.manifest().layers};
+	for (auto const &outline : Made.holes)
+		for (auto const &cell : m_streamer.cells_under(outline))
+		{
+			auto const key{std::make_tuple(cell.chunk.first, cell.chunk.second, std::llround(cell.low.x * 100.0), std::llround(cell.low.y * 100.0))};
+			if (false == seen.insert(key).second)
+				continue;
+			heightmap::layer_def layer{palette.empty() ? heightmap::layer_def{"grass", 0.f} : palette.front()};
+			if (auto const *chunk{m_streamer.chunk(cell.chunk)}; chunk != nullptr)
+			{
+				auto const &data{chunk->data()};
+				auto const index{data.layers[data.dominant_slot()]};
+				if (index != heightmap::no_layer && index < palette.size())
+					layer = palette[index];
+			}
+			by_material[layer.material].push_back({cell.low, cell.size, cell.heights});
+			layer_of[layer.material] = layer;
+		}
+	for (auto const &[material, cells] : by_material)
+	{
+		auto const triangles{crossing::ground_outside(cells, Made.holes)};
+		if (triangles.empty())
+			continue;
+		auto const &layer{layer_of[material]};
+		auto &part{Made.mesh.add("grunt " + material, material)};
+		structure::builder const ground{&part, 8.0};
+		// textured as the terrain is: metres from the corner of its pack along x and -z, turned and scaled as the palette says
+		auto const size{layer.size > 0.f ? static_cast<double>(layer.size) : 8.0};
+		auto const turn{glm::radians(static_cast<double>(layer.rotation))};
+		auto const c{std::cos(turn)}, s{std::sin(turn)};
+		for (std::size_t i = 0; i + 2 < triangles.size(); i += 3)
+		{
+			auto const before{part.points.size()};
+			ground.triangle(triangles[i], triangles[i + 1], triangles[i + 2], glm::dvec3{0.0, 1.0, 0.0});
+			for (auto j = before; j < part.points.size(); ++j)
+			{
+				auto const &p{part.points[j]};
+				auto const pack{heightmap::pack_corner(heightmap::pack_of(heightmap::chunk_at(p.x, p.z)))};
+				glm::dvec2 const coord{p.x - pack.x, -(p.z - pack.y)};
+				part.uvs[j] = glm::vec2{static_cast<float>((c * coord.x + s * coord.y) / size), static_cast<float>((-s * coord.x + c * coord.y) / size)};
+			}
+		}
+	}
 }
 
 void editor_mode::raise_terrain(std::vector<glm::dvec2> const &Outline, double const Height)
@@ -1754,6 +2015,7 @@ void editor_mode::render_road_profile_window()
 		                                        STR_C("Through plate girders, the track between them"),
 		                                        STR_C("Through truss, the track between the trusses")};
 		std::array<float, 8> const clearances{3.5f, 3.5f, 4.7f, 4.7f, 4.7f, 4.7f, 4.7f, 4.7f};
+		ImGui::BeginGroup();
 		ImGui::SetNextItemWidth(260.0f);
 		if (ImGui::Combo(STR_C("Kind##structure"), &tool.structure_type, types.data(), static_cast<int>(types.size())))
 			tool.structure_clearance = clearances[static_cast<std::size_t>(std::clamp(tool.structure_type, 0, 7))];
@@ -1811,6 +2073,18 @@ void editor_mode::render_road_profile_window()
 		if (ImGui::InputText(STR_C("Texture of the steel##structure"), steelwork.data(), steelwork.size()))
 			tool.structure_steel = steelwork.data();
 		item_tooltip(STR_C("Of the girders, the railings and the tube; empty: a plain dark colour with no texture"));
+		ImGui::EndGroup();
+		ImGui::SameLine();
+		{
+			crossing::options shown;
+			shown.type = static_cast<crossing::kind>(std::clamp(tool.structure_type, 0, static_cast<int>(crossing::kind::count) - 1));
+			shown.clearance = tool.structure_clearance;
+			shown.width = tool.structure_width;
+			shown.spans = tool.structure_spans;
+			shown.fit = tool.structure_fit;
+			shown.parapet = tool.structure_parapet;
+			structure_preview(shown);
+		}
 		if (change_button(STR_C("Build the structures under the tracks")))
 			run_busy(STR_C("Building the structures under the tracks"), [this, road = view.road]() {
 				auto const before{m_roadtool.selected};

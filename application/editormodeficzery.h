@@ -402,6 +402,9 @@
 	// Remove: the ones of the road taken away and their holes closed
 	void road_structures(bool Remove);
 	// the terrain within the outline raised to the height at least: over a structure under an embankment
+	// the ground of the cells of the grid cut out whole round the holes of a structure, put into its model: the terrain's own
+	// triangles on its last heights, cut along the edges of the holes, textured with the material covering most of the chunk
+	void ground_of_structure(crossing::result &Made);
 	void raise_terrain(std::vector<glm::dvec2> const &Outline, double Height);
 	// the textures of walls under textures/, to choose the one of the structures from
 	void structure_textures_search();
