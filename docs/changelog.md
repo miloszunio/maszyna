@@ -23,6 +23,13 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 178
+
+- **Bank obiektów: grupy alfabetycznie** (bez względu na wielkość liter i spacje na początku nazwy; plik `nodebank.txt` zostaje w swojej kolejności).
+- **„Dodaj model...”** w banku obiektów: model wpisany albo wybrany z listy modeli spod `models\`, których bank jeszcze nie ma (z filtrem), skóra, zasięg i grupa (istniejąca albo nowa). Wpis trafia do `nodebank.txt` na koniec swojej grupy, bank przeładowuje się sam, a miniatura robi się w tle (drugi proces symulatora z `-generate-nodebank-previews`).
+- **„Zrób brakujące miniatury”** w „Więcej ustawień” banku: robi w tle miniatury wszystkich modeli, które ich nie mają.
+- Podpowiedź przy modelu bez miniatury: pojawi się przy następnym uruchomieniu albo po przeładowaniu banku, kiedy już powstanie.
+
 ## nr 177
 
 - **Obsypka wzdłuż obiektu** (pomysł użytkownika): od zewnętrznej górnej krawędzi każdego skrzydła, od tylnej krawędzi gzymsu i od wieńca rury wychodzi pas ziemi. Zaczyna się na koronie muru, robi lekki garb (ok. 18 cm) i opada parabolą w teren, kończąc się 8 cm pod nim. Jest szeroki na przekątną komórki siatki plus 0,6 m, więc przykrywa zęby wycięcia i szparę nad koroną skrzydła. Na narożnikach skrzydła obsypka zawija się w stronę toru i wzdłuż drogi. Tekstura do wyboru w polu „Tekstura obsypki” (wyszukiwarka: ziemia, żwir, kamień, grunt…); puste pole oznacza materiał terenu.

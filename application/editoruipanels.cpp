@@ -27,9 +27,15 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorSettings.hpp"
 #include "imgui/imgui_internal.h"
 
+#include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <filesystem>
 #include <set>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 namespace
 {
@@ -83,6 +89,18 @@ bool dropped_template(std::string &Template)
 
 // a card: the image fills its square, or what's missing is said in its place, and the label is under it, cut short with an
 // ellipsis. returns: true if it was clicked; the card is the item drawn last
+// a name as it's sorted: without the spaces before it, the letters small
+std::string sort_key(std::string const &Name)
+{
+	std::string key;
+	auto const start{Name.find_first_not_of(' ')};
+	for (auto i = (start == std::string::npos ? Name.size() : start); i < Name.size(); ++i)
+	{
+		key += static_cast<char>(std::tolower(static_cast<unsigned char>(Name[i])));
+	}
+	return key;
+}
+
 bool card(ImVec2 const &Cell, float const Side, std::uint64_t const Texture, char const *Placeholder, char const *Label, bool const Selected)
 {
 	auto const &style{ImGui::GetStyle()};
@@ -748,9 +766,15 @@ void nodebank_panel::preview_popup(std::pair<std::string, std::shared_ptr<std::s
 		{
 			ImGui::Image(static_cast<ImTextureID>(texture), ImVec2(side, side));
 		}
+		else if (m_largepreviews->missing(lookup->second))
+		{
+			ImGui::TextDisabled("%s", STR_C("no preview"));
+			ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", STR_C("The preview shows at the next start (or after reloading the node bank), once it's made:\n"
+			                                                            "a model added here gets it made in the background, the others with \"Make the missing previews\" under More settings"));
+		}
 		else
 		{
-			ImGui::TextDisabled("%s", m_largepreviews->missing(lookup->second) ? STR_C("no preview") : "...");
+			ImGui::TextDisabled("...");
 		}
 	}
 	ImGui::EndTooltip();
@@ -975,6 +999,17 @@ void nodebank_panel::render()
 		{
 			m_setsopen = !m_setsopen;
 		}
+		ImGui::SameLine();
+		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.3f, 1.0f));
+		if (ImGui::Button(STR_C("Add a model...")))
+		{
+			m_addopen = !m_addopen;
+		}
+		ImGui::PopStyleColor();
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::SetTooltip("%s", STR_C("Puts a model into the node bank (nodebank.txt) in a group of your choice; its preview is made in the background"));
+		}
 		// cards with the previews of the models, or the list
 		ImGui::SameLine();
 		auto previews{EditorSettings.nodebank_previews()};
@@ -988,6 +1023,25 @@ void nodebank_panel::render()
 			if (ImGui::Button(STR_C("Reload node bank")))
 			{
 				nodebank_reload();
+			}
+			ImGui::SameLine();
+			ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.3f, 1.0f));
+			if (ImGui::Button(STR_C("Make the missing previews")))
+			{
+				auto const missing{entries_without_previews()};
+				m_addnote = missing.empty() ? std::string{STR_C("No previews are missing")}
+				            : make_previews(missing) ? format(STR_C("Making %zu previews in the background; reload the node bank when it's done, or they show at the next start"), missing.size())
+				                                     : std::string{STR_C("The maker of the previews couldn't be started")};
+			}
+			ImGui::PopStyleColor();
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetTooltip("%s", STR_C("Starts the simulator again in the background to draw the models with no preview yet (eu07 -generate-nodebank-previews); "
+				                              "the previews show after reloading the node bank, or at the next start"));
+			}
+			if (false == m_addnote.empty())
+			{
+				ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", m_addnote.c_str());
 			}
 			if (previews)
 			{
@@ -1075,7 +1129,14 @@ void nodebank_panel::render()
 			if (ImGui::BeginChild("##groups", ImVec2(0, paneheight)))
 			{
 				auto const searching{false == searchfilter.empty()};
-				for (int index = 0; index < static_cast<int>(categories.size()); ++index)
+				// the groups in the order of their names (the file keeps its own), the first letters ignoring case and the leading spaces
+				std::vector<int> order(categories.size());
+				for (int index = 0; index < static_cast<int>(order.size()); ++index)
+				{
+					order[index] = index;
+				}
+				std::stable_sort(order.begin(), order.end(), [&](int const Left, int const Right) { return sort_key(*categories[Left].name) < sort_key(*categories[Right].name); });
+				for (auto const index : order)
 				{
 					auto const &group{categories[index]};
 					auto const count{searching ? group.matches : static_cast<int>(group.entries.size())};
@@ -1164,6 +1225,10 @@ void nodebank_panel::render()
 	if (m_setsopen)
 	{
 		render_sets_window();
+	}
+	if (m_addopen)
+	{
+		render_add_window();
 	}
 }
 
@@ -1534,6 +1599,340 @@ void nodebank_panel::render_sets_window()
 	ImGui::EndGroup();
 
 	ImGui::End();
+}
+
+void nodebank_panel::render_add_window()
+{
+	ImGui::SetNextWindowSize(ImVec2S(520, 460), ImGuiCond_FirstUseEver);
+	if (false == ImGui::Begin(STR_C("Add a model to the node bank"), &m_addopen))
+	{
+		ImGui::End();
+		return;
+	}
+	// the model: typed, or chosen from those under models/ which the bank hasn't got yet
+	ImGui::SetNextItemWidth(-1);
+	ImGui::InputTextWithHint("##addmodel", STR_C("model, from models/ (e.g. drzewa/drzewo_lisciaste_01.t3d)"), m_addmodel, IM_ARRAYSIZE(m_addmodel));
+	if (ImGui::Button(STR_C("Look for models not in the bank")))
+	{
+		std::set<std::string> known;
+		for (auto const &entry : m_nodebank)
+		{
+			std::string model, skin;
+			if (false == entry.second->empty() && editor_previews::entry_model(*entry.second, model, skin))
+			{
+				known.insert(ToLower(model));
+			}
+		}
+		m_addfound.clear();
+		std::error_code error;
+		for (std::filesystem::recursive_directory_iterator it{"models", std::filesystem::directory_options::skip_permission_denied, error}, end; it != end; it.increment(error))
+		{
+			if (error)
+			{
+				break;
+			}
+			if (false == it->is_regular_file(error))
+			{
+				continue;
+			}
+			auto const extension{ToLower(it->path().extension().string())};
+			if (extension != ".t3d" && extension != ".e3d")
+			{
+				continue;
+			}
+			auto const relative{std::filesystem::relative(it->path(), "models", error).generic_string()};
+			// the bank holds a model by either of its files: the binary one is made from the text one
+			auto stem{ToLower(relative)};
+			stem.erase(stem.size() - 4);
+			if (known.contains(stem + ".t3d") || known.contains(stem + ".e3d") || known.contains(stem))
+			{
+				continue;
+			}
+			if (std::find(m_addfound.begin(), m_addfound.end(), relative) == m_addfound.end())
+			{
+				m_addfound.push_back(relative);
+			}
+		}
+		std::sort(m_addfound.begin(), m_addfound.end(), [](std::string const &Left, std::string const &Right) { return sort_key(Left) < sort_key(Right); });
+	}
+	ImGui::SameLine();
+	ImGui::SetNextItemWidth(-1);
+	ImGui::InputTextWithHint("##addfilter", STR_C("filter"), m_addfilter, IM_ARRAYSIZE(m_addfilter));
+	if (ImGui::BeginListBox("##addfound", ImVec2(-1, ImGui::GetTextLineHeightWithSpacing() * 9)))
+	{
+		auto const filter{ToLower(m_addfilter)};
+		for (auto const &found : m_addfound)
+		{
+			if (false == filter.empty() && false == contains(ToLower(found), filter))
+			{
+				continue;
+			}
+			if (ImGui::Selectable(found.c_str(), found == m_addmodel))
+			{
+				std::snprintf(m_addmodel, sizeof(m_addmodel), "%s", found.c_str());
+			}
+		}
+		if (m_addfound.empty())
+		{
+			ImGui::TextDisabled("%s", STR_C("press the button above to list them"));
+		}
+		ImGui::EndListBox();
+	}
+	ImGui::SetNextItemWidth(220.0f * Global.ui_scale);
+	ImGui::InputText(STR_C("Skin##add"), m_addskin, IM_ARRAYSIZE(m_addskin));
+	if (ImGui::IsItemHovered())
+	{
+		ImGui::SetTooltip("%s", STR_C("A texture replacing the model's own (a path under textures/), or none: the model as it is"));
+	}
+	ImGui::SetNextItemWidth(220.0f * Global.ui_scale);
+	ImGui::InputInt(STR_C("Range (m)##add"), &m_addrange, 100, 1000);
+	m_addrange = std::clamp(m_addrange, 10, 100000);
+	// the group: one of the bank's, or a name of a new one
+	auto groups{group_names()};
+	std::sort(groups.begin(), groups.end(), [](std::string const &Left, std::string const &Right) { return sort_key(Left) < sort_key(Right); });
+	ImGui::SetNextItemWidth(220.0f * Global.ui_scale);
+	if (ImGui::BeginCombo(STR_C("Group##addcombo"), m_addgroup[0] != '\0' ? m_addgroup : STR_C("(choose or type below)")))
+	{
+		for (auto const &group : groups)
+		{
+			auto const key{sort_key(group)};
+			if (ImGui::Selectable(group.c_str(), key == sort_key(m_addgroup)))
+			{
+				auto const start{group.find_first_not_of(' ')};
+				std::snprintf(m_addgroup, sizeof(m_addgroup), "%s", start == std::string::npos ? "" : group.c_str() + start);
+			}
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::SetNextItemWidth(220.0f * Global.ui_scale);
+	ImGui::InputTextWithHint(STR_C("New group##add"), STR_C("or a name of a new group"), m_addgroup, IM_ARRAYSIZE(m_addgroup));
+
+	std::string model{m_addmodel};
+	while (false == model.empty() && (model.back() == ' ' || model.back() == '/'))
+	{
+		model.pop_back();
+	}
+	std::replace(model.begin(), model.end(), '\\', '/');
+	std::error_code error;
+	auto const exists{false == model.empty() && std::filesystem::is_regular_file(std::filesystem::path("models") / model, error)};
+	std::string group{m_addgroup};
+	auto const ready{exists && group.find_first_not_of(' ') != std::string::npos};
+	if (false == model.empty() && false == exists)
+	{
+		ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.4f, 1.0f), STR_C("There's no models/%s"), model.c_str());
+	}
+	ImGui::BeginDisabled(false == ready);
+	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.3f, 1.0f));
+	if (ImGui::Button(STR_C("Add to the node bank")))
+	{
+		std::string skin{m_addskin};
+		if (skin.find_first_not_of(' ') == std::string::npos)
+		{
+			skin = "none";
+		}
+		auto const entry{"node " + std::to_string(m_addrange) + " 0 none model 0.0 0.0 0.0 0.0 " + model + " " + skin + " endmodel"};
+		if (insert_entry(group, entry))
+		{
+			m_addnote = make_previews({entry}) ? format(STR_C("Added to \"%s\"; its preview is being made in the background and shows after reloading the node bank, or at the next start"), group.c_str())
+			                                   : format(STR_C("Added to \"%s\"; the preview couldn't be made in the background, it'll be made with \"Make the missing previews\""), group.c_str());
+			m_addfound.erase(std::remove(m_addfound.begin(), m_addfound.end(), model), m_addfound.end());
+			m_addmodel[0] = '\0';
+		}
+		else
+		{
+			m_addnote = STR_C("nodebank.txt couldn't be written");
+		}
+	}
+	ImGui::PopStyleColor();
+	ImGui::EndDisabled();
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+	{
+		ImGui::SetTooltip("%s", STR_C("Written into nodebank.txt in the group chosen. The preview is made in the background and shows after reloading the node bank, or at the next start"));
+	}
+	if (false == m_addnote.empty())
+	{
+		ImGui::TextWrapped("%s", m_addnote.c_str());
+	}
+	ImGui::End();
+}
+
+bool nodebank_panel::insert_entry(std::string const &Group, std::string const &Entry)
+{
+	std::string text;
+	{
+		std::ifstream file{"nodebank.txt", std::ios_base::in | std::ios_base::binary};
+		text.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+	}
+	auto const newline{text.find("\r\n") != std::string::npos || text.empty() ? std::string{"\r\n"} : std::string{"\n"}};
+	// the lines of the file, without their ends
+	std::vector<std::string> lines;
+	std::size_t start{0};
+	while (start < text.size())
+	{
+		auto end{text.find('\n', start)};
+		if (end == std::string::npos)
+		{
+			end = text.size();
+		}
+		auto line{text.substr(start, end - start)};
+		if (false == line.empty() && line.back() == '\r')
+		{
+			line.pop_back();
+		}
+		lines.push_back(std::move(line));
+		start = end + 1;
+	}
+	auto const key{sort_key(Group)};
+	// the header of the group: a line with no node in it, named so
+	auto header{lines.end()};
+	for (auto it = lines.begin(); it != lines.end(); ++it)
+	{
+		if (it->find("node") == std::string::npos && it->size() >= 4 && sort_key(*it) == key)
+		{
+			header = it;
+			break;
+		}
+	}
+	if (header == lines.end())
+	{
+		// a new group at the end, the way the others are written
+		while (false == lines.empty() && lines.back().empty())
+		{
+			lines.pop_back();
+		}
+		auto const start_of_name{Group.find_first_not_of(' ')};
+		lines.push_back(" " + Group.substr(start_of_name));
+		lines.push_back("[");
+		lines.push_back(Entry);
+		lines.push_back("]");
+	}
+	else
+	{
+		// after the last entry of the group: before the next header, or the bracket closing it
+		auto at{std::next(header)};
+		auto last{header};
+		for (; at != lines.end(); ++at)
+		{
+			auto const trimmed{sort_key(*at)};
+			if (trimmed == "]")
+			{
+				break;
+			}
+			if (at->find("node") == std::string::npos && at->size() >= 4)
+			{
+				break; // the next group
+			}
+			if (at->find("node") != std::string::npos)
+			{
+				last = at;
+			}
+		}
+		lines.insert(at != lines.end() && sort_key(*at) == "]" ? at : std::next(last), Entry);
+	}
+	std::string written;
+	for (auto const &line : lines)
+	{
+		written += line + newline;
+	}
+	{
+		std::ofstream file{"nodebank.txt", std::ios_base::out | std::ios_base::trunc | std::ios_base::binary};
+		if (false == file.is_open())
+		{
+			return false;
+		}
+		file << written;
+		if (false == file.good())
+		{
+			return false;
+		}
+	}
+	nodebank_reload();
+	return true;
+}
+
+bool nodebank_panel::make_previews(std::vector<std::string> const &Entries)
+{
+	if (Entries.empty())
+	{
+		return false;
+	}
+#ifdef _WIN32
+	wchar_t path[MAX_PATH];
+	if (GetModuleFileNameW(nullptr, path, MAX_PATH) == 0)
+	{
+		return false;
+	}
+	std::wstring command{L"\"" + std::wstring{path} + L"\" -generate-nodebank-previews -entries"};
+	for (auto const &entry : Entries)
+	{
+		// the definitions of the bank have no quotes in them; one with a quote would break the command
+		if (entry.find('"') != std::string::npos)
+		{
+			continue;
+		}
+		auto const argument{std::filesystem::path(entry).wstring()};
+		if (command.size() + argument.size() + 4 > 30000)
+		{
+			break; // the longest command Windows takes; the rest with the next press
+		}
+		command += L" \"" + argument + L"\"";
+	}
+	STARTUPINFOW startup{};
+	startup.cb = sizeof(startup);
+	PROCESS_INFORMATION process{};
+	if (FALSE == CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS, nullptr, nullptr, &startup, &process))
+	{
+		return false;
+	}
+	CloseHandle(process.hThread);
+	CloseHandle(process.hProcess);
+	return true;
+#else
+	char path[4096];
+	auto const size{readlink("/proc/self/exe", path, sizeof(path) - 1)};
+	if (size <= 0)
+	{
+		return false;
+	}
+	path[size] = '\0';
+	std::string command{"'" + std::string{path} + "' -generate-nodebank-previews -entries"};
+	for (auto const &entry : Entries)
+	{
+		if (entry.find('"') == std::string::npos && entry.find('\'') == std::string::npos)
+		{
+			command += " '" + entry + "'";
+		}
+	}
+	command += " >/dev/null 2>&1 &";
+	return std::system(command.c_str()) == 0;
+#endif
+}
+
+std::vector<std::string> nodebank_panel::entries_without_previews() const
+{
+	std::vector<std::string> missing;
+	std::set<std::string> seen;
+	std::error_code error;
+	for (auto const &entry : m_nodebank)
+	{
+		if (entry.second->empty())
+		{
+			continue;
+		}
+		auto const lookup{m_previewpaths.find(entry.second.get())};
+		if (lookup == m_previewpaths.end())
+		{
+			continue;
+		}
+		// the first entry of its model and skin only: the generator numbers the next ones by the order it's given them
+		auto const plain{editor_previews::entry_preview_path(*entry.second) + ".png"};
+		auto const first{seen.insert(plain).second};
+		if (first && lookup->second == plain && false == std::filesystem::exists(lookup->second, error))
+		{
+			missing.push_back(*entry.second);
+		}
+	}
+	return missing;
 }
 
 void nodebank_panel::add_template(const std::string &desc)

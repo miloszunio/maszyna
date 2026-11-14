@@ -17861,3 +17861,81 @@ msgstr "Znalezione tekstury ziemi: %zu"
 
 msgid "The earth heaped along the wings and the cornices, over the edges where the terrain is cut, down into the terrain round about; textures with earth, gravel, stone or soil in the name. Empty: the material of the terrain there"
 msgstr "Obsypka z ziemi wzdłuż skrzydeł i gzymsów: przykrywa krawędzie wycięcia terenu i schodzi łagodnie w teren wokół. Lista szuka tekstur z ziemią, żwirem, kamieniem, gruntem w nazwie. Puste pole: materiał terenu w tym miejscu"
+
+msgid "Add a model..."
+msgstr "Dodaj model..."
+
+msgid "Puts a model into the node bank (nodebank.txt) in a group of your choice; its preview is made in the background"
+msgstr "Dopisuje model do banku obiektów (nodebank.txt) w wybranej grupie; miniatura robi się w tle"
+
+msgid "Make the missing previews"
+msgstr "Zrób brakujące miniatury"
+
+msgid "No previews are missing"
+msgstr "Nie brakuje żadnej miniatury"
+
+msgid "Making %zu previews in the background; reload the node bank when it's done, or they show at the next start"
+msgstr "Robię w tle %zu miniatur; po skończeniu przeładuj bank albo pokażą się przy następnym uruchomieniu"
+
+msgid "The maker of the previews couldn't be started"
+msgstr "Nie udało się uruchomić robienia miniatur"
+
+msgid "Starts the simulator again in the background to draw the models with no preview yet (eu07 -generate-nodebank-previews); the previews show after reloading the node bank, or at the next start"
+msgstr "Uruchamia w tle drugi raz symulator, który rysuje modele bez miniatury (eu07 -generate-nodebank-previews); miniatury pokażą się po przeładowaniu banku albo przy następnym uruchomieniu"
+
+msgid "The preview shows at the next start (or after reloading the node bank), once it's made:\na model added here gets it made in the background, the others with \"Make the missing previews\" under More settings"
+msgstr "Miniatura pojawi się przy następnym uruchomieniu (albo po przeładowaniu banku), kiedy już powstanie:\nmodel dodany tutaj dostaje ją w tle sam, pozostałe zrobisz przyciskiem „Zrób brakujące miniatury” w „Więcej ustawień”"
+
+msgid "Add a model to the node bank"
+msgstr "Dodaj model do banku obiektów"
+
+msgid "model, from models/ (e.g. drzewa/drzewo_lisciaste_01.t3d)"
+msgstr "model, z models/ (np. drzewa/drzewo_lisciaste_01.t3d)"
+
+msgid "Look for models not in the bank"
+msgstr "Szukaj modeli spoza banku"
+
+msgid "filter"
+msgstr "filtr"
+
+msgid "press the button above to list them"
+msgstr "naciśnij przycisk wyżej, żeby je wypisać"
+
+msgid "Skin##add"
+msgstr "Skóra (tekstura)##add"
+
+msgid "A texture replacing the model's own (a path under textures/), or none: the model as it is"
+msgstr "Tekstura zamiast własnej modelu (ścieżka w textures/) albo none: model taki, jaki jest"
+
+msgid "Range (m)##add"
+msgstr "Zasięg (m)##add"
+
+msgid "Group##addcombo"
+msgstr "Grupa##addcombo"
+
+msgid "(choose or type below)"
+msgstr "(wybierz albo wpisz niżej)"
+
+msgid "New group##add"
+msgstr "Nowa grupa##add"
+
+msgid "or a name of a new group"
+msgstr "albo nazwa nowej grupy"
+
+msgid "There's no models/%s"
+msgstr "Nie ma pliku models/%s"
+
+msgid "Add to the node bank"
+msgstr "Dodaj do banku"
+
+msgid "Added to \"%s\"; its preview is being made in the background and shows after reloading the node bank, or at the next start"
+msgstr "Dodano do „%s”; miniatura robi się w tle i pokaże się po przeładowaniu banku albo przy następnym uruchomieniu"
+
+msgid "Added to \"%s\"; the preview couldn't be made in the background, it'll be made with \"Make the missing previews\""
+msgstr "Dodano do „%s”; miniatury nie udało się zrobić w tle, zrobisz ją przyciskiem „Zrób brakujące miniatury”"
+
+msgid "nodebank.txt couldn't be written"
+msgstr "Nie udało się zapisać nodebank.txt"
+
+msgid "Written into nodebank.txt in the group chosen. The preview is made in the background and shows after reloading the node bank, or at the next start"
+msgstr "Zapisuje do nodebank.txt w wybranej grupie. Miniatura robi się w tle i pokaże się po przeładowaniu banku albo przy następnym uruchomieniu"

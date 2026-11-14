@@ -206,3 +206,15 @@ GeoTools → **Idź do**: mapa z kamerą, wyszukiwarka miejscowości (polskie zn
 - Sprawdź numer wersji w tytule okna.
 - Długa operacja bez klepsydry albo z „Nie odpowiada”: zapisz, co klikałeś, i `log.txt`.
 - Zrzut ekranu z widocznymi podpowiedziami na dole bardzo pomaga.
+
+## Bank obiektów: dodawanie modeli i miniatury (od nr 178)
+
+- Grupy w banku są ułożone alfabetycznie.
+- **„Dodaj model...”** (żółty, obok „Zestawy modeli...”) otwiera okno:
+  1. Wpisz ścieżkę modelu względem `models\` albo kliknij „Szukaj modeli spoza banku” i wybierz z listy (pole „filtr” zawęża listę).
+  2. „Skóra”: `none` oznacza model z jego własną teksturą.
+  3. „Zasięg (m)”: domyślnie 2000.
+  4. „Grupa”: wybierz istniejącą albo wpisz nazwę nowej.
+  5. „Dodaj do banku” dopisuje wpis do `nodebank.txt`, przeładowuje bank i w tle robi miniaturę.
+- Miniatura pokazuje się po przeładowaniu banku („Więcej ustawień” → „Przeładuj bank”) albo przy następnym uruchomieniu.
+- Brakujące miniatury pozostałych modeli: „Więcej ustawień” → **„Zrób brakujące miniatury”**.

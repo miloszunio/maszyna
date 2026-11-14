@@ -190,6 +190,18 @@ class nodebank_panel : public ui_panel
 	void preview_popup(std::pair<std::string, std::shared_ptr<std::string>> const &Entry);
 	// true if the node bank selection is a definition of a node, which the hand-made lists and the model sets can take
 	bool node_selected() const;
+	// the window adding a model to the node bank: the model looked for under models/, its skin, the group (one of the bank's or a
+	// new one) and the range; written into nodebank.txt in its group, the image of it made in the background
+	void render_add_window();
+	// writes the entry into nodebank.txt at the end of the group named (a new group at the end of the file if there's none), then
+	// reads the bank again; false if the file couldn't be written
+	bool insert_entry(std::string const &Group, std::string const &Entry);
+	// starts this program again in the background, making the images of the entries (-generate-nodebank-previews); false if it
+	// couldn't be started
+	static bool make_previews(std::vector<std::string> const &Entries);
+	// the entries with no image yet, which the generator names the same alone as with the whole bank (no other entry of the same
+	// model and skin before them)
+	std::vector<std::string> entries_without_previews() const;
 	// members:
 	std::function<void()> m_standin;
 	std::string m_standintitle;
@@ -212,6 +224,15 @@ class nodebank_panel : public ui_panel
 	int m_setsnameid{0}; // id of the set whose name is held in the edit buffer
 	char m_setsname[128]{};
 	model_set_ref m_setsgroup{model_set_ref::source::nodebank, 0}; // node bank group to append to the edited set
+	// the window adding a model
+	bool m_addopen{false};
+	char m_addmodel[256]{};
+	char m_addskin[128]{"none"};
+	char m_addgroup[128]{};
+	char m_addfilter[128]{};
+	int m_addrange{2000};
+	std::vector<std::string> m_addfound; // models under models/ not in the bank yet, after a search
+	std::string m_addnote; // what the last adding did
 };
 
 // scenery layers of a scenery opened for editing: their visibility, selection lock, the layer receiving new nodes,
