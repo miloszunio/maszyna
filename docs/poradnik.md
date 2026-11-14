@@ -9,6 +9,7 @@ Wszystko, co zmienia scenerię, ma **żółty** przycisk, a podpowiedzi w widoku
 - **~** (tylda, klawisz na lewo od 1) włącza i wyłącza ortofotomapę na terenie, **Ctrl+~** najpierw ściąga kafelki tam, gdzie patrzy kamera.
 - **GeoTools** (dawniej Ficzery) to dział **F7** na górnej belce, z zakładkami **Pola**, **Drzewa**, **Torowisko i skarpy**, **Idź do** (te same narzędzia są na pasku). Drogi to **F4**, Tory **F3**.
 - Ciężkie operacje (torowisko i skarpy na całej scenerii, przemalowanie, film, dociąganie terenu, obiekty pod torami) pokazują **klepsydrę** na zamrożonym ekranie.
+- **Nowy chunk** (UTWÓRZ, z NMT, z gruntu scenerii, rosnący przy torach) **zszywa się sam** z istniejącymi sąsiadami: jego krawędzie dostają ich wysokości, różnica wygasa w głąb na 40 m. Bez przycisku. Szczelina, która już jest, znika po Ctrl+Z i ponownym UTWÓRZ.
   Postęp w procentach jest w tytule okna, **Esc** przerywa tam, gdzie się da. To, co zrobione, zostaje i da się cofnąć.
 
 
@@ -104,20 +105,29 @@ Najwięcej daje niższe słońce (rano, popołudnie) przy pogodnym niebie: rzęd
 2. „Puść teren” zdejmuje dociąganie (z tej drogi albo, z ptaszkiem, ze wszystkich).
 3. Po zmianie profilu drogi dociągnij teren jeszcze raz.
 
-## Droga pod torem: łuk, wiadukt, przepust
+## Droga pod torem: przepust, wiadukt, most
 
 1. Ustaw drogę na **właściwej rzędnej** pod nasypem (okno profilu: Poziomo / Stałe pochylenie / W górę-w dół o). Droga ma przechodzić w nasypie, pod jego powierzchnią.
-2. Okno profilu → **Obiekt pod torem**: rodzaj (**łuk sklepiony**, **sklepienie półkoliste**, **wiadukt ramowy**, **przęsło belkowe na przyczółkach**, **przepust skrzynkowy**), skrajnia nad drogą, szerokość w świetle (0 = jak droga), tekstura.
-   „Szukaj tekstur” zbiera z `textures/` te z betonem, cegłą, kamieniem, murem w nazwie. Jedna tekstura pokrywa mur i beton; „Tekstura powtarza się co (m)” ją zagęszcza albo rozciąga. Stal (dźwigary, balustrady) jest w kolorze, bez tekstury.
-   „Na czołach”: attyka z muru, stalowa balustrada albo nic; domyślnie według rodzaju obiektu.
-   „Przęsła”: więcej niż jedno stawia filary; ustaw wtedy „szerokość w świetle” na całość (np. droga i rzeka). „Rura z blachy falistej” to okrągły przekrój szerszy niż dno. „Tekstura stali” dotyczy dźwigarów, balustrad i rury; puste pole daje ciemny kolor.
-   **Mosty z torem na konstrukcji** (od nr 164): „Most blachownicowy, tor na konstrukcji” i „Most kratownicowy, tor między kratownicami”. Nasyp kończy się na przyczółkach i jest wycięty na całej szerokości między nimi; tor leży na pomoście (`pomost`), pod nim dźwigary blachownicowe na łożyskach albo, w kratownicowym, poprzecznice i dwie kratownice po bokach (`kratownice`). Przęsło krótsze niż 24 m dostaje niskie kratownice bez stężeń górnych, dłuższe wysokie (min. 7,5 m) ze stężeniami nad torem. „Przęsła” stawia filary, na nich łożyska. Skrajnia liczy się do spodu dźwigarów: wysokość konstrukcji pod torem to 1/12 rozpiętości przęsła (0,8–2,6 m), w kratownicowym 0,5 m.
-   Obiekt to **jeden model `.t3d`** z podmodelami: `obiekt` (przyczółki, skrzydła, dno), `sklepienie` / `plyta`, `czola`, `attyka` / `balustrady`, `dzwigary`, `lozyska`.
-3. Żółty **„Postaw obiekty pod torami”**. Na każdym skrzyżowaniu drogi z nasypem toru (modyfikatorem terenu) powstaje obiekt:
-   czoła równoległe do toru, skrzydła wzdłuż skarp do miejsca, gdzie teren schodzi do drogi, teren przed czołami wycięty, podłoga przy drodze.
-   Teren nad obiektem i tor zostają bez zmian. Jeśli droga była dociągnięta do terenu, dociąganie robi się od nowa z przerwą na obiekty.
-4. Jeśli nasyp jest za niski na ustawioną skrajnię, obiekt powstaje ze skrajnią, jaka się mieści (min. 2,2 m), i status to mówi; po odznaczeniu „Tak wysoki, jak się zmieści…” status mówi, o ile obniżyć drogę.
-5. „Usuń je” zdejmuje obiekty tej drogi i zamyka dziury. Modele są w `models/kabina_obiekty/`.
+2. Okno profilu → **Obiekt pod torem** → **Rodzaj** (od nr 165, osiem wyraźnie różnych, według typowych obiektów polskich linii):
+   - **Rura z blachy falistej**: okrągły przekrój, końce ścięte po skarpie, betonowy wieniec na skarpie wokół wlotu. Bez skrzydeł.
+   - **Przepust skrzynkowy (żelbet)**: prostokąt ze skosami w górnych narożach, niska ścianka czołowa nad stropem, skrzydła ukośne (30°) wzdłuż skarp.
+   - **Sklepienie murowane (kamień, cegła)**: łuk odcinkowy albo półkolisty, archiwolta wystająca z muru czołowego, gzyms, murowana attyka, skrzydła lekko rozchylone.
+   - **Wiadukt ramowy (żelbet)**: ściany i strop w jednym, duże skosy w narożach, skrzydła w linii ścian, balustrada, gdy tor biegnie tuż nad nim.
+   - **Płyta z belek stalowych obetonowanych na przyczółkach**: cienka płyta z wysuniętą krawędzią, ciemne przekładki łożysk nad przyczółkami, oczepy pod płytą, skrzydła ukośne (20°).
+   - **Blachownica z jazdą górą**: dźwigary z żebrami i stężeniami pod korytem balastowym, łożyska na ciosach na ławie, ścianka zaplecza do torowiska, balustrada.
+   - **Blachownica z jazdą dołem**: dwa wysokie dźwigary obok toru, koryto na poprzecznicach między nimi; zabiera pod torowiskiem tylko ok. 0,55 m, więc mieści się nad niską drogą.
+   - **Kratownica z jazdą dołem**: kratownice po bokach; przęsło od 32 m wysokie ze stężeniami nad torem i portalami, krótsze niskie z ramami „U” (zastrzałami do poprzecznic).
+   Pod listą: **ile dany rodzaj zabiera pod torowiskiem** ponad skrajnię. Mosty z jazdą dołem zabierają najmniej.
+   „Szukaj tekstur” zbiera z `textures/` te z betonem, cegłą, kamieniem, murem w nazwie. Jedna tekstura pokrywa mur i beton; „Tekstura powtarza się co (m)” ją zagęszcza albo rozciąga. „Tekstura stali” dotyczy dźwigarów, kratownic, koryta, balustrad i rury; puste pole daje ciemny kolor.
+   „Na czołach”: attyka z muru, stalowa balustrada albo nic; domyślnie według rodzaju.
+   „Przęsła”: więcej niż jedno stawia filary (w mostach z łożyskami na filarach); ustaw wtedy „szerokość w świetle” na całość.
+3. Żółty **„Postaw obiekty pod torami”**. Na każdym skrzyżowaniu drogi z nasypem toru (modyfikatorem terenu):
+   - **Obiekty pod nasypem** (rura, przepust, sklepienie, rama, płyta): czoło stoi tam, gdzie **rzeczywisty teren** nasypu schodzi do góry obiektu (nie ze wzoru), więc obiekt nie wystaje poza skarpę. Skrzydła idą wzdłuż skarp do miejsca, gdzie teren schodzi do drogi; ich korona trzyma się terenu. Teren nad obiektem jest podniesiony tak, żeby go przykrył; nic nie wisi w otworze.
+   - **Mosty**: nasyp wycięty między przyczółkami od końca do końca skrzydeł; skrzydło schodzi łagodnie od torowiska do skarpy.
+   - **Zszycie z terenem**: każda krawędź wyciętego terenu leży wewnątrz ściany, skrzydła albo ścianki czołowej; otwór ma własne dno sięgające pod skrzydła i za ich końce. Szczeliny nie ma gdzie zobaczyć.
+4. Jeśli nasyp jest za niski: z ptaszkiem „Tak wysoki, jak się zmieści…” obiekt dostaje skrajnię, jaka się mieści (min. **2,5 m**), i status to mówi. Gdy nawet to się nie mieści, obiekt nie powstaje, a **żółty napis pod przyciskami** mówi dokładnie: ile metrów nasypu jest nad drogą, ile zabiera ten rodzaj, **o ile obniżyć drogę** i że most z jazdą dołem zabiera najmniej.
+5. „Usuń je” zdejmuje obiekty tej drogi i zamyka dziury (teren podniesiony nad nimi zostaje; Ctrl+Z cofa całość). Modele są w `models/kabina_obiekty/`.
+6. Klikanie w dno otworu (np. żeby zacząć nową drogę) łapie punkt na dnie, które widać, a nie na wyciętym terenie pod nim.
 
 ## Z filmu z kabiny
 

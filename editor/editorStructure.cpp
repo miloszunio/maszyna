@@ -183,6 +183,21 @@ void builder::bar(glm::dvec3 const &From, glm::dvec3 const &To, double const Wid
 	quad(start[1], end[1], end[2], start[2], side);
 }
 
+void builder::solid(std::array<glm::dvec3, 8> const &Corners) const
+{
+	glm::dvec3 middle{0.0};
+	for (auto const &corner : Corners)
+		middle += corner * 0.125;
+	auto const face = [&](int const A, int const B, int const C, int const D) {
+		auto const centre{(Corners[A] + Corners[B] + Corners[C] + Corners[D]) * 0.25};
+		quad(Corners[A], Corners[B], Corners[C], Corners[D], centre - middle);
+	};
+	face(0, 1, 2, 3);
+	face(4, 5, 6, 7);
+	for (int i = 0; i < 4; ++i)
+		face(i, (i + 1) % 4, 4 + (i + 1) % 4, 4 + i);
+}
+
 void builder::member(glm::dvec3 const &From, glm::dvec3 const &To, double const Size) const
 {
 	auto const axis{To - From};

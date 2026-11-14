@@ -15,6 +15,7 @@ http://mozilla.org/MPL/2.0/.
 #include "application/editormodeshared.h"
 #include "editor/editorFormat.hpp"
 #include "editor/editorRoad.hpp"
+#include "editor/editorCrossing.hpp"
 #include "editor/editorStructure.hpp"
 #include "utilities/translation.h"
 #include "world/Road.h"
@@ -1073,496 +1074,56 @@ void editor_mode::road_structures(bool const Remove)
 	}
 
 	auto const crossings{crossings_of(pieces, m_streamer.modifiers())};
-	// 0 an arch, 1 a frame, 2 a box culvert, 3 a semicircular arch, 4 a span of girders on abutments, 5 a tube of steel;
-	// the track on the structure, the embankment ending at the abutments: 6 a bridge of plate girders, 7 one of trusses
-	int const kind{std::clamp(tool.structure_type, 0, 7)};
-	auto const open{kind >= 6};
-	auto const truss{kind == 7};
-	auto const semicircle{kind == 3 || kind == 5};
-	auto const girders{kind == 4};
-	int const type{semicircle ? 0 : girders || open ? 1 : kind}; // the shape of the opening: 0 a vault, else a flat soffit
-	double const wall{girders || open ? 1.6 : type == 0 ? 1.2 : type == 1 ? 1.0 : 0.4}; // thickness of the abutments and the wings
-	double const deck{girders ? 1.3 : type == 0 ? 0.7 : type == 1 ? 0.8 : 0.4}; // of the ring of the arch, of the deck, or of the girders
-	double const headwall{type == 0 ? 0.9 : 0.6}; // into the embankment from the face
-	double const coping{0.25}; // the cornice on top of the faces
-	double const asked{std::max(1.5, static_cast<double>(tool.structure_clearance))};
-	double const lowest{2.2}; // m, the least clearance a structure is built with where the one asked for has no room
+	crossing::options options;
+	options.type = static_cast<crossing::kind>(std::clamp(tool.structure_type, 0, static_cast<int>(crossing::kind::count) - 1));
+	options.clearance = tool.structure_clearance;
+	options.width = tool.structure_width;
+	options.spans = tool.structure_spans;
+	options.fit = tool.structure_fit;
+	options.parapet = tool.structure_parapet;
+	options.tile = tool.structure_tile;
+	options.material = tool.structure_material;
+	options.steel = tool.structure_steel;
 	std::vector<std::string> lowered;
-	std::size_t built{0};
 	std::vector<std::string> refused;
-	auto const ground_at = [this](glm::dvec2 const &P, double &Height) { return m_streamer.height_at(P.x, P.y, Height, true); };
+	std::size_t built{0};
+	tool.structure_note.clear();
+	// the ground raised over the structures is a touch-up over the formations of the tracks, kept over them
+	auto const touchup{m_streamer.touch_up()};
+	m_streamer.touch_up(true);
 	for (std::size_t number = 0; number < crossings.size(); ++number)
 	{
 		editor_busy_progress(static_cast<double>(number) / static_cast<double>(crossings.size()));
 		auto const &c{crossings[number]};
-		auto const r{c.road};
-		glm::dvec2 const n{-r.y, r.x}; // across the road, to its left
-		glm::dvec2 const m{-c.track.y, c.track.x}; // across the track
-		auto const rm{glm::dot(r, m)}, nm{glm::dot(n, m)};
-		if (std::abs(rm) < std::sin(glm::radians(20.0)))
+		crossing::site site;
+		site.at = c.at;
+		site.road = c.road;
+		site.grade = c.grade;
+		site.track = c.track;
+		site.formation = c.formation;
+		site.half_width = c.half_width;
+		site.slope = c.slope;
+		site.width = c.width;
+		site.ground = [this](glm::dvec2 const &P, double &Height) { return m_streamer.height_at(P.x, P.y, Height, true); };
+		auto made{crossing::build(site, options)};
+		if (false == made.built)
 		{
-			refused.push_back(format(STR_C("%s: the road runs along the track there (under 20 degrees)"), c.name.c_str()));
+			if (made.refused == crossing::refusal::along_track)
+				refused.push_back(format(STR_C("%s: the road runs along the track there (under 20 degrees)"), c.name.c_str()));
+			else
+				refused.push_back(format(STR_C("%s: not built. The formation is %.1f m over the road and this kind takes %.2f m of it under the formation, which leaves %.2f m of clearance; "
+				                               "lower the road under the track by %.2f m, or choose a bridge with the track between its girders (it takes the least)"),
+				                         c.name.c_str(), c.formation - c.at.y, c.formation - c.at.y - made.room, made.room, made.short_by));
 			continue;
 		}
-		auto const origin2{flat2(c.at)};
-		auto const place = [&](double const X, double const S) { return origin2 + n * X + r * S; };
-		auto const road_y = [&](double const S) { return c.at.y + c.grade * S; };
-		// half of the width between the walls; of a tube, the one at the road till its circle is known
-		double half{(tool.structure_width > 0.5f ? static_cast<double>(tool.structure_width) : c.width + 0.5) * 0.5};
-		// where along the road a line at a distance from the axis of the track lies, for a place across the road
-		auto const s_at = [&](double const X, double const Distance) { return (Distance - X * nm) / rm; };
-		// the soffit level over the whole length, from the higher end of the road under it; refined once the length is known
-		double clearance{asked};
-		double soffit{0.0};
-		double reach{0.0};
-		double top{0.0};
-		auto const shape = [&]() {
-			soffit = c.at.y + clearance;
-			for (int pass = 0; pass < 2; ++pass)
-			{
-				top = soffit + deck + 0.3;
-				reach = c.half_width + (c.formation - top) * c.slope; // the faces, from the axis of the track
-				auto const extent{std::abs(s_at(half + wall, reach)) + std::abs(s_at(-half - wall, reach))};
-				soffit = c.at.y + clearance + std::abs(c.grade) * extent * 0.5;
-			}
-			top = soffit + deck + 0.3;
-			reach = c.half_width + (c.formation - top) * c.slope;
-		};
-		// an open bridge: the track lies on its deck, the girders under it (the trusses beside it, cross beams under it)
-		double under_deck{0.0};
-		if (open)
-		{
-			auto count{std::clamp(tool.structure_spans, 1, 6)};
-			while (count > 1 && (2.0 * half - (count - 1) * 0.8) / count < 2.0)
-				--count;
-			auto const length{(2.0 * half - (count - 1) * 0.8) / count / std::abs(rm)}; // of a span, along the track
-			under_deck = truss ? 0.5 : std::clamp(length / 12.0, 0.8, 2.6);
-			top = c.formation;
-			reach = c.half_width + (truss ? 0.9 : 0.3);
-			soffit = c.formation - 0.02 - 0.3 - under_deck;
-			auto const extent{std::abs(s_at(half + wall, reach)) + std::abs(s_at(-half - wall, reach))};
-			auto const room{soffit - c.at.y - std::abs(c.grade) * extent * 0.5};
-			if (room < asked && (false == tool.structure_fit || room < lowest))
-			{
-				refused.push_back(format(STR_C("%s: the formation is %.1f m over the road, a bridge with the track on it needs %.1f m: lower the road by %.1f m or the clearance"),
-				                         c.name.c_str(), c.formation - c.at.y, c.formation - c.at.y + (tool.structure_fit ? lowest : asked) - room,
-				                         (tool.structure_fit ? lowest : asked) - room));
-				continue;
-			}
-			if (room < asked)
-				lowered.push_back(format(STR_C("%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"), c.name.c_str(), room, asked));
-			clearance = std::min(asked, room);
-		}
-		else
-			shape();
-		if (false == open && c.formation < top + 0.2 && tool.structure_fit)
-		{
-			// no room for the clearance asked for: the one there's room for, if it's one to drive or walk under
-			clearance = std::max(lowest, clearance - (top + 0.2 - c.formation) - 0.05);
-			shape();
-			if (c.formation >= top + 0.2)
-				lowered.push_back(format(STR_C("%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"), c.name.c_str(), clearance, asked));
-		}
-		if (false == open && c.formation < top + 0.2)
-		{
-			refused.push_back(format(STR_C("%s: the formation is %.1f m over the road, the structure needs %.1f m: lower the road by %.1f m or the clearance"),
-			                         c.name.c_str(), c.formation - c.at.y, top + 0.2 - c.at.y, top + 0.2 - c.formation));
-			continue;
-		}
-		// the arch: a circle through the springings and the crown; the frame and the culvert: a flat soffit
-		// a tube of corrugated steel: a circle through the two edges of the floor and the crown, wider than the floor at the
-		// height of its middle. One lower than half its floor is wide would be no tube: it's built as a semicircular vault
-		double tube_middle{0.0}; // of the circle over the floor; 0: no tube
-		if (kind == 5 && clearance > half + 0.2)
-		{
-			tube_middle = (clearance * clearance - half * half) / (2.0 * clearance);
-			half = clearance - tube_middle; // the radius: the walls and the wings stand this far from the axis
-		}
-		auto const tube{tube_middle > 0.0};
-		// several spans: piers between them, the width set shared by the spans and the piers
-		auto spans{tube ? 1 : std::clamp(tool.structure_spans, 1, 6)};
-		double const pier{type == 0 ? 1.0 : 0.8};
-		while (spans > 1 && (2.0 * half - (spans - 1) * pier) / spans < 2.0)
-			--spans;
-		auto const clear{(2.0 * half - (spans - 1) * pier) / spans}; // between the walls or the piers of one span
-		auto const span_start = [&](int const Span) { return -half + Span * (clear + pier); };
-		// the span over the place across the road, -1 over a pier or past the walls
-		auto const span_of = [&](double const X) {
-			for (int i = 0; i < spans; ++i)
-				if (X >= span_start(i) - 1e-6 && X <= span_start(i) + clear + 1e-6)
-					return i;
-			return -1;
-		};
-		auto const halfspan{0.5 * clear};
-		auto const rise{type != 0 ? 0.0 : tube ? half : semicircle ? std::min(halfspan, clearance - 0.3) : std::min(halfspan, std::max(0.5, clearance - 2.5))};
-		auto const springing{soffit - rise};
-		double const bearing{0.12}; // m, the height of the bearings of a girder
-		// how far over the soffit the slab of a span of girders lies: the girders hang under it down to the soffit
-		auto const slab_over{girders ? deck - 0.35 : 0.0};
-		// what stands on top of the faces: 0 nothing, 1 a railing, 2 a wall; left to the kind of the structure when not set
-		auto const parapet{tool.structure_parapet > 0 ? tool.structure_parapet - 1 : type == 0 ? 2 : kind == 2 || truss ? 0 : 1};
-		auto const radius{type == 0 ? (rise * rise + halfspan * halfspan) / (2.0 * rise) : 0.0};
-		auto const opening = [&](double const X) {
-			if (type != 0)
-				return soffit;
-			auto const over{span_of(X)};
-			if (over < 0)
-				return springing;
-			auto const x{X - (span_start(over) + halfspan)};
-			auto const inside{std::max(0.0, radius * radius - x * x)};
-			return soffit - radius + std::sqrt(inside);
-		};
-		// the lower part of a tube, from its widest down to the floor: where its wall lies at an angle below the middle
-		auto const tube_low{tube ? std::asin(std::clamp(tube_middle / half, 0.0, 1.0)) : 0.0};
-		int const tube_parts{6};
-		auto const tube_x = [&](int const Part) { return half * std::cos(tube_low * Part / tube_parts); };
-		auto const tube_y = [&](int const Part) { return springing - half * std::sin(tube_low * Part / tube_parts); };
-		// the wings: from each face out along the road as far as the ground beside it comes down to the road
-		double tips[2][2]; // [side of the track][side of the road]: s where the wing ends
-		for (int face = 0; face < 2; ++face)
-			for (int side = 0; side < 2; ++side)
-			{
-				auto const x{side == 0 ? -(half + wall) : half + wall};
-				auto const sign{face == 0 ? -1.0 : 1.0};
-				auto const start{s_at(x, sign * reach)};
-				auto const outward{sign * (rm > 0.0 ? 1.0 : -1.0)};
-				double s{start};
-				for (int k = 0; k < 120; ++k)
-				{
-					double ground{0.0};
-					auto const next{s + outward * 0.5};
-					// no farther than the foot of the embankment at the height of the road: past it a road in a cutting has the
-					// slopes of its own cutting, not walls
-					if (std::abs(next * rm + x * nm) > c.half_width + std::max(0.0, c.formation - road_y(next)) * c.slope + 1.0)
-						break;
-					if (false == ground_at(place(x + (side == 0 ? -0.6 : 0.6), next), ground) || ground <= road_y(next) + 0.3)
-						break;
-					s = next;
-				}
-				tips[face][side] = s + outward * 0.5;
-			}
-
-		// one model, its parts the submodels: the masonry or the concrete textured with the material chosen, the steel plain
-		structure::model mesh;
-		auto const tile{std::clamp(static_cast<double>(tool.structure_tile), 0.25, 50.0)};
-		glm::ivec3 const steel{70, 78, 72};
-		structure::builder const body{&mesh.add("obiekt", tool.structure_material), tile}; // the abutments, the wings, the floor
-		auto const &steelwork_material{tool.structure_steel}; // empty: the plain colour
-		structure::builder const span{tube ? &mesh.add("rura", steelwork_material, steelwork_material.empty() ? steel : glm::ivec3{255, 255, 255}, true)
-		                                   : &mesh.add(type == 0 ? "sklepienie" : open ? "pomost" : "plyta", tool.structure_material, {255, 255, 255}, type == 0),
-		                              tile};
-		// the faces and their cornices; an open bridge has none
-		structure::builder const fronts{open ? body.into : &mesh.add("czola", tool.structure_material), tile};
-		glm::dvec3 const up{0.0, 1.0, 0.0};
-		glm::dvec3 const across{n.x, 0.0, n.y}; // the way x grows, across the road
-		glm::dvec3 const along{r.x, 0.0, r.y}; // the way s grows, along the road
-		// away from the axis of the track on its side where the distance from it grows
-		auto const trackside{glm::normalize(along * rm + across * nm)};
-		auto const point = [&](double const X, double const S, double const Y) {
-			auto const p{place(X, S)};
-			return glm::dvec3{p.x, Y, p.y};
-		};
-		// the floor beside the road, under it, from the end of one pair of wings to the other
-		{
-			auto const from{std::min({tips[0][0], tips[0][1], tips[1][0], tips[1][1]})};
-			auto const to{std::max({tips[0][0], tips[0][1], tips[1][0], tips[1][1]})};
-			for (double s = from; s < to; s += 1.0)
-			{
-				auto const e{std::min(to, s + 1.0)};
-				body.quad(point(-half, s, road_y(s) - 0.06), point(half, s, road_y(s) - 0.06), point(half, e, road_y(e) - 0.06), point(-half, e, road_y(e) - 0.06), up);
-			}
-		}
-		// the abutments and the wings, each side of the road one wall from the tip of one wing to the other
-		for (int side = 0; side < 2; ++side)
-		{
-			auto const inner{side == 0 ? -half : half};
-			auto const outer{side == 0 ? -(half + wall) : half + wall};
-			auto const s_face0{s_at(inner, -reach)}, s_face1{s_at(inner, reach)};
-			auto const low{std::min(s_face0, s_face1)}, high{std::max(s_face0, s_face1)};
-			auto const tip_low{std::min(tips[0][side], tips[1][side])}, tip_high{std::max(tips[0][side], tips[1][side])};
-			// the height of the top of the wall: under the vault or the deck between the faces, the slope of the embankment along
-			// the wings outside, from the top of the faces down to the road
-			auto const inner_top{type == 0 ? springing : soffit};
-			auto const wing_top = [&](double const S) {
-				double ground{road_y(S) + 0.3};
-				ground_at(place(outer + (side == 0 ? -0.3 : 0.3), S), ground);
-				return std::clamp(ground, road_y(S) + 0.3, top);
-			};
-			auto const wall_top = [&](double const S) { return S > low + 1e-3 && S < high - 1e-3 ? inner_top : wing_top(S); };
-			std::vector<double> stations;
-			for (double s = tip_low; s < tip_high; s += 0.5)
-				stations.push_back(s);
-			stations.push_back(tip_high);
-			stations.push_back(low);
-			stations.push_back(high);
-			std::sort(stations.begin(), stations.end());
-			stations.erase(std::unique(stations.begin(), stations.end(), [](double A, double B) { return std::abs(A - B) < 0.05; }), stations.end());
-			for (std::size_t k = 0; k + 1 < stations.size(); ++k)
-			{
-				auto const s0{stations[k]}, s1{stations[k + 1]};
-				auto const mid{0.5 * (s0 + s1)};
-				auto const between{mid > low && mid < high};
-				auto const h0{between ? inner_top : wing_top(s0)}, h1{between ? inner_top : wing_top(s1)};
-				auto const f0{road_y(s0) - 0.06}, f1{road_y(s1) - 0.06};
-				// the face to the road, the top, the face to the ground behind
-				auto const roadward{side == 0 ? across : -across};
-				if (tube && between)
-				{
-					// the wall of the tube curving in to the edge of the floor
-					auto const sgn{side == 0 ? -1.0 : 1.0};
-					for (int part = 0; part < tube_parts; ++part)
-					{
-						auto const last{part + 1 == tube_parts};
-						span.quad(point(sgn * tube_x(part), s0, tube_y(part)), point(sgn * tube_x(part), s1, tube_y(part)), point(sgn * tube_x(part + 1), s1, last ? f1 : tube_y(part + 1)),
-						          point(sgn * tube_x(part + 1), s0, last ? f0 : tube_y(part + 1)), roadward);
-					}
-				}
-				else
-					body.quad(point(inner, s0, f0), point(inner, s1, f1), point(inner, s1, h1), point(inner, s0, h0), roadward);
-				body.quad(point(inner, s0, h0), point(inner, s1, h1), point(outer, s1, h1), point(outer, s0, h0), up);
-				body.quad(point(outer, s0, f0), point(outer, s1, f1), point(outer, s1, h1), point(outer, s0, h0), -roadward);
-			}
-			// the ends of the wings
-			for (auto const s : {tip_low, tip_high})
-			{
-				auto const h{wall_top(s)};
-				body.quad(point(inner, s, road_y(s) - 0.06), point(outer, s, road_y(s) - 0.06), point(outer, s, h), point(inner, s, h), s == tip_low ? -along : along);
-			}
-		}
-		// the vault or the deck, between the faces
-		{
-			// a vault over each span; a deck in one piece over all of them
-			int const parts{type == 0 ? 16 : 1};
-			int const vaults{open ? 0 : type == 0 ? spans : 1};
-			auto const from{type == 0 ? clear : 2.0 * half};
-			for (int i = 0; i < parts * vaults; ++i)
-			{
-				auto const start{type == 0 ? span_start(i / parts) : -half};
-				auto const x0{start + from * (i % parts) / parts}, x1{start + from * (i % parts + 1) / parts};
-				auto const y0{opening(x0)}, y1{opening(x1)};
-				// seen from below; under a span of girders the slab lies over them
-				span.quad(point(x0, s_at(x0, -reach), y0 + slab_over), point(x1, s_at(x1, -reach), y1 + slab_over), point(x1, s_at(x1, reach), y1 + slab_over), point(x0, s_at(x0, reach), y0 + slab_over), -up);
-			}
-		}
-		// the piers between the spans, from the floor up to the springings or the deck, from one face to the other
-		for (int k = 1; k < spans; ++k)
-		{
-			structure::builder const piers{&mesh.add("filary", tool.structure_material), tile};
-			auto const x1{span_start(k)};
-			auto const x0{x1 - pier};
-			auto const head{type == 0 ? springing : soffit + (girders ? 0.0 : slab_over)}; // girders lie on bearings on it
-			for (auto const x : {x0, x1})
-			{
-				auto const from{s_at(x, -reach)};
-				auto const to{s_at(x, reach)};
-				piers.quad(point(x, from, road_y(from) - 0.06), point(x, to, road_y(to) - 0.06), point(x, to, head), point(x, from, head), x == x0 ? -across : across);
-			}
-		}
-		// the faces: from the opening (or the ground beside it) up to the top, along the line of the track; the cornice over them
-		for (int face = 0; face < (open ? 0 : 2); ++face)
-		{
-			auto const sign{face == 0 ? -1.0 : 1.0};
-			std::vector<double> xs{-(half + wall + 0.2), -(half + wall)};
-			int const parts{type == 0 ? 16 : 1};
-			for (int k = 0; k < spans; ++k)
-				for (int i = 0; i <= parts; ++i)
-					xs.push_back(span_start(k) + clear * i / parts);
-			xs.insert(xs.end(), {half + wall, half + wall + 0.2});
-			auto const floor_at = [&](double const X) { return road_y(s_at(X, sign * reach)) - 0.06; };
-			for (std::size_t k = 0; k + 1 < xs.size(); ++k)
-			{
-				auto const x0{xs[k]}, x1{xs[k + 1]};
-				auto const s0{s_at(x0, sign * reach)}, s1{s_at(x1, sign * reach)};
-				// the outermost strips are the cornice reaching past the walls only
-				// over the opening the face starts at the vault or the deck, beside it at the floor
-				auto const over{span_of(0.5 * (x0 + x1)) >= 0 && std::abs(0.5 * (x0 + x1)) < half};
-				auto const b0{over ? opening(x0) : floor_at(x0)};
-				auto const b1{over ? opening(x1) : floor_at(x1)};
-				if (k != 0 && k + 2 != xs.size())
-					fronts.quad(point(x0, s0, b0), point(x1, s1, b1), point(x1, s1, top), point(x0, s0, top), trackside * sign);
-				// the cornice: a band over the face, sticking out of it a little
-				auto const out{(sign * reach + sign * 0.15)};
-				auto const so0{s_at(x0, out)}, so1{s_at(x1, out)};
-				auto const back0{s_at(x0, sign * (reach - headwall))}, back1{s_at(x1, sign * (reach - headwall))};
-				fronts.quad(point(x0, so0, top), point(x1, so1, top), point(x1, so1, top + coping), point(x0, so0, top + coping), trackside * sign);
-				fronts.quad(point(x0, so0, top + coping), point(x1, so1, top + coping), point(x1, back1, top + coping), point(x0, back0, top + coping), up);
-				// the underside of the cornice where it sticks out of the face
-				fronts.quad(point(x0, so0, top), point(x1, so1, top), point(x1, s1, top), point(x0, s0, top), -up);
-			}
-			// the ends of the cornice
-			for (auto const x : {-(half + wall + 0.2), half + wall + 0.2})
-			{
-				auto const so{s_at(x, sign * (reach + 0.15))}, back{s_at(x, sign * (reach - headwall))};
-				fronts.quad(point(x, so, top), point(x, back, top), point(x, back, top + coping), point(x, so, top + coping), x < 0.0 ? -across : across);
-			}
-			// a tube: the face between its wall curving in and the line of its widest
-			for (int part = 0; tube && part < tube_parts; ++part)
-				for (auto const sgn : {-1.0, 1.0})
-				{
-					auto const last{part + 1 == tube_parts};
-					auto const xa{sgn * tube_x(part)};
-					auto const xb{sgn * tube_x(part + 1)};
-					auto const xw{sgn * half};
-					auto const ya{tube_y(part)};
-					auto const yb{last ? floor_at(xb) : tube_y(part + 1)};
-					auto const yw{last ? floor_at(xw) : tube_y(part + 1)};
-					fronts.quad(point(xa, s_at(xa, sign * reach), ya), point(xb, s_at(xb, sign * reach), yb), point(xw, s_at(xw, sign * reach), yw), point(xw, s_at(xw, sign * reach), ya), trackside * sign);
-				}
-			// on top of the cornice, along the track: a wall of the masonry over an arch, a railing of steel over the others
-			auto const edge{sign * (reach - 0.1)};
-			auto const end0{-(half + wall + 0.2)};
-			auto const end1{half + wall + 0.2};
-			auto const from{point(end0, s_at(end0, edge), top + coping)};
-			auto const to{point(end1, s_at(end1, edge), top + coping)};
-			if (parapet == 2)
-				structure::builder{&mesh.add("attyka", tool.structure_material), tile}.bar(from, to, 0.4, 0.9);
-			else if (parapet == 1)
-				structure::builder{&mesh.add("balustrady", steelwork_material, steelwork_material.empty() ? steel : glm::ivec3{255, 255, 255}), tile}.railing(from, to, 1.1, 2.0);
-		}
-		// a span of girders: the girders under the slab, along the track from one abutment to the other, on their bearings
-		if (girders)
-		{
-			structure::builder const steelwork{&mesh.add("dzwigary", steelwork_material, steelwork_material.empty() ? steel : glm::ivec3{255, 255, 255}), tile};
-			structure::builder const bearings{&mesh.add("lozyska", "", {40, 40, 40}), tile};
-			auto const count{std::max(2, static_cast<int>(std::ceil((2.0 * reach - 1.2) / 2.2)) + 1)};
-			auto const seat{0.45 * wall}; // how far a girder lies on an abutment
-			for (int i = 0; i < count; ++i)
-			{
-				auto const distance{-(reach - 0.6) + 2.0 * (reach - 0.6) * i / (count - 1)};
-				auto const x0{-(half + seat)};
-				auto const x1{half + seat};
-				steelwork.girder(point(x0, s_at(x0, distance), soffit + bearing), point(x1, s_at(x1, distance), soffit + bearing), 0.4, slab_over - bearing);
-				std::vector<double> seats{-(half + 0.5 * seat), half + 0.5 * seat};
-				for (int k = 1; k < spans; ++k)
-					seats.push_back(span_start(k) - 0.5 * pier); // on the piers
-				for (auto const x : seats)
-				{
-					auto const middle{point(x, s_at(x, distance), soffit)};
-					bearings.bar(middle - across * 0.2, middle + across * 0.2, 0.4, bearing);
-				}
-			}
-		}
-		// an open bridge: the deck the track lies on, from one abutment to the other, on girders under it or between trusses
-		if (open)
-		{
-			auto const steel_colour{steelwork_material.empty() ? steel : glm::ivec3{255, 255, 255}};
-			structure::builder const steelwork{&mesh.add(truss ? "kratownice" : "dzwigary", steelwork_material, steel_colour), tile};
-			structure::builder const bearings{&mesh.add("lozyska", "", {40, 40, 40}), tile};
-			auto const deck_top{c.formation - 0.02};
-			auto const deck_low{deck_top - 0.3};
-			auto const edge{c.half_width};
-			auto const seat{0.5 * wall}; // of an abutment the spans lie on; the rest of it stands up to the formation
-			auto const node = [&](double const X, double const Distance, double const Y) { return point(X, s_at(X, Distance), Y); };
-			for (auto const sgn : {-1.0, 1.0})
-			{
-				// the wall behind the seat, holding the embankment up to the track
-				auto const front{sgn * (half + seat)};
-				auto const back{sgn * (half + wall)};
-				body.quad(node(front, -reach, soffit), node(front, reach, soffit), node(front, reach, deck_top), node(front, -reach, deck_top), across * -sgn);
-				body.quad(node(front, -reach, deck_top), node(front, reach, deck_top), node(back, reach, deck_top), node(back, -reach, deck_top), up);
-				// the step from the seat up to the wings, seen from the bridge
-				for (auto const side : {-1.0, 1.0})
-					body.quad(node(sgn * half, side * reach, soffit), node(front, side * reach, soffit), node(front, side * reach, deck_top), node(sgn * half, side * reach, deck_top),
-					          trackside * -side);
-			}
-			auto const xa{-(half + seat)};
-			auto const xb{half + seat};
-			span.quad(node(xa, -edge, deck_low), node(xb, -edge, deck_low), node(xb, edge, deck_low), node(xa, edge, deck_low), -up);
-			span.quad(node(xa, -edge, deck_top), node(xb, -edge, deck_top), node(xb, edge, deck_top), node(xa, edge, deck_top), up);
-			for (auto const side : {-1.0, 1.0})
-			{
-				span.quad(node(xa, side * edge, deck_low), node(xb, side * edge, deck_low), node(xb, side * edge, deck_top), node(xa, side * edge, deck_top), trackside * side);
-				if (parapet != 0 && false == truss)
-					structure::builder{&mesh.add("balustrady", steelwork_material, steel_colour), tile}.railing(node(xa, side * (edge - 0.1), deck_top), node(xb, side * (edge - 0.1), deck_top),
-					                                                                                           1.1, 2.0);
-			}
-			for (int k = 0; k < spans; ++k)
-			{
-				// a span from the middle of one support to the middle of the next
-				auto const x0{k == 0 ? xa + 0.1 : span_start(k) - 0.5 * pier + 0.05};
-				auto const x1{k + 1 == spans ? xb - 0.1 : span_start(k + 1) - 0.5 * pier - 0.05};
-				auto const length{(x1 - x0) / std::abs(rm)};
-				if (false == truss)
-				{
-					auto const count{std::max(2, static_cast<int>(std::ceil(2.0 * (edge - 0.5) / 2.0)) + 1)};
-					for (int i = 0; i < count; ++i)
-					{
-						auto const distance{-(edge - 0.5) + 2.0 * (edge - 0.5) * i / (count - 1)};
-						steelwork.girder(node(x0, distance, soffit + bearing), node(x1, distance, soffit + bearing), 0.45, under_deck - bearing);
-						for (auto const x : {x0 + 0.2, x1 - 0.2})
-						{
-							auto const middle{node(x, distance, soffit)};
-							bearings.bar(middle - across * 0.15, middle + across * 0.15, 0.4, bearing);
-						}
-					}
-					continue;
-				}
-				// trusses each side of the track: high ones braced over it where the span is long, low ones where it's short
-				auto const through{length >= 24.0};
-				auto const height{through ? std::clamp(length / 7.0, 7.5, 14.0) : std::clamp(length / 8.0, 2.0, 3.2)};
-				auto const size{through ? 0.5 : 0.3}; // of the section of the chords
-				auto const panels{std::max(4, 2 * static_cast<int>(std::lround(length / (2.0 * std::min(height, 6.0)))))};
-				auto const low{deck_top - 0.25};
-				auto const high{low + height};
-				auto const beside{edge + 0.35};
-				auto const at = [&](int const Panel) { return x0 + (x1 - x0) * Panel / panels; };
-				for (auto const side : {-1.0, 1.0})
-				{
-					auto const d{side * beside};
-					steelwork.member(node(x0, d, low), node(x1, d, low), size);
-					steelwork.member(node(at(1), d, high), node(at(panels - 1), d, high), size);
-					steelwork.member(node(x0, d, low), node(at(1), d, high), size);
-					steelwork.member(node(x1, d, low), node(at(panels - 1), d, high), size);
-					for (int i = 1; i < panels; ++i)
-						steelwork.member(node(at(i), d, low), node(at(i), d, high), 0.6 * size);
-					// the diagonals fall towards the middle of the span
-					for (int i = 1; i + 1 < panels; ++i)
-					{
-						auto const falls{2 * i < panels};
-						steelwork.member(node(at(i), d, falls ? high : low), node(at(i + 1), d, falls ? low : high), 0.6 * size);
-					}
-					for (auto const x : {x0 + 0.2, x1 - 0.2})
-					{
-						auto const middle{node(x, d, soffit)};
-						bearings.bar(middle - across * 0.15, middle + across * 0.15, 0.5, low - 0.5 * size - soffit);
-					}
-				}
-				// the cross beams under the deck, and the bracing over the track between high trusses
-				for (int i = 0; i <= panels; ++i)
-				{
-					steelwork.bar(node(at(i), -beside, soffit), node(at(i), beside, soffit), 0.3, under_deck);
-					if (through && i >= 1 && i < panels)
-						steelwork.member(node(at(i), -beside, high), node(at(i), beside, high), 0.6 * size);
-				}
-			}
-		}
-
-		// the holes in the ground: before each face, between the wings, out to their ends; from the middle of the walls, so the
-		// edge of the hole is hidden in them
-		std::vector<std::vector<glm::dvec2>> holes;
-		if (open)
-		{
-			// the whole embankment between the abutments goes, from the ends of the wings on one side to those on the other
-			auto const x_left{-(half + wall * 0.5)};
-			auto const x_right{half + wall * 0.5};
-			auto const outward{rm > 0.0 ? 0.5 : -0.5};
-			holes.push_back({place(x_left, tips[0][0] - outward), place(x_right, tips[0][1] - outward), place(x_right, tips[1][1] + outward), place(x_left, tips[1][0] + outward)});
-		}
-		for (int face = 0; face < (open ? 0 : 2); ++face)
-		{
-			auto const sign{face == 0 ? -1.0 : 1.0};
-			auto const x_left{-(half + wall * 0.5)}, x_right{half + wall * 0.5};
-			auto const inset{sign * (reach - headwall * 0.5)};
-			auto const outward{sign * (rm > 0.0 ? 1.0 : -1.0)};
-			auto const end_left{tips[face][0] + outward * 0.5}, end_right{tips[face][1] + outward * 0.5};
-			holes.push_back({place(x_left, s_at(x_left, inset)), place(x_right, s_at(x_right, inset)), place(x_right, end_right), place(x_left, end_left)});
-		}
+		if (made.lowered)
+			lowered.push_back(format(STR_C("%s: built with a clearance of %.2f m, the formation is too low over the road for %.2f m"), c.name.c_str(), made.clearance, options.clearance));
 		// written with the outlines of its holes beside it, so it can be taken away again
 		auto const stamp{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
 		auto const base{clean + "_" + std::to_string(number) + "_" + std::to_string(stamp)};
 		std::error_code error;
 		std::filesystem::create_directories(folder, error);
-		if (false == mesh.write(folder + base + ".t3d", c.at))
+		if (false == made.mesh.write(folder + base + ".t3d", c.at))
 		{
 			refused.push_back(format(STR_C("%s: the model couldn't be written in %s"), c.name.c_str(), folder.c_str()));
 			continue;
@@ -1571,17 +1132,25 @@ void editor_mode::road_structures(bool const Remove)
 			std::ofstream file{folder + base + ".dziura"};
 			file.precision(3);
 			file << std::fixed;
-			for (auto const &outline : holes)
+			for (auto const &outline : made.holes)
 			{
 				for (auto const &p : outline)
 					file << p.x << ' ' << p.y << ' ';
 				file << '\n';
 			}
 		}
-		for (auto const &outline : holes)
+		for (auto const &outline : made.holes)
 			m_streamer.cut(outline, true);
+		for (auto const &area : made.raise)
+			raise_terrain(area.outline, area.height);
 		simulation::State.create_model("node 3000 0 none model 0 0 0 0 kabina_obiekty/" + base + ".t3d none endmodel", "obiekt " + base, c.at);
 		++built;
+	}
+	m_streamer.touch_up(touchup);
+	if (false == refused.empty())
+	{
+		for (auto const &reason : refused)
+			tool.structure_note += (tool.structure_note.empty() ? "" : "\n") + reason;
 	}
 	terrain_history_step();
 	forget_ground();
@@ -1600,8 +1169,39 @@ void editor_mode::road_structures(bool const Remove)
 		                     crossings.size());
 	for (auto const &reason : lowered)
 		tool.status += "\n" + reason;
-	for (auto const &reason : refused)
-		tool.status += "\n" + reason;
+	if (false == refused.empty())
+		tool.status += "\n" + format(STR_P("%zu crossing not built, the reason is over the button", "%zu crossings not built, the reasons are over the button", refused.size()), refused.size());
+}
+
+void editor_mode::raise_terrain(std::vector<glm::dvec2> const &Outline, double const Height)
+{
+	if (Outline.size() < 3)
+		return;
+	glm::dvec2 low{Outline.front()};
+	glm::dvec2 high{Outline.front()};
+	for (auto const &p : Outline)
+	{
+		low = glm::min(low, p);
+		high = glm::max(high, p);
+	}
+	auto const inside = [&](double const X, double const Z) {
+		bool in{false};
+		for (std::size_t i = 0, j = Outline.size() - 1; i < Outline.size(); j = i++)
+		{
+			auto const &a{Outline[i]};
+			auto const &b{Outline[j]};
+			if ((a.y > Z) != (b.y > Z) && X < (b.x - a.x) * (Z - a.y) / (b.y - a.y) + a.x)
+				in = !in;
+		}
+		return in;
+	};
+	auto const target{static_cast<float>(Height)};
+	m_streamer.reshape(low, high, [&](double const X, double const Z, float &Ground) {
+		if (Ground >= target || false == inside(X, Z))
+			return false;
+		Ground = target;
+		return true;
+	});
 }
 
 void editor_mode::structure_textures_search()
@@ -2145,20 +1745,27 @@ void editor_mode::render_road_profile_window()
 	item_tooltip("The terrain no longer shaped by the road (of the selected one, or of all of them)");
 	ImGui::SeparatorText(STR_C("Structure under the track##roadprofile"));
 	{
-		std::array<char const *, 8> const types{STR_C("Arch (stone, brick)"),
-		                                        STR_C("Frame viaduct (concrete)"),
-		                                        STR_C("Box culvert"),
-		                                        STR_C("Semicircular arch (stone, brick)"),
-		                                        STR_C("Span of girders on abutments (steel, concrete)"),
-		                                        STR_C("Tube of corrugated steel"),
-		                                        STR_C("Bridge of plate girders, the track on it"),
-		                                        STR_C("Bridge of trusses, the track between them")};
-		std::array<float, 8> const clearances{4.7f, 4.7f, 3.0f, 4.7f, 4.7f, 4.7f, 4.7f, 4.7f};
-		ImGui::SetNextItemWidth(220.0f);
+		std::array<char const *, 8> const types{STR_C("Pipe of corrugated steel"),
+		                                        STR_C("Box culvert (reinforced concrete)"),
+		                                        STR_C("Masonry arch (stone, brick)"),
+		                                        STR_C("Frame viaduct (reinforced concrete)"),
+		                                        STR_C("Slab of encased steel beams on abutments"),
+		                                        STR_C("Deck plate girders, the track over them"),
+		                                        STR_C("Through plate girders, the track between them"),
+		                                        STR_C("Through truss, the track between the trusses")};
+		std::array<float, 8> const clearances{3.5f, 3.5f, 4.7f, 4.7f, 4.7f, 4.7f, 4.7f, 4.7f};
+		ImGui::SetNextItemWidth(260.0f);
 		if (ImGui::Combo(STR_C("Kind##structure"), &tool.structure_type, types.data(), static_cast<int>(types.size())))
 			tool.structure_clearance = clearances[static_cast<std::size_t>(std::clamp(tool.structure_type, 0, 7))];
-		item_tooltip("Where the road crosses the formation of a track (its modifier of the terrain): an arch on abutments, a frame of walls and a deck,\n"
-		             "or a box culvert; faces along the track, wing walls along the slopes, the ground before the faces cut away down to the road");
+		{
+			// how much of the height over the road the kind takes under the formation: the bridges with the track between the girders the least
+			auto const span{tool.structure_width > 0.5f ? static_cast<double>(tool.structure_width) : 8.0};
+			ImGui::TextDisabled(STR_C("Takes %.2f m under the formation over the clearance"), crossing::depth_under(static_cast<crossing::kind>(std::clamp(tool.structure_type, 0, 7)), span));
+		}
+		item_tooltip("Where the road crosses the formation of a track (its modifier of the terrain). Under the embankment (a pipe, a box culvert, an arch,\n"
+		             "a frame, a slab): faces where the slopes come down to them, wings along the slopes, the ground over them raised to cover them.\n"
+		             "Bridges (deck or through plate girders, a truss): the embankment cut away between the abutments, the deck on bearings.\n"
+		             "Every edge of the cut ground lies inside a wall or a wing, the opening has a floor of its own");
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::InputFloat(STR_C("Clearance over the road (m)##structure"), &tool.structure_clearance, 0.1f, 0.5f, "%.2f");
 		tool.structure_clearance = std::clamp(tool.structure_clearance, 1.5f, 12.0f);
@@ -2167,7 +1774,7 @@ void editor_mode::render_road_profile_window()
 		tool.structure_width = std::max(0.0f, tool.structure_width);
 		item_tooltip("Between the walls; 0: the road with its shoulders and kerbs, half a metre more");
 		ImGui::Checkbox(STR_C("As high as fits where the clearance doesn't##structure"), &tool.structure_fit);
-		item_tooltip(STR_C("Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.2 m at least) and says so, instead of being refused"));
+		item_tooltip(STR_C("Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.5 m at least) and says so, instead of being refused"));
 		ImGui::SetNextItemWidth(120.0f);
 		ImGui::SliderInt(STR_C("Spans##structure"), &tool.structure_spans, 1, 6);
 		item_tooltip(STR_C("More than one: piers stand between the spans, the width set shared by the spans and the piers; set the width for what's crossed, a road and a river beside it. A span narrower than 2 m isn't made"));
@@ -2224,6 +1831,8 @@ void editor_mode::render_road_profile_window()
 				road_profile_sample();
 			});
 		item_tooltip("The structures of this road taken away and the holes before their faces closed");
+		if (false == tool.structure_note.empty())
+			ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "%s", tool.structure_note.c_str());
 	}
 	if (false == tool.status.empty())
 		ImGui::TextWrapped("%s", tool.status.c_str());

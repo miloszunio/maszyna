@@ -54,6 +54,12 @@ bool terrain_streamer::height_at(double X, double Z, double &Height) const
 	return true;
 }
 
+bool terrain_streamer::cut_at(double X, double Z) const
+{
+	auto const *chunk{terrain_at(X, Z)};
+	return chunk != nullptr && chunk->data().hole_at(X, Z);
+}
+
 void terrain_streamer::georeference(double const North, double const East)
 {
 	if (m_manifest.georeferenced && m_manifest.origin_north == North && m_manifest.origin_east == East)

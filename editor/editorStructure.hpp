@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 // The model has the axes of the models (x the other way, the height third); the points are given here in the ones of the
 // scenery and moved by the writer.
 
+#include <array>
 #include <deque>
 #include <string>
 #include <vector>
@@ -61,6 +62,8 @@ struct builder
 	// a triangle, a quad: seen from where Away points
 	void triangle(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &Away) const;
 	void quad(glm::dvec3 const &A, glm::dvec3 const &B, glm::dvec3 const &C, glm::dvec3 const &D, glm::dvec3 const &Away) const;
+	// a block of eight corners, the four of its bottom and the four of its top over them, each face turned out of its middle
+	void solid(std::array<glm::dvec3, 8> const &Corners) const;
 	// a bar of a rectangular section from From to To: Width across, Height up from the line
 	void bar(glm::dvec3 const &From, glm::dvec3 const &To, double Width, double Height) const;
 	// a member of a truss, of a square section Size wide, the line its middle; it may stand or lean any way

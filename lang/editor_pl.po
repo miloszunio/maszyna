@@ -14230,7 +14230,6 @@ msgstr "Przesuwa profil na miejsce trasy, gdzie jest kamera, bez zmiany powięks
 msgid "The switch drawn to the joint of the tracks"
 msgstr "Rozjazd dosunięty do styku torów"
 
-r
 # for those laying their first track: what's hidden in the ground, what to do in an empty scenery
 msgid "goes on from this end of the track"
 msgstr "przedłuża tor od tego końca"
@@ -17799,3 +17798,45 @@ msgstr "Most kratownicowy, tor między kratownicami"
 
 msgid "%s: the formation is %.1f m over the road, a bridge with the track on it needs %.1f m: lower the road by %.1f m or the clearance"
 msgstr "%s: torowisko jest %.1f m nad drogą, most z torem na konstrukcji potrzebuje %.1f m: obniż drogę o %.1f m albo skrajnię"
+
+msgid "Pipe of corrugated steel"
+msgstr "Rura z blachy falistej"
+
+msgid "Box culvert (reinforced concrete)"
+msgstr "Przepust skrzynkowy (żelbet)"
+
+msgid "Masonry arch (stone, brick)"
+msgstr "Sklepienie murowane (kamień, cegła)"
+
+msgid "Frame viaduct (reinforced concrete)"
+msgstr "Wiadukt ramowy (żelbet)"
+
+msgid "Slab of encased steel beams on abutments"
+msgstr "Płyta z belek stalowych obetonowanych na przyczółkach"
+
+msgid "Deck plate girders, the track over them"
+msgstr "Blachownica z jazdą górą (tor na dźwigarach)"
+
+msgid "Through plate girders, the track between them"
+msgstr "Blachownica z jazdą dołem (tor między dźwigarami)"
+
+msgid "Through truss, the track between the trusses"
+msgstr "Kratownica z jazdą dołem (tor między kratownicami)"
+
+msgid "Takes %.2f m under the formation over the clearance"
+msgstr "Zajmuje %.2f m pod torowiskiem ponad skrajnią"
+
+msgid "%s: not built. The formation is %.1f m over the road and this kind takes %.2f m of it under the formation, which leaves %.2f m of clearance; lower the road under the track by %.2f m, or choose a bridge with the track between its girders (it takes the least)"
+msgstr "%s: nie postawiony. Torowisko jest %.1f m nad drogą, ten rodzaj zabiera z tego %.2f m pod torowiskiem i zostaje %.2f m skrajni; obniż drogę pod torem o %.2f m albo wybierz most z torem między dźwigarami (zabiera najmniej)"
+
+msgid "%zu crossing not built, the reason is over the button"
+msgid_plural "%zu crossings not built, the reasons are over the button"
+msgstr[0] "%zu skrzyżowanie bez obiektu, powód nad przyciskiem"
+msgstr[1] "%zu skrzyżowania bez obiektu, powody nad przyciskiem"
+msgstr[2] "%zu skrzyżowań bez obiektu, powody nad przyciskiem"
+
+msgid "Where the road crosses the formation of a track (its modifier of the terrain). Under the embankment (a pipe, a box culvert, an arch,\na frame, a slab): faces where the slopes come down to them, wings along the slopes, the ground over them raised to cover them.\nBridges (deck or through plate girders, a truss): the embankment cut away between the abutments, the deck on bearings.\nEvery edge of the cut ground lies inside a wall or a wing, the opening has a floor of its own"
+msgstr "Tam, gdzie droga przecina torowisko (jego modyfikator terenu). Pod nasypem (rura, przepust skrzynkowy, sklepienie,\nrama, płyta): czoła tam, gdzie skarpa schodzi do obiektu, skrzydła wzdłuż skarp, teren nad obiektem podniesiony, by go przykryć.\nMosty (blachownica z jazdą górą lub dołem, kratownica): nasyp wycięty między przyczółkami, przęsło na łożyskach.\nKażda krawędź wyciętego terenu leży wewnątrz ściany albo skrzydła, otwór ma własne dno"
+
+msgid "Where the formation of the track isn't high enough over the road for the clearance set, the structure is built with the clearance there's room for (2.5 m at least) and says so, instead of being refused"
+msgstr "Tam, gdzie torowisko nie jest dość wysoko nad drogą na ustawioną skrajnię, obiekt dostaje skrajnię, na jaką jest miejsce (co najmniej 2,5 m), i o tym mówi, zamiast odmówić"

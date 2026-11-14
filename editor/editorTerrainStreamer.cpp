@@ -19,6 +19,7 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/Logs.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -997,13 +998,14 @@ bool terrain_streamer::raycast(glm::dvec3 const &Origin, glm::dvec3 const &Direc
 	if (glm::length(Direction) < 1e-9)
 		return false;
 	auto const direction{glm::normalize(Direction)};
-	// 1 above the ground, -1 under it, 0 where there's no terrain
+	// 1 above the ground, -1 under it, 0 where there's no terrain: none loaded, or cut out (under a structure, a field): what's
+	// seen there is a model, which the depth read back finds, not the ground the hole hides
 	auto const side = [&](double const T) {
 		auto const point{Origin + direction * T};
-		double height;
-		if (false == height_at(point.x, point.z, height))
+		auto const *chunk{terrain_at(point.x, point.z)};
+		if (chunk == nullptr || chunk->data().hole_at(point.x, point.z))
 			return 0;
-		return point.y > height ? 1 : -1;
+		return point.y > chunk->height_at(point.x, point.z) ? 1 : -1;
 	};
 	auto const above = [&](double const T) { return side(T) >= 0; };
 	auto last{side(0.0)};
@@ -1212,7 +1214,111 @@ bool terrain_streamer::add_chunk(int Cx, int Cz, float Spacing, std::function<fl
 	for (int iz = 0; iz <= data->cells; ++iz)
 		for (int ix = 0; ix <= data->cells; ++ix)
 			data->heights[static_cast<std::size_t>(iz) * data->side() + ix] = Height(low.x + ix * step, low.y + iz * step);
+	stitch(*data);
 	return add_chunk(std::move(data));
+}
+
+namespace
+{
+
+// the ground of a chunk under the modifiers at a point of its square, between its grid points
+double ground_of(heightmap::chunk_data const &Data, double const X, double const Z)
+{
+	auto const &ground{Data.base.empty() ? Data.heights : Data.base};
+	auto const low{Data.corner()};
+	auto const step{Data.spacing()};
+	auto const fx{std::clamp((X - low.x) / step, 0.0, static_cast<double>(Data.cells))};
+	auto const fz{std::clamp((Z - low.y) / step, 0.0, static_cast<double>(Data.cells))};
+	auto const ix{std::min(static_cast<int>(fx), Data.cells - 1)};
+	auto const iz{std::min(static_cast<int>(fz), Data.cells - 1)};
+	auto const tx{fx - ix}, tz{fz - iz};
+	auto const at = [&](int const I, int const J) { return static_cast<double>(ground[static_cast<std::size_t>(J) * Data.side() + I]); };
+	return (at(ix, iz) * (1.0 - tx) + at(ix + 1, iz) * tx) * (1.0 - tz) + (at(ix, iz + 1) * (1.0 - tx) + at(ix + 1, iz + 1) * tx) * tz;
+}
+
+// a grid index along one way to the edge on the side Toward (-1 the low one, +1 the high one, 0 along it at K)
+int edge_index(int const Toward, int const Cells, int const K)
+{
+	if (Toward < 0)
+		return 0;
+	return Toward > 0 ? Cells : K;
+}
+
+// how many grid steps a point lies from the edge on the side Toward along one way
+int steps_from_edge(int const Toward, int const Cells, int const Index)
+{
+	return Toward < 0 ? Index : Cells - Index;
+}
+
+} // namespace
+
+void terrain_streamer::stitch(heightmap::chunk_data &Data) const
+{
+	// m over which a difference at an edge fades into the new chunk
+	double constexpr reach{40.0};
+	struct edge
+	{
+		int dx;
+		int dz;
+		std::vector<double> difference; // the neighbour's ground less the new one's, at each point of the new chunk's edge
+	};
+	auto const side{Data.side()};
+	auto const low{Data.corner()};
+	auto const step{Data.spacing()};
+	std::vector<edge> edges;
+	for (auto const &[dx, dz] : std::array<std::pair<int, int>, 4>{{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}})
+	{
+		auto const lookup{m_chunks.find({Data.key.first + dx, Data.key.second + dz})};
+		if (lookup == m_chunks.end())
+			continue;
+		auto const &neighbour{lookup->second->data()};
+		edge found{dx, dz, std::vector<double>(static_cast<std::size_t>(side), 0.0)};
+		for (int k = 0; k < side; ++k)
+		{
+			auto const ix{edge_index(dx, Data.cells, k)};
+			auto const iz{edge_index(dz, Data.cells, k)};
+			auto const x{low.x + ix * step}, z{low.y + iz * step};
+			found.difference[static_cast<std::size_t>(k)] = ground_of(neighbour, x, z) - Data.heights[static_cast<std::size_t>(iz) * side + ix];
+		}
+		edges.push_back(std::move(found));
+	}
+	if (edges.empty())
+		return;
+	for (int iz = 0; iz <= Data.cells; ++iz)
+		for (int ix = 0; ix <= Data.cells; ++ix)
+		{
+			// each edge's difference where the point is square to it, weighted by how near the edge is; on an edge its own exactly
+			double sum{0.0}, weights{0.0}, nearest{reach};
+			bool on_edge{false};
+			for (auto const &e : edges)
+			{
+				auto const distance{(e.dx != 0 ? steps_from_edge(e.dx, Data.cells, ix) : steps_from_edge(e.dz, Data.cells, iz)) * step};
+				auto const difference{e.difference[static_cast<std::size_t>(e.dx != 0 ? iz : ix)]};
+				nearest = std::min(nearest, distance);
+				if (distance < 1e-6)
+				{
+					if (false == on_edge)
+					{
+						sum = 0.0;
+						weights = 0.0;
+						on_edge = true;
+					}
+					sum += difference;
+					weights += 1.0;
+				}
+				else if (false == on_edge)
+				{
+					auto const weight{1.0 / (distance * distance)};
+					sum += difference * weight;
+					weights += weight;
+				}
+			}
+			if (weights <= 0.0 || nearest >= reach)
+				continue;
+			auto const t{1.0 - nearest / reach};
+			auto const fade{t * t * (3.0 - 2.0 * t)};
+			Data.heights[static_cast<std::size_t>(iz) * side + ix] += static_cast<float>(sum / weights * fade);
+		}
 }
 
 bool terrain_streamer::add_chunk(std::shared_ptr<heightmap::chunk_data> Data)

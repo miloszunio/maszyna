@@ -70,6 +70,8 @@ class terrain_streamer
 	editor_terrain *terrain_at(double X, double Z) const;
 	// height of the terrain at (X,Z); false where there's no chunk in memory
 	bool height_at(double X, double Z, double &Height) const;
+	// the terrain at (X,Z) cut out by a hole: what's seen there is a model
+	bool cut_at(double X, double Z) const;
 	// the same, the chunk read from its file first if it isn't in memory
 	bool height_at(double X, double Z, double &Height, bool Load);
 	// triangles of the full grid of the chunks in memory overlapping the rectangle (x, z)
@@ -108,6 +110,9 @@ class terrain_streamer
 	bool add_chunk(int Cx, int Cz, float Spacing, std::function<float(double X, double Z)> const &Height, std::uint16_t Layer = 0);
 	// a chunk made elsewhere, at the place its key says; its layers are indices of the palette
 	bool add_chunk(std::shared_ptr<heightmap::chunk_data> Data);
+	// the ground of a new chunk led to that of the chunks beside it: its edges take their heights, the differences fade into it
+	// over some tens of metres. Done to every chunk made from heights, so no seam opens where a chunk is added
+	void stitch(heightmap::chunk_data &Data) const;
 	void remove_chunk(int Cx, int Cz);
 	// changes the point spacing of the chunk at (Cx, Cz), heights resampled; Paint: paint samples along a side less one
 	// the chunk gets, 0 keeps the ones it has. returns: true if the chunk changed

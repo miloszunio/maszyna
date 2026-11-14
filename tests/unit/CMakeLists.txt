@@ -33,6 +33,7 @@ add_executable(${UNIT_TESTS_NAME}
 	"${CMAKE_SOURCE_DIR}/editor/editorRailData.cpp"
 	"${CMAKE_SOURCE_DIR}/editor/editorRailDesign.cpp"
 	"${CMAKE_SOURCE_DIR}/editor/editorStructure.cpp"
+	"${CMAKE_SOURCE_DIR}/editor/editorCrossing.cpp"
 	${UNIT_TEST_CASES})
 
 # the core library brings the game's build settings along

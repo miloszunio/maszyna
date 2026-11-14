@@ -3369,11 +3369,12 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float structure_tile{2.0f}; // m the texture of a structure repeats over
 		int structure_spans{1}; // piers between them when more than one
 		std::string structure_steel; // the texture of the girders, the railings and the tube; empty: a plain colour
+		std::string structure_note; // why the last structures weren't built where they weren't, shown over the button
 		int structure_parapet{0}; // on top of the faces: 0 as the kind has it, 1 nothing, 2 a railing, 3 a wall
 		bool structure_fit{true}; // a structure with no room for the clearance asked for is built as high as the formation lets
 		// the structures where the road runs under the formation of a track
-		int structure_type{0}; // 0 an arch, 1 a frame viaduct, 2 a box culvert, 3 a semicircular arch, 4 a span of girders, 5 a tube of steel, 6 an open bridge of plate girders, 7 one of trusses
-		float structure_clearance{4.7f}; // m over the road to the soffit or the crown
+		int structure_type{1}; // crossing::kind: a pipe, a box culvert, an arch, a frame, a slab, deck plate girders, through plate girders, a truss
+		float structure_clearance{3.5f}; // m over the road to the soffit, the crown or the lowest steel
 		float structure_width{0.0f}; // m between the walls, 0: as the road
 		std::string structure_material{"beton001"}; // the one texture of the whole structure
 		std::vector<std::string> structure_textures; // found under textures/ to choose from

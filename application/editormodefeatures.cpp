@@ -805,12 +805,18 @@ void editor_mode::render_create_chunks()
 	m_streamer.height_at(Camera.Pos.x, Camera.Pos.z, ground);
 	screen_projection const projection;
 	auto const *viewport{ImGui::GetMainViewport()};
-	int const reach{3};
+	int const reach{1}; // the chunks next to the one under the camera: none farther is within 100 m
 	for (auto x{home.first - reach}; x <= home.first + reach; ++x)
 		for (auto z{home.second - reach}; z <= home.second + reach; ++z)
 		{
 			heightmap::chunk_key const key{x, z};
 			if (false == m_streamer.absent(key))
+				continue;
+			// only near it: within 100 m of its square, seen from above
+			auto const corner{heightmap::chunk_corner(key)};
+			auto const dx{std::max({corner.x - Camera.Pos.x, 0.0, Camera.Pos.x - (corner.x + heightmap::chunk_size)})};
+			auto const dz{std::max({corner.y - Camera.Pos.z, 0.0, Camera.Pos.z - (corner.y + heightmap::chunk_size)})};
+			if (dx * dx + dz * dz > 100.0 * 100.0)
 				continue;
 			glm::dvec3 const middle{(x + 0.5) * heightmap::chunk_size, ground, (z + 0.5) * heightmap::chunk_size};
 			ImVec2 at;

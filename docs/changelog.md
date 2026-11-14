@@ -23,6 +23,15 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 165
+
+- **Obiekty pod torem od nowa, osiem wyraźnie różnych rodzajów** wzorowanych na obiektach polskich linii: rura z blachy falistej (końce ścięte po skarpie, wieniec), przepust skrzynkowy (skosy, skrzydła ukośne), sklepienie murowane (archiwolta, gzyms, attyka), wiadukt ramowy (duże skosy, skrzydła w linii ścian), płyta z belek obetonowanych (wysunięta krawędź, przekładki łożysk), blachownica z jazdą górą, blachownica z jazdą dołem, kratownica z jazdą dołem (od 32 m ze stężeniami górą i portalami).
+- **Wysokość pilnowana:** czoło tam, gdzie rzeczywisty teren nasypu schodzi do góry obiektu, skrzydła do końca skarpy. Gdy obiekt się nie mieści, **żółty napis** mówi, o ile obniżyć drogę (wcześniej „nic się nie działo”: odmowa szła do szarego statusu). Najmniej pod torowiskiem zabierają mosty z jazdą dołem (ok. 0,55 m).
+- **Teren zszyty z obiektem:** każda krawędź dziury leży w murze; dno otworu sięga pod skrzydła; teren nad obiektem podniesiony, żeby go przykrył.
+- **Nowe chunki zszywane z sąsiadami** od razu przy tworzeniu (krawędź = wysokość sąsiada, wygaszanie na 40 m), bez przycisku.
+- Etykiety UTWÓRZ tylko dla brakujących chunków bliżej niż 100 m od kamery.
+- Kliknięcie nad wyciętym terenem łapie punkt na widocznym dnie (wcześniej narzędzie dróg łapało punkt kawałek dalej).
+
 ## nr 164
 
 - **Mosty z torem na konstrukcji:** most blachownicowy (tor na pomoście, dźwigary pod nim) i most kratownicowy (tor między kratownicami). Nasyp wycięty na całej szerokości między przyczółkami, ścianki żwirowe, pomost, łożyska.
