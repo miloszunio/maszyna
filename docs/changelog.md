@@ -23,6 +23,15 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 180
+
+- **Nazwy torów tylko w ASCII**: przy otwarciu scenerii w edytorze tory z nazwami ze znakami spoza ASCII dostają nazwy bez nich (ą→a, ł→l, ß→ss, Č→c itd., reszta znaków → `_`), małymi literami, jak czyta je parser. Nazwy w UTF-8 i w Windows-1250 rozpoznawane same.
+  - Na środku ekranu przez **20 s** żółte ostrzeżenie z liczbą zmian i pierwszymi przykładami „stara → nowa”; pełna lista w `log.txt`.
+  - Razem z torem zmieniają się komórki pamięci wskazujące tor i parametry includów, które nadają mu nazwę. Gdy nowa nazwa jest zajęta, dostaje `_2`, `_3`…
+  - Eventy, składy i reszta dalej trafiają w tory po starych nazwach: wyszukiwanie toru po nazwie z polskimi znakami znajduje go też pod nazwą w ASCII, a eventy przypięte nazwą (`<tor>:event0`) znajdują się po nowej nazwie toru. Działa też w trybie jazdy.
+  - Zmiana trafia do plików przy zapisie scenerii (definicje tych torów edytor pisze od nowa). Tory z plików, których edytor nie zapisuje, zostają w nich po staremu; ostrzeżenie podaje, ile ich jest.
+- Sonar: oznaczone generatory losowe pędzla i dwa adresy http usług mapowych.
+
 ## nr 179
 
 - **Pędzel w Otoczeniu od nowa**, dwie ścieżki:

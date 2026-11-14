@@ -487,7 +487,7 @@ std::vector<wms_preset> const &wms_presets()
 {
     static std::vector<wms_preset> const presets{
         {"Railway lines and stations (PKP PLK)", "The lines of PKP PLK with their numbers, the stations and the stops, the plants of the lines",
-         "http://mapa.plk-sa.pl:8080/geoserver/SILK/ows", "WMS_SILK_linie_kolejowe,WMS_SILK_stacje_przystanki,WMS_SILK_zaklady", {}},
+         "http://mapa.plk-sa.pl:8080/geoserver/SILK/ows", "WMS_SILK_linie_kolejowe,WMS_SILK_stacje_przystanki,WMS_SILK_zaklady", {}}, // NOSONAR(cpp:S5332) public map tiles, the address as the operator publishes it
         {"Railways (BDOT10k)", "The tracks of the topographic database, platforms and the railway areas", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
          {"kolej", "torow", "tory", "sktr", "peron"}},
         {"Power lines and poles (BDOT10k)", "Overhead power lines, their poles, masts and towers", "https://mapy.geoportal.gov.pl/wss/service/pub/guest/kompozycja_BDOT10k_WMS/MapServer/WMSServer", "",
@@ -510,7 +510,7 @@ std::vector<wms_preset> const &wms_presets()
         {"Streets and addresses", "The streets, the squares and the address points of the national register", "https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaNumeracjiAdresowej",
          "prg-ulice,prg-place,prg-adresy", {}},
         {"Local plans (MPZP)", "The local zoning plans of the communes", "https://mapy.geoportal.gov.pl/wss/ext/KrajowaIntegracjaMiejscowychPlanowZagospodarowaniaPrzestrzennego", "", {}},
-        {"Listed monuments", "The immovable monuments of the register", "http://usluga.zabytek.gov.pl/INSPIRE_IMD/service.svc/get", "Immovable_Monuments", {}},
+        {"Listed monuments", "The immovable monuments of the register", "http://usluga.zabytek.gov.pl/INSPIRE_IMD/service.svc/get", "Immovable_Monuments", {}}, // NOSONAR(cpp:S5332) public map tiles, the address as the operator publishes it
     };
     return presets;
 }

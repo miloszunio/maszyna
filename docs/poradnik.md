@@ -241,3 +241,10 @@ Narzędzie **Pędzel** (klawisz 3 w Otoczeniu) ma dwie ścieżki:
   - stała: procent x, y, z;
   - losowa: ± procent, jednakowa na wszystkich osiach (model zachowuje proporcje) albo osobno na każdej osi.
 - „Losowy model z zestawu” działa jak dotąd: każdy model losowany z wybranego zestawu albo ręcznej listy.
+
+## Nazwy torów w ASCII (od nr 180)
+
+- Przy otwarciu scenerii w edytorze każda nazwa toru z polskimi literami (albo innymi znakami spoza ASCII) jest zamieniana na ASCII: `Łąka_1` → `laka_1`, `żółw` → `zolw`. Znaki nie do odczytania jako litera zamieniają się na `_`.
+- Przez 20 s na środku ekranu wisi żółte ostrzeżenie z listą pierwszych zmian. Wszystkie zmiany są w `log.txt` (szukaj „renamed to”).
+- Żeby nowe nazwy trafiły do plików, **zapisz scenerię** (Ctrl+S).
+- Eventów i składów z polskimi nazwami torów nie trzeba poprawiać: symulator i tak znajduje tory po starej nazwie, a eventy `<tor>:event0` po nowej.
