@@ -680,7 +680,41 @@ class maker
 				auto const eo{e + w.out * dim.wall};
 				auto const h{wing_top(w, w.length)};
 				body.quad(f.lift(e, low(e)), f.lift(eo, low(eo)), f.lift(eo, h), f.lift(e, h), glm::dvec3{w.way.x, 0.0, w.way.y});
+				wing_skirt(w, sign, us);
 			}
+	}
+
+	// the earth along the outer top edge of a wing: turned round its start towards the track (the corner with the face or the
+	// abutment) and round its end along the road, so the corners are covered too
+	void wing_skirt(wing const &W, int const Sign, std::vector<double> const &Us)
+	{
+		skirt_line line;
+		auto const to_track{f.m * static_cast<double>(-Sign)};
+		auto const edge = [&](double const U) {
+			auto const p{W.start + W.way * U + W.out * dim.wall};
+			return f.lift(p, wing_top(W, std::max(0.0, U)));
+		};
+		int constexpr fan{4};
+		auto const first{std::max(0.0, Us.front())};
+		for (int i = 0; i < fan; ++i)
+		{
+			auto const t{i / static_cast<double>(fan)};
+			line.points.push_back(edge(first));
+			line.outward.push_back(glm::normalize(glm::mix(to_track, W.out, t)));
+		}
+		for (auto const u : Us)
+			if (u >= first)
+			{
+				line.points.push_back(edge(u));
+				line.outward.push_back(W.out);
+			}
+		for (int i = 1; i <= fan; ++i)
+		{
+			auto const t{i / static_cast<double>(fan)};
+			line.points.push_back(edge(W.length));
+			line.outward.push_back(glm::normalize(glm::mix(W.out, W.way, t)));
+		}
+		out.skirts.push_back(std::move(line));
 	}
 
 	// the parts of the structures under the embankment: the soffit, the faces with their cornices and what stands on them
@@ -777,6 +811,19 @@ class maker
 		auto const cornice_top{top + kCoping};
 		std::array<glm::dvec2, 4> const plan{f.place(-ends, f.s_at(-ends, back)), f.place(ends, f.s_at(ends, back)), f.place(ends, f.s_at(ends, front)), f.place(-ends, f.s_at(-ends, front))};
 		block(mesh.build("gzymsy", true), plan, top, cornice_top);
+		// the earth over the structure meets the back of the cornice: heaped from it towards the track
+		{
+			skirt_line line;
+			auto const toward{glm::normalize(f.place(0.0, f.s_at(0.0, back - Sign)) - f.place(0.0, f.s_at(0.0, back)))};
+			int const pieces{std::max(2, static_cast<int>(std::ceil(2.0 * ends / 0.5)))};
+			for (int i = 0; i <= pieces; ++i)
+			{
+				auto const x{-ends + 2.0 * ends * i / pieces};
+				line.points.push_back(f.lift(f.place(x, f.s_at(x, back)), cornice_top));
+				line.outward.push_back(toward);
+			}
+			out.skirts.push_back(std::move(line));
+		}
 		// the ring of an arch standing out of the face, the stones of it seen
 		if (k == kind::arch)
 			archivolt(Sign);
@@ -1241,6 +1288,20 @@ class maker
 				hole.emplace_back(p.x, p.z);
 			}
 			out.holes.push_back(hole);
+			// the earth round the ring, out from its rim
+			skirt_line ring;
+			for (int j = 0; j <= parts; ++j)
+			{
+				auto const rim{on(radius + 0.5, angle(j), 0.12)};
+				auto const inner{on(radius, angle(j), 0.12)};
+				glm::dvec2 const way{rim.x - inner.x, rim.z - inner.z};
+				if (glm::length(way) < 1e-6)
+					continue;
+				ring.points.push_back(rim);
+				ring.outward.push_back(glm::normalize(way));
+			}
+			if (ring.points.size() >= 2)
+				out.skirts.push_back(std::move(ring));
 			reach[i] = crown_at[i];
 		}
 		auto const x{radius + 0.6};
@@ -1371,6 +1432,47 @@ std::vector<glm::dvec3> ground_outside(std::vector<ground_cell> const &Cells, st
 namespace crossing
 {
 
+double skirt_height(double const Share, double const Start, double const Ground_at_start, double const Ground, double const Bump, double const Sink)
+{
+	auto const rest{1.0 - Share};
+	// from the structure (where it may stand over the terrain or under it) to the terrain quickly, a gentle heap over it on the way,
+	// into it at the end
+	return Ground + (Start - Ground_at_start) * rest * rest * rest * rest + Bump * 4.0 * Share * rest - Sink * Share * Share;
+}
+
+std::vector<glm::dvec3> skirt(std::vector<skirt_line> const &Lines, std::function<double(glm::dvec2 const &)> const &Ground, double const Reach, double const Bump, double const Sink)
+{
+	std::vector<glm::dvec3> triangles;
+	int constexpr rings{8};
+	for (auto const &line : Lines)
+	{
+		auto const count{std::min(line.points.size(), line.outward.size())};
+		if (count < 2)
+			continue;
+		// the band across: rings of points from the edge outward, one row a point of the line
+		std::vector<std::array<glm::dvec3, rings + 1>> rows(count);
+		for (std::size_t i = 0; i < count; ++i)
+		{
+			auto const &p{line.points[i]};
+			glm::dvec2 const base{p.x, p.z};
+			auto const ground_at_start{Ground(base)};
+			for (int j = 0; j <= rings; ++j)
+			{
+				auto const share{j / static_cast<double>(rings)};
+				auto const at{base + line.outward[i] * (Reach * share)};
+				rows[i][j] = {at.x, skirt_height(share, p.y, ground_at_start, Ground(at), Bump, Sink), at.y};
+			}
+		}
+		for (std::size_t i = 0; i + 1 < count; ++i)
+			for (int j = 0; j < rings; ++j)
+			{
+				auto const &a{rows[i][j]}, &b{rows[i + 1][j]}, &c{rows[i + 1][j + 1]}, &d{rows[i][j + 1]};
+				triangles.insert(triangles.end(), {a, b, c, a, c, d});
+			}
+	}
+	return triangles;
+}
+
 namespace
 {
 
@@ -1467,6 +1569,9 @@ std::vector<shaded_triangle> preview(options const &Options)
 	auto const laid{ground_outside(cut, made.holes)};
 	for (std::size_t i = 0; i + 2 < laid.size(); i += 3)
 		out.push_back({{laid[i], laid[i + 1], laid[i + 2]}, grass});
+	auto const earth{skirt(made.skirts, raised, 1.42 * cell + 0.6)};
+	for (std::size_t i = 0; i + 2 < earth.size(); i += 3)
+		out.push_back({{earth[i], earth[i + 1], earth[i + 2]}, glm::dvec3{0.48, 0.40, 0.30}});
 	// the track's ballast on the formation
 	glm::dvec2 const t{place.track}, m{-t.y, t.x};
 	for (int i = -12; i < 12; ++i)

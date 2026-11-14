@@ -99,6 +99,14 @@ enum class refusal
 	too_low // the formation is too low over the road for the structure with the least clearance
 };
 
+// a line along an edge of a structure where the ground meets it from outside: the top of a wing on its outer side, the back of a
+// cornice, the rim of a ring round a pipe; the earth heaped against the structure (obsypka) runs from it outward into the terrain
+struct skirt_line
+{
+	std::vector<glm::dvec3> points; // on the edge, at its top
+	std::vector<glm::dvec2> outward; // from each point, the way the earth goes
+};
+
 struct result
 {
 	bool built{false};
@@ -110,6 +118,7 @@ struct result
 	structure::model mesh;
 	std::vector<std::vector<glm::dvec2>> holes; // cut out of the terrain, each edge inside a solid part
 	std::vector<raise_area> raise;
+	std::vector<skirt_line> skirts;
 	double length{0.0}; // along the road, from the end of one wing to the end of the other
 };
 
@@ -132,6 +141,15 @@ struct ground_cell
 // the ground of the cells where the holes (convex) don't reach: the terrain's own triangles, on the same planes, cut along the
 // edges of the holes; three points a triangle, counter-clockwise seen from above. Laid into the cells cut out whole, it meets
 // the terrain around edge to edge and the structure inside the holes
+// the earth heaped along the lines, three points a triangle: a band from each line out to Reach on the plan, starting on the
+// structure at the line's height, over the terrain (Ground) by Bump at most on the way, coming down into it and Sink under it at
+// its outer edge, so it ends in the terrain on a line of its own, never a straight edge. Reach as wide as the cells cut out round
+// the holes and more: the earth covers them, the edges of the cut never seen
+std::vector<glm::dvec3> skirt(std::vector<skirt_line> const &Lines, std::function<double(glm::dvec2 const &)> const &Ground, double Reach, double Bump = 0.18, double Sink = 0.08);
+// the height of the earth at a share (0 on the structure, 1 at the outer edge) of the way across: Start over the terrain at the
+// structure, Ground the terrain under the point
+double skirt_height(double Share, double Start, double Ground_at_start, double Ground, double Bump, double Sink);
+
 // a triangle of a picture of a structure: its corners and its colour (0..1)
 struct shaded_triangle
 {

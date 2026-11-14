@@ -407,7 +407,7 @@
 	void ground_of_structure(crossing::result &Made);
 	void raise_terrain(std::vector<glm::dvec2> const &Outline, double Height);
 	// the textures of walls under textures/, to choose the one of the structures from
-	void structure_textures_search();
+	void structure_textures_search(bool Earth);
 	// the vertical profile of the selected road in a window of its own (P, or the button of the road panel): the ground and the
 	// road along it, and what evens it out, leads the terrain to it and builds the structures under the tracks
 	struct road_profile_view

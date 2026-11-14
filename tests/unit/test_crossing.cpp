@@ -213,3 +213,37 @@ TEST_CASE("crossing: the holes are convex, so the ground laid round them is cut 
 				}
 			}
 }
+
+TEST_CASE("crossing: the earth heaped along a structure starts on it and ends in the terrain")
+{
+	// on the structure at the share 0, in the terrain at 1, over it on the way when the structure stands no lower than it
+	CHECK(crossing::skirt_height(0.0, 3.0, 2.5, 2.5, 0.18, 0.08) == doctest::Approx(3.0));
+	CHECK(crossing::skirt_height(1.0, 3.0, 2.5, 1.0, 0.18, 0.08) == doctest::Approx(1.0 - 0.08));
+	for (double share = 0.05; share < 0.75; share += 0.05)
+		CHECK(crossing::skirt_height(share, 2.5, 2.5, 2.4, 0.18, 0.08) > 2.4);
+	// a wall half a metre lower than the terrain: over the terrain again within a third of the way
+	CHECK(crossing::skirt_height(0.35, 2.0, 2.5, 2.5, 0.18, 0.08) > 2.5);
+
+	for (int type = 0; type < static_cast<int>(crossing::kind::count); ++type)
+	{
+		auto const site{embankment(6.5, 75.0)};
+		crossing::options options;
+		options.type = static_cast<crossing::kind>(type);
+		options.clearance = 4.0;
+		auto const made{crossing::build(site, options)};
+		if (false == made.built)
+			continue;
+		CHECK(false == made.skirts.empty());
+		auto const ground = [&](glm::dvec2 const &P) {
+			double h{0.0};
+			site.ground(P, h);
+			return h;
+		};
+		auto const earth{crossing::skirt(made.skirts, ground, 3.4)};
+		CHECK(earth.size() % 3 == 0);
+		CHECK(false == earth.empty());
+		// every point of the earth starts on the structure's line or lies near the terrain: no sheet hanging in the air
+		for (auto const &p : earth)
+			CHECK(p.y < ground({p.x, p.z}) + 4.5);
+	}
+}

@@ -6615,6 +6615,13 @@ void editor_mode::enter()
             choose_work_area(work_area::tracks);
             WriteLog("Editor: camera over the origin of the empty scenery");
         }
+        // the editor always starts in the top view, whatever it was left in: the remembered orthophoto is drawn right only
+        // when the first picture of it is made looking straight down
+        if (false == Global.EditorOrtho)
+        {
+            toggle_ortho();
+            Global.pCamera = Camera;
+        }
     }
 
     Global.ControlPicking = true;

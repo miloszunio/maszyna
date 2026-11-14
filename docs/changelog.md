@@ -23,6 +23,11 @@ Oznaczenia przy pozycjach niżej: **[PR #n]** otwarty PR, **[master #n]** już w
 
 Do wystawienia później: drzewa (ZIELSKO) i działki, tłumaczenia `.po`. Tory z mapy, obiekty pod torem i mosty, drogi gruntowe, GeoTools: na razie tylko ficzery2.
 
+## nr 177
+
+- **Obsypka wzdłuż obiektu** (pomysł użytkownika): od zewnętrznej górnej krawędzi każdego skrzydła, od tylnej krawędzi gzymsu i od wieńca rury wychodzi pas ziemi. Zaczyna się na koronie muru, robi lekki garb (ok. 18 cm) i opada parabolą w teren, kończąc się 8 cm pod nim. Jest szeroki na przekątną komórki siatki plus 0,6 m, więc przykrywa zęby wycięcia i szparę nad koroną skrzydła. Na narożnikach skrzydła obsypka zawija się w stronę toru i wzdłuż drogi. Tekstura do wyboru w polu „Tekstura obsypki” (wyszukiwarka: ziemia, żwir, kamień, grunt…); puste pole oznacza materiał terenu.
+- **Edytor zawsze startuje w rzucie pionowym** (widok z góry), niezależnie od tego, w jakim widoku go zamknięto: zapamiętane ortofoto rysuje się dobrze tylko wtedy, gdy pierwszy obraz powstaje z góry.
+
 ## nr 176
 
 - **Nasyp nad obiektem nie jest już przecinany przekopem drogi.** W nr 173–175 przekop drogi zatrzymywał się tylko tam, gdzie skarpa nasypu była wyżej niż „grunt rodzimy”. Za grunt rodzimy brałem wysokości sprzed modyfikatorów, a w terenie z NMT ten grunt zawiera już prawdziwy nasyp. Przekop szedł więc przez cały nasyp, także nad obiektem i między torami. Wyglądało to jak zasłony trawy wiszące z nasypu i strzępy terenu przy czołach, a pas gruntu przy murze dziedziczył te strzępy. Teraz o tym, co jest nasypem, decyduje wyłącznie modyfikator toru. Przekop dochodzi do otworu tylko z odcinka, który nie przechodzi pod koroną nasypu.

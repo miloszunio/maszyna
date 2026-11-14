@@ -1425,6 +1425,39 @@ void editor_mode::ground_of_structure(crossing::result &Made)
 			by_material[layer.material].push_back({cell.low, cell.size, cell.heights});
 			layer_of[layer.material] = layer;
 		}
+	// the earth heaped along the structure (obsypka) over the edges of the cut: as wide as a cell's diagonal and more, so it
+	// covers every cell cut out round the holes; the terrain's own material where no texture is chosen for it
+	double largest_cell{0.0};
+	std::string most_material;
+	std::size_t most_cells{0};
+	for (auto const &[material, cells] : by_material)
+	{
+		for (auto const &cell : cells)
+			largest_cell = std::max(largest_cell, cell.size);
+		if (cells.size() > most_cells)
+		{
+			most_cells = cells.size();
+			most_material = material;
+		}
+	}
+	if (false == Made.skirts.empty())
+	{
+		auto const earth_material{m_roadtool.structure_earth.empty() ? most_material : m_roadtool.structure_earth};
+		auto const reach{1.42 * std::max(largest_cell, 0.5) + 0.6};
+		auto const ground = [this](glm::dvec2 const &P) {
+			double height{0.0};
+			m_streamer.height_at(P.x, P.y, height, true);
+			return height;
+		};
+		auto const earth{crossing::skirt(Made.skirts, ground, reach)};
+		if (false == earth.empty() && false == earth_material.empty())
+		{
+			auto &part{Made.mesh.add("obsypka", earth_material)};
+			structure::builder const heap{&part, std::clamp(static_cast<double>(m_roadtool.structure_tile), 0.25, 50.0)};
+			for (std::size_t i = 0; i + 2 < earth.size(); i += 3)
+				heap.triangle(earth[i], earth[i + 1], earth[i + 2], glm::dvec3{0.0, 1.0, 0.0});
+		}
+	}
 	for (auto const &[material, cells] : by_material)
 	{
 		auto const triangles{crossing::ground_outside(cells, Made.holes)};
@@ -1488,11 +1521,14 @@ void editor_mode::raise_terrain(std::vector<glm::dvec2> const &Outline, double c
 	});
 }
 
-void editor_mode::structure_textures_search()
+void editor_mode::structure_textures_search(bool const Earth)
 {
 	auto &tool{m_roadtool};
-	tool.structure_textures.clear();
-	char const *const words[]{"beton", "concrete", "cegl", "cegł", "brick", "kamien", "kamień", "stone", "mur", "wall", "wiadukt", "most", "tunel", "przyczol"};
+	auto &found{Earth ? tool.earth_textures : tool.structure_textures};
+	found.clear();
+	std::vector<char const *> const walls{"beton", "concrete", "cegl", "cegł", "brick", "kamien", "kamień", "stone", "mur", "wall", "wiadukt", "most", "tunel", "przyczol"};
+	std::vector<char const *> const earths{"ziemi", "ziemia", "zwir", "żwir", "kamien", "kamień", "grunt", "gravel", "soil", "dirt", "earth", "stone", "tluczen", "tłucz", "piach", "piasek", "sand"};
+	auto const &words{Earth ? earths : walls};
 	std::error_code error;
 	for (std::filesystem::recursive_directory_iterator it{"textures", std::filesystem::directory_options::skip_permission_denied, error}, end; it != end; it.increment(error))
 	{
@@ -1506,16 +1542,16 @@ void editor_mode::structure_textures_search()
 		auto name{it->path().stem().string()};
 		std::string lower{name};
 		std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char C) { return static_cast<char>(std::tolower(C)); });
-		if (std::none_of(std::begin(words), std::end(words), [&](char const *Word) { return lower.find(Word) != std::string::npos; }))
+		if (std::none_of(words.begin(), words.end(), [&](char const *Word) { return lower.find(Word) != std::string::npos; }))
 			continue;
 		auto relative{std::filesystem::relative(it->path(), "textures", error).replace_extension().generic_string()};
-		if (std::find(tool.structure_textures.begin(), tool.structure_textures.end(), relative) == tool.structure_textures.end())
-			tool.structure_textures.push_back(relative);
-		if (tool.structure_textures.size() >= 400)
+		if (std::find(found.begin(), found.end(), relative) == found.end())
+			found.push_back(relative);
+		if (found.size() >= 400)
 			break;
 	}
-	std::sort(tool.structure_textures.begin(), tool.structure_textures.end());
-	tool.status = format(STR_C("Textures of walls found: %zu"), tool.structure_textures.size());
+	std::sort(found.begin(), found.end());
+	tool.status = format(Earth ? STR_C("Textures of earth found: %zu") : STR_C("Textures of walls found: %zu"), found.size());
 }
 
 void editor_mode::road_profile_window_open()
@@ -2088,7 +2124,7 @@ void editor_mode::render_road_profile_window()
 		}
 		ImGui::SameLine();
 		if (ImGui::SmallButton(STR_C("Look for textures##structure")))
-			run_busy(STR_C("Looking for the textures of walls"), [this]() { structure_textures_search(); });
+			run_busy(STR_C("Looking for the textures of walls"), [this]() { structure_textures_search(false); });
 		item_tooltip("Textures under textures/ with concrete, brick, stone or wall in the name; one texture covers the whole structure");
 		std::array<char, 256> steelwork{};
 		std::snprintf(steelwork.data(), steelwork.size(), "%s", tool.structure_steel.c_str());
@@ -2096,6 +2132,26 @@ void editor_mode::render_road_profile_window()
 		if (ImGui::InputText(STR_C("Texture of the steel##structure"), steelwork.data(), steelwork.size()))
 			tool.structure_steel = steelwork.data();
 		item_tooltip(STR_C("Of the girders, the railings and the tube; empty: a plain dark colour with no texture"));
+		std::array<char, 256> heap{};
+		std::snprintf(heap.data(), heap.size(), "%s", tool.structure_earth.c_str());
+		ImGui::SetNextItemWidth(220.0f);
+		if (ImGui::InputText(STR_C("Texture of the earth##structure"), heap.data(), heap.size()))
+			tool.structure_earth = heap.data();
+		ImGui::SameLine();
+		if (ImGui::BeginCombo("##structureearths", nullptr, ImGuiComboFlags_NoPreview))
+		{
+			if (tool.earth_textures.empty())
+				ImGui::TextDisabled("%s", STR_C("Look for them first"));
+			for (auto const &entry : tool.earth_textures)
+				if (ImGui::Selectable(entry.c_str(), entry == tool.structure_earth))
+					tool.structure_earth = entry;
+			ImGui::EndCombo();
+		}
+		ImGui::SameLine();
+		if (ImGui::SmallButton(STR_C("Look for textures##earth")))
+			run_busy(STR_C("Looking for the textures of earth"), [this]() { structure_textures_search(true); });
+		item_tooltip(STR_C("The earth heaped along the wings and the cornices, over the edges where the terrain is cut, down into the terrain round about; "
+		                   "textures with earth, gravel, stone or soil in the name. Empty: the material of the terrain there"));
 		ImGui::EndGroup();
 		ImGui::SameLine();
 		{

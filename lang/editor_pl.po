@@ -17846,3 +17846,18 @@ msgstr "Ten rodzaj tak, jak powstanie z tymi ustawieniami na nasypie wysokim na 
 
 msgid "Not built on a 7 m embankment with these settings"
 msgstr "Z tymi ustawieniami nie powstanie na nasypie 7 m"
+
+msgid "Texture of the earth##structure"
+msgstr "Tekstura obsypki##structure"
+
+msgid "Look for textures##earth"
+msgstr "Szukaj tekstur##earth"
+
+msgid "Looking for the textures of earth"
+msgstr "Szukam tekstur ziemi"
+
+msgid "Textures of earth found: %zu"
+msgstr "Znalezione tekstury ziemi: %zu"
+
+msgid "The earth heaped along the wings and the cornices, over the edges where the terrain is cut, down into the terrain round about; textures with earth, gravel, stone or soil in the name. Empty: the material of the terrain there"
+msgstr "Obsypka z ziemi wzdłuż skrzydeł i gzymsów: przykrywa krawędzie wycięcia terenu i schodzi łagodnie w teren wokół. Lista szuka tekstur z ziemią, żwirem, kamieniem, gruntem w nazwie. Puste pole: materiał terenu w tym miejscu"

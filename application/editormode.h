@@ -3382,6 +3382,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		float structure_width{0.0f}; // m between the walls, 0: as the road
 		std::string structure_material{"beton001"}; // the one texture of the whole structure
 		std::vector<std::string> structure_textures; // found under textures/ to choose from
+		std::string structure_earth; // the texture of the earth heaped along a structure; empty: the terrain's material there
+		std::vector<std::string> earth_textures; // found under textures/ to choose from for it
 		bool varied{false}; // the selected piece is shown with lanes of its own for its end
 		bool chain{false}; // the point to build from is set
 		glm::dvec3 point{0.0}; // where the next piece starts
