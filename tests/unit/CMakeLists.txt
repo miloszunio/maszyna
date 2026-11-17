@@ -40,6 +40,8 @@ add_executable(${UNIT_TESTS_NAME}
 	"${CMAKE_SOURCE_DIR}/editor/editorRoadLayout.cpp"
 	# and the safety barriers along the roads
 	"${CMAKE_SOURCE_DIR}/world/RoadBarrier.cpp"
+	# the snow lying, as the weather lays it, drifts and melts it
+	"${CMAKE_SOURCE_DIR}/environment/snowcover.cpp"
 	${UNIT_TEST_CASES})
 
 # the core library brings the game's build settings along
