@@ -613,11 +613,27 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 	set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/LARGEADDRESSAWARE")
 endif()
 
+# where the simulator lands: bin of the build folder, unless -DCMAKE_RUNTIME_OUTPUT_DIRECTORY names another folder, such as the game
+# folder with the assets at home; the libraries, the shaders and the translations go there with it, so it starts from there as built
+if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+	set(EU07_RUNTIME_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+else()
+	set(EU07_RUNTIME_DIR "${CMAKE_BINARY_DIR}/bin")
+endif()
+# the same folder spelled out for the steps that copy next to the game: $<TARGET_FILE_DIR:eu07> there would make them depend on
+# the game. a multi-config generator puts the game in a folder of each configuration
+get_property(EU07_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+if (EU07_MULTI_CONFIG)
+	set(EU07_GAME_DIR "${EU07_RUNTIME_DIR}/$<CONFIG>")
+else()
+	set(EU07_GAME_DIR "${EU07_RUNTIME_DIR}")
+endif()
+
 set_target_properties( ${PROJECT_NAME}
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${EU07_RUNTIME_DIR}"
     PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/pdb"
 	OUTPUT_NAME "${PROJECT_NAME}${PREFIX}${SUFFIX}"
 	DEBUG_POSTFIX "_d"
@@ -819,13 +835,8 @@ endif()
 if(WIN32 AND WITH_PYTHON)
 	# the Python runtime next to the game, copied when it isn't there yet or the Python install changed, rather
 	# than after every link of the game: the library alone is thousands of files. the folder is the game's
-	# RUNTIME_OUTPUT_DIRECTORY, spelled out: $<TARGET_FILE_DIR:eu07> here would make this target depend on the game
-	get_property(EU07_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
-	if (EU07_MULTI_CONFIG)
-		set(EU07_PY_TARGET_DIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
-	else()
-		set(EU07_PY_TARGET_DIR "${CMAKE_BINARY_DIR}/bin")
-	endif()
+	# RUNTIME_OUTPUT_DIRECTORY, spelled out (EU07_GAME_DIR)
+	set(EU07_PY_TARGET_DIR "${EU07_GAME_DIR}")
 	set(EU07_PY_STAMP "${EU07_PY_TARGET_DIR}/python64/python_runtime.stamp")
 	add_custom_command(
 		OUTPUT "${EU07_PY_STAMP}"
@@ -840,6 +851,18 @@ if(WIN32 AND WITH_PYTHON)
 	add_custom_target(eu07_python_runtime DEPENDS "${EU07_PY_STAMP}")
 	set_target_properties(eu07_python_runtime PROPERTIES FOLDER "libraries")
 	add_dependencies(${PROJECT_NAME} eu07_python_runtime)
+endif()
+
+# built straight into a game folder (see EU07_RUNTIME_DIR): the shaders and the translations of these sources go with the simulator,
+# as the packaging of the workflow puts them next to it. a target of its own run by every build, not a step after the linking:
+# a change of the shaders alone links nothing
+if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+	add_custom_target(eu07_game_data ALL
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/shaders" "${EU07_GAME_DIR}/shaders"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/lang" "${EU07_GAME_DIR}/lang"
+		COMMENT "Copying the shaders and the translations to ${EU07_GAME_DIR}"
+		VERBATIM)
+	set_target_properties(eu07_game_data PROPERTIES FOLDER "tools")
 endif()
 
 if (WITH_WASM)

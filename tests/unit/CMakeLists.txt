@@ -54,7 +54,8 @@ target_compile_definitions(${UNIT_TESTS_NAME} PRIVATE EU07_UNIT_TESTS_SCRATCH="$
 if (MSVC)
 	target_compile_options(${UNIT_TESTS_NAME} PRIVATE /bigobj)
 endif()
-set_target_properties(${UNIT_TESTS_NAME} PROPERTIES FOLDER "tests")
+# in its build folder whatever the game is built into (CMAKE_RUNTIME_OUTPUT_DIRECTORY, a game folder at home): it needs no game data
+set_target_properties(${UNIT_TESTS_NAME} PROPERTIES FOLDER "tests" RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_test(NAME ${UNIT_TESTS_NAME} COMMAND ${UNIT_TESTS_NAME})
 if (WIN32)
