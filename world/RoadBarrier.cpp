@@ -159,7 +159,7 @@ approach approach_at(layout const &Layout, double const Station)
 	approach result;
 	result.startlength = taken(Layout.ends[0]);
 	result.endlength = taken(Layout.ends[1]);
-	if (false == Layout.ends[0].far && false == Layout.ends[1].far)
+	if (false == Layout.ends[0].distant && false == Layout.ends[1].distant)
 	{
 		// a barrier shorter than its two ends has them both made shorter
 		auto const whole{Layout.ends[0].beyond + (Layout.to - Layout.from) + Layout.ends[1].beyond};
@@ -169,9 +169,9 @@ approach approach_at(layout const &Layout, double const Station)
 			result.endlength *= whole / ends;
 		}
 	}
-	if (false == Layout.ends[0].far && result.startlength > 0.0)
+	if (false == Layout.ends[0].distant && result.startlength > 0.0)
 		result.start = std::clamp((Layout.ends[0].beyond + Station - Layout.from) / result.startlength, 0.0, 1.0);
-	if (false == Layout.ends[1].far && result.endlength > 0.0)
+	if (false == Layout.ends[1].distant && result.endlength > 0.0)
 		result.end = std::clamp((Layout.ends[1].beyond + Layout.to - Station) / result.endlength, 0.0, 1.0);
 	return result;
 }

@@ -105,7 +105,7 @@ struct frame
 // what's known of an end of a barrier
 struct end_data
 {
-	bool far{false}; // it's further than anyone would look
+	bool distant{false}; // it's further than anyone would look
 	double beyond{0.0}; // how much of the barrier lies past the piece on the way to it
 	ending style{ending::flare};
 	double length{12.0};

@@ -125,10 +125,10 @@ TEST_CASE("road barrier: the barriers of a piece are kept in one form, and makin
 }
 
 TEST_CASE("road barrier: barriers which differ aren't made one") {
-	auto near{barrier(road_barrier::side::right, 0.f, 50.f)};
-	auto far{barrier(road_barrier::side::right, 50.f, -1.f)};
-	far.offset = 2.f;
-	std::vector<entry> barriers{near, far};
+	auto closer{barrier(road_barrier::side::right, 0.f, 50.f)};
+	auto further{barrier(road_barrier::side::right, 50.f, -1.f)};
+	further.offset = 2.f;
+	std::vector<entry> barriers{closer, further};
 	road_barrier::normalize(barriers, 100.0);
 	CHECK(barriers.size() == 2);
 }
@@ -189,8 +189,8 @@ TEST_CASE("road barrier: the rail is 0.75 m over the road, a metre from the edge
 	for (auto const left : {false, true}) {
 		CAPTURE(left);
 		auto layout{straight(0.0, 100.0, left)};
-		layout.ends[0].far = true;
-		layout.ends[1].far = true;
+		layout.ends[0].distant = true;
+		layout.ends[1].distant = true;
 		road_barrier::mesh mesh;
 		road_barrier::build(layout, mesh);
 		REQUIRE_FALSE(mesh.rail.empty());
@@ -241,7 +241,7 @@ TEST_CASE("road barrier: where it ends the rail is led into the ground, and away
 TEST_CASE("road barrier: an end on another piece shapes the barrier of this one") {
 	// the barrier ends 5 m past the end of the piece, with 12 m of it led down
 	auto layout{straight(0.0, 20.0)};
-	layout.ends[0].far = true;
+	layout.ends[0].distant = true;
 	layout.ends[1].beyond = 5.0;
 	layout.ends[1].style = road_barrier::ending::ramp;
 	layout.ends[1].length = 12.0;
@@ -276,8 +276,8 @@ TEST_CASE("road barrier: the post two pieces share is put by one of them") {
 		return heights_between(mesh.posts, Station - 0.2, Station + 0.2).count;
 	};
 	auto layout{straight(0.0, 20.0)};
-	layout.ends[0].far = true;
-	layout.ends[1].far = true;
+	layout.ends[0].distant = true;
+	layout.ends[1].distant = true;
 	CHECK(posts_at(layout, 20.0) > 0);
 	CHECK(posts_at(layout, 10.0) > 0);
 	layout.posted[1] = false;

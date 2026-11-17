@@ -1573,8 +1573,8 @@ road_barrier::layout barrier_layout(road_node::state const &Road, road_axis cons
 	layout.from = Entry.from;
 	layout.to = road_barrier::end_of(Entry, Axis.length());
 	layout.step = Axis.step();
-	layout.ends[0].far = true;
-	layout.ends[1].far = true;
+	layout.ends[0].distant = true;
+	layout.ends[1].distant = true;
 	layout.at = [&Axis](double const Station) {
 		auto const frame{Axis.at(Station)};
 		return road_barrier::frame{frame.position, frame.tangent, frame.left};
@@ -1681,7 +1681,7 @@ barrier_fate barrier_end(road_node const &Road, road_barrier::entry const &Entry
 		beyond += road_barrier::end_of(*next.entry, next.road->definition().length()) - next.entry->from;
 		at = barrier_link{next.road, next.entry, false == next.atend};
 	}
-	fate.end.far = true;
+	fate.end.distant = true;
 	return fate;
 }
 
