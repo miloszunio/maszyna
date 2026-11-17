@@ -374,6 +374,18 @@
 	// orthophoto, the terrain model and the maps, whatever was typed or clicked before; one which doesn't gets the origin of the
 	// //$g line of the scenery. Checked every frame, acted on once a terrain
 	void sync_terrain_origin();
+	// the editor starts with the orthophoto off, whatever it was left in: its first pictures are made only once the origin of
+	// the scenery is known for good (the one of its terrain taken over, sync_terrain_origin()) and the editor looks straight down
+	// (the top view). Turned on meanwhile (by the user, the terrain model, the settings), it waits and comes on then.
+	bool m_orthophoto_starting{false};
+	bool m_orthophoto_resume{false}; // on as soon as the editor has started
+	int m_orthophoto_start_frames{0}; // the frames of the editor since it started
+	void begin_orthophoto_start();
+	void finish_orthophoto_start();
+	// the orthophoto on, or to come on as soon as the editor has started
+	bool orthophoto_meant() const { return m_orthophoto.enabled() || (m_orthophoto_starting && m_orthophoto_resume); }
+	// the orthophoto turned on or off by the user: while the editor starts, only what comes once it has
+	void turn_orthophoto(bool On);
 	bool m_terrain_origin_synced{false};
 	// the place of the scenery may be moved although the terrain knows where it lies (NMT, Location)
 	bool m_origin_unlocked{false};

@@ -1357,6 +1357,7 @@ bool editor_mode::update()
     selftest_step();
     steps.step("selftest");
     sync_terrain_origin();
+    finish_orthophoto_start();
     // the drives of the switches go to the tips of their blades once, as the templates of the scenery are known
     if (false == m_drives_checked)
     {
@@ -2461,7 +2462,7 @@ void editor_mode::save_orthophoto_settings()
 
 void editor_mode::choose_orthophoto(bool const On)
 {
-    m_orthophoto.enabled(On);
+    turn_orthophoto(On);
     m_orthophoto_chosen = true;
     EditorSettings.orthophoto().on = On;
     EditorSettings.save();
@@ -3313,7 +3314,7 @@ bool editor_mode::save()
         m_saved_camera = std::make_pair(glm::dvec3{Camera.Pos}, glm::vec3{Camera.Angle});
         scene::Layers.mark(scene::layer_handle{1}, "//$c", {format("%.3f %.3f %.3f %.5f %.5f", Camera.Pos.x, Camera.Pos.y, Camera.Pos.z, Camera.Angle.x, Camera.Angle.y)});
     }
-    if (auto const map{editor_orthophoto::mark(m_orthophoto.settings(), m_orthophoto.enabled(), m_orthophoto.settings().north != 0.0 || m_orthophoto.settings().east != 0.0)}; false == m_orthophoto_scenery.empty() && map != m_orthophoto_mark && (m_orthophoto.enabled() || false == m_orthophoto_mark.empty()))
+    if (auto const map{editor_orthophoto::mark(m_orthophoto.settings(), orthophoto_meant(), m_orthophoto.settings().north != 0.0 || m_orthophoto.settings().east != 0.0)}; false == m_orthophoto_scenery.empty() && map != m_orthophoto_mark && (orthophoto_meant() || false == m_orthophoto_mark.empty()))
     {
         m_orthophoto_mark = map;
         scene::Layers.mark(scene::layer_handle{1}, "//$o", {map});
@@ -4089,7 +4090,7 @@ void editor_mode::render_map_menu()
 {
     if (false == ImGui::BeginMenu(STR_C("Map")))
         return;
-    bool enabled = m_orthophoto.enabled();
+    bool enabled = orthophoto_meant();
     if (ImGui::MenuItem(STR_C("Orthophoto"), nullptr, enabled))
         choose_orthophoto(false == enabled);
     if (ImGui::IsItemHovered())
@@ -4182,7 +4183,7 @@ void editor_mode::render_base_layers()
 
     // the orthophoto at the bottom, its settings opened here from the map menu too
     ImGui::PushID("orthophoto");
-    bool enabled{m_orthophoto.enabled()};
+    bool enabled{orthophoto_meant()};
     if (ImGui::Checkbox("##visible", &enabled))
         choose_orthophoto(enabled);
     if (ImGui::IsItemHovered())
@@ -6592,6 +6593,7 @@ void editor_mode::enter()
     EditorModeFlag = true;
 
     load_orthophoto_settings();
+    begin_orthophoto_start();
     m_orthophoto.area_paused(m_area_paused);
     m_nmt.prefetch_paused(m_area_paused);
 
@@ -7021,8 +7023,8 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         }
         if (false == anyModifier)
         {
-            m_orthophoto.enabled(false == m_orthophoto.enabled());
-            ui()->set_status(m_orthophoto.enabled() ? STR("Orthophoto on (~)") : STR("Orthophoto off (~)"));
+            turn_orthophoto(false == orthophoto_meant());
+            ui()->set_status(orthophoto_meant() ? STR("Orthophoto on (~)") : STR("Orthophoto off (~)"));
         }
         break;
 

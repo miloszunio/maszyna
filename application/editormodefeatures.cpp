@@ -2656,6 +2656,50 @@ void editor_mode::render_go_to_ui()
 	}
 }
 
+void editor_mode::begin_orthophoto_start()
+{
+	m_orthophoto_starting = true;
+	m_orthophoto_start_frames = 0;
+	m_orthophoto_resume = m_orthophoto.enabled();
+	if (false == m_orthophoto_resume)
+		return;
+	m_orthophoto.enabled(false);
+	WriteLog("Editor: the orthophoto off until the editor has started (the origin of the scenery known, the top view)", logtype::generic);
+}
+
+void editor_mode::finish_orthophoto_start()
+{
+	if (false == m_orthophoto_starting)
+		return;
+	++m_orthophoto_start_frames;
+	// whatever turned it on meanwhile waits too
+	if (m_orthophoto.enabled())
+	{
+		m_orthophoto.enabled(false);
+		m_orthophoto_resume = true;
+	}
+	// the origin final: the one of the terrain taken over, or no terrain to take it from; the first frames drawn in the top view
+	auto const origin{false == m_streamer.active() || m_terrain_origin_synced};
+	if (false == origin || false == Global.EditorOrtho || m_orthophoto_start_frames < 3)
+		return;
+	m_orthophoto_starting = false;
+	if (false == m_orthophoto_resume)
+		return;
+	m_orthophoto_resume = false;
+	m_orthophoto.enabled(true);
+	WriteLog("Editor: the orthophoto on, the editor started", logtype::generic);
+}
+
+void editor_mode::turn_orthophoto(bool const On)
+{
+	if (m_orthophoto_starting)
+	{
+		m_orthophoto_resume = On;
+		return;
+	}
+	m_orthophoto.enabled(On);
+}
+
 void editor_mode::sync_terrain_origin()
 {
 	if (false == m_streamer.active())
