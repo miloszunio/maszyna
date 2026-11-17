@@ -968,6 +968,9 @@ void editor_mode::restore_terrain(EditorSnapshot &Snapshot)
 
 void editor_mode::undo_last()
 {
+    // Ctrl+Z with the brush still held: the stroke so far is a step of its own, the one taken back, and the dabs stop there
+    end_brush_stroke();
+    first_step_done(first_step::undo);
     // the warning by the cursor told of the step taken back now: "Ctrl+Z takes it back" is done
     ui()->drop_refusal();
     ++m_history_changes; // for those who watch the history: a step was taken back or done again
@@ -1168,6 +1171,7 @@ void editor_mode::undo_one()
 void editor_mode::redo_last()
 {
     ++m_history_changes; // for those who watch the history: a step was taken back or done again
+    end_brush_stroke();
     // a change of the terrain made since the undo goes to the history, and the redo steps are dropped with it
     m_history_busy = true;
     terrain_history_step();
@@ -6947,6 +6951,12 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         // GeoTools: what's outlined, chosen or designed there is dropped
         if (is_press(Action) && current_work_area() == work_area::features && false == ImGui::GetIO().WantTextInput && features_escape())
             break;
+        // the line of the brush being clicked given up
+        if (is_press(Action) && ui()->mode() == nodebank_panel::BRUSH && false == m_brush_line.empty())
+        {
+            m_brush_line.clear();
+            break;
+        }
         if (is_press(Action))
         {
             road_cancel();
@@ -7049,6 +7059,9 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         // area fill: remove the last outline point
         if (is_press(Action) && ui()->mode() == nodebank_panel::FILL && !m_fill_points.empty())
             m_fill_points.pop_back();
+        // the line of the brush: the last point taken back
+        if (is_press(Action) && ui()->mode() == nodebank_panel::BRUSH && false == m_brush_line.empty())
+            m_brush_line.pop_back();
         if (is_press(Action) && ui()->mode() == nodebank_panel::TRACK && m_lay.active && !m_lay.points.empty())
             lay_back();
         if (is_press(Action) && m_route.trace.active && route_active() && !m_route.trace.points.empty())
@@ -7075,6 +7088,9 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         }
         if (is_press(Action) && ui()->mode() == nodebank_panel::TRACK && m_lay.active)
             lay_enter();
+        // the models of the brush put along the line clicked
+        if (is_press(Action) && ui()->mode() == nodebank_panel::BRUSH && false == m_brush_line.empty())
+            brush_line_finish();
         if (is_press(Action) && m_route.trace.active && route_active())
             route_trace_end(true);
         break;
