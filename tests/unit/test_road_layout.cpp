@@ -29,6 +29,8 @@ road_node::state dirt() {
 	state.surface = "dirt";
 	state.markings = road_node::marking_colour::none;
 	state.friction = 0.6f;
+	state.rough = 0.05f;
+	state.textureangle = 90.f;
 	state.lanewidth = 2.5f;
 	for (auto &lane : state.lanes)
 		lane.width = 2.5f;
@@ -56,6 +58,8 @@ TEST_CASE("road layout: a change of one thing leaves the rest of another piece a
 	CHECK(result.surface == "dirt");
 	CHECK(result.markings == road_node::marking_colour::none);
 	CHECK(result.friction == 0.6f);
+	CHECK(result.rough == 0.05f);
+	CHECK(result.textureangle == 90.f);
 	CHECK(result.lanewidth == 2.5f);
 	CHECK(result.lanes[0].width == 2.5f);
 	CHECK(result.sides[0].type == road_node::side_type::none);
@@ -154,4 +158,16 @@ TEST_CASE("road layout: the banks go along only when it's them which were change
 	after.banks[0].set = true;
 	after.banks[0].width = {3.f, 3.f};
 	CHECK(road_layout::carried_over(before, after, other).banks == after.banks);
+}
+
+TEST_CASE("road layout: an uneven road made even is made even all the way") {
+	auto const before{dirt()};
+	auto after{before};
+	after.rough = 0.f;
+	auto other{dirt()};
+	other.surface = "gravel";
+	auto const result{road_layout::carried_over(before, after, other)};
+	CHECK(result.rough == 0.f);
+	CHECK(result.roughscale == other.roughscale);
+	CHECK(result.surface == "gravel");
 }

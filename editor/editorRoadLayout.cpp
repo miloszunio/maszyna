@@ -61,6 +61,10 @@ void carry_look(road_node::state const &Before, road_node::state const &After, r
 {
 	carry(Before.surface, After.surface, Target.surface);
 	carry(Before.texturelength, After.texturelength, Target.texturelength);
+	carry(Before.textureangle, After.textureangle, Target.textureangle);
+	// a dirt road is uneven, an asphalt one isn't
+	carry(Before.rough, After.rough, Target.rough);
+	carry(Before.roughscale, After.roughscale, Target.roughscale);
 	carry(Before.markings, After.markings, Target.markings);
 	for (std::size_t side = 0; side < Target.sides.size(); ++side)
 	{
