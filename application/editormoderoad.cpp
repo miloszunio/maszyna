@@ -13,6 +13,7 @@ http://mozilla.org/MPL/2.0/.
 #include "application/editormodeshared.h"
 #include "application/editorgestures.h"
 #include "editor/editorFormat.hpp"
+#include "editor/editorRoadLayout.hpp"
 
 #include "utilities/Globals.h"
 #include "utilities/translation.h"
@@ -1522,8 +1523,8 @@ void editor_mode::road_apply()
 	auto const pieces{tool.whole && false == tool.settings.changing() ? editor_road::chain(*tool.selected) : std::vector<road_node *>{tool.selected}};
 	editor_road::record record;
 	std::vector<std::pair<road_node *, road_node::state>> changes;
-	// the banks are kept for each piece as they are, unless it's the banks which were just changed
-	auto const banked{tool.settings.banks != tool.selected->definition().banks};
+	// the other pieces get what was changed, not the whole layout of the selected one: a road needn't be the same all the way
+	auto const before{tool.selected->definition()};
 	for (auto *road : pieces)
 	{
 		std::string reason;
@@ -1534,24 +1535,10 @@ void editor_mode::road_apply()
 			tool.status = cannot_change(road->name(), reason);
 			return;
 		}
-		auto state{tool.settings};
+		auto state{road == tool.selected ? tool.settings : road_layout::carried_over(before, tool.settings, road->definition())};
 		state.axis = road->definition().axis;
 		// how wide the road is at its points is set at these points, for each piece on its own
 		state.taper = road->definition().taper;
-		if (road != tool.selected)
-		{
-			// and so is how far apart the two directions are led, and the rounded ends of what's between them
-			state.median.width = road->definition().median.width;
-			state.median.round = road->definition().median.round;
-			// banks led to the ground differ from piece to piece, so a change of something else leaves them alone
-			if (false == banked)
-				state.banks = road->definition().banks;
-		}
-		if (road != tool.selected && road->definition().changes.size() == state.changes.size())
-		{
-			// where the lanes can be changed is set for each piece on its own
-			state.changes = road->definition().changes;
-		}
 		record.roads.emplace_back(road, road->definition());
 		changes.emplace_back(road, state);
 	}

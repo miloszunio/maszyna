@@ -215,6 +215,7 @@ set(SOURCES
 "editor/editorTerrain.cpp"
 "editor/editorTrack.cpp"
 "editor/editorRoad.cpp"
+"editor/editorRoadLayout.cpp"
 "editor/editorAlignment.cpp"
 "editor/editorTrackShape.cpp"
 "editor/editorGroundFollow.cpp"
