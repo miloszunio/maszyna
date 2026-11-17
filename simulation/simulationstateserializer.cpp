@@ -15,6 +15,7 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulationtime.h"
 #include "simulation/simulationsounds.h"
 #include "simulation/simulationenvironment.h"
+#include "simulation/simulationtest.h"
 #include "scene/scenenodegroups.h"
 #include "scene/scenelayers.h"
 #include "scene/sceneterrain.h"
@@ -385,6 +386,10 @@ state_serializer::deserialize_config( cParser &Input, scene::scratch_data &Scrat
 
     // config parameters (re)definition
     Global.ConfigParse( Input );
+    if( Global.test.enabled ) {
+        // a scenery doesn't get to turn on what a test keeps off
+        simulation::apply_test_mode_settings();
+    }
 }
 
 void
@@ -573,7 +578,7 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
         std::unique_ptr<TTrack> made { deserialize_path( Input, Scratchpad, nodedata ) };
         if( made->eType == tt_Unknown ) {
             // with no path made it can't be joined nor drawn, and nothing could run on it: it goes with its holder
-            ErrorLog( std::format( "Bad scenario: track \"{}\" of an unknown type defined in file \"{}\" (line {}) left out", made->name(), Input.Name(), inputline ) );
+            ErrorLog( std::format( R"(Bad scenario: track "{}" of an unknown type defined in file "{}" (line {}) left out)", made->name(), Input.Name(), inputline ) );
             return;
         }
         // from here on the scene owns it
@@ -1252,6 +1257,8 @@ include_terrain_file( std::string File, std::string &Includes, scene::scratch_da
 
     replace_slashes( File );
     erase_extension( File );
+    // the parser gives the name in lowercase, the files may be named in another case; the binary file is made next to the text
+    File = FileStemOnDisk( Global.asCurrentSceneryPath, File, { ".txtf", ".btf" } );
     if( std::find( binary.terrain_textfiles.begin(), binary.terrain_textfiles.end(), File ) != binary.terrain_textfiles.end() ) {
         WriteLog( "Terrain file: " + File + " is already in use, ignored" );
         return;

@@ -29,6 +29,8 @@ http://mozilla.org/MPL/2.0/.
 #include "dds-ktx/dds-ktx.h"
 #include "winheaders.h"
 
+#include <bit>
+
 #define EU07_DEFERRED_TEXTURE_UPLOAD
 
 #ifndef FOURCC_DX10
@@ -336,6 +338,20 @@ bool bptc_supported() {
     }();
     return supported; }
 
+// format of a compressed texture read back from the gpu, given as the image would have it: the driver tells the srgb variant
+// of the format, which the mapping doesn't take. with the components hint of the texture the linear one gives the same gl
+// format again on the next upload
+GLint readback_format( GLint const Internalformat ) {
+    switch( Internalformat ) {
+        case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:    { return GL_COMPRESSED_RGBA8_ETC2_EAC; }
+        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT: { return GL_COMPRESSED_RGBA_S3TC_DXT1_EXT; }
+        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT: { return GL_COMPRESSED_RGBA_S3TC_DXT3_EXT; }
+        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: { return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT; }
+        case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM:    { return GL_COMPRESSED_RGBA_BPTC_UNORM; }
+        default:                                     { return Internalformat; }
+    }
+}
+
 } // namespace
 
 std::array<GLuint, gl::MAX_TEXTURES + gl::HELPER_TEXTURES> opengl_texture::units = { 0 };
@@ -552,7 +568,7 @@ void texture_source::load_STBI()
 {
 	int x, y, n;
 	stbi_set_flip_vertically_on_load(1);
-	uint8_t *image = stbi_load((name + type).c_str(), &x, &y, &n, 4);
+	uint8_t *image = stbi_load(FileOnDisk(name + type).c_str(), &x, &y, &n, 4);
 
 	if (!image) {
 		data_state = resource_state::failed;
@@ -648,6 +664,10 @@ void
 texture_source::make_request() {
 
     auto const components { Split( name, '?' ) };
+    if( components.front().ends_with( ".lua" ) || components.front().ends_with( ".wasm" ) ) {
+        // script destination signs are drawn by the vehicles showing them (script_screen_queue)
+        return;
+    }
 
 	auto dictionary = std::make_shared<dictionary_source>( components.back() );
 
@@ -724,7 +744,7 @@ DDSURFACEDESC2 texture_source::deserialize_ddsd(std::istream &s)
 void
 texture_source::load_DDS() {
 
-    std::ifstream file( name + type, std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
     std::size_t filesize = static_cast<size_t>(file.tellg());   // ios::ate already positioned us at the end of the file
     file.seekg( 0, std::ios::beg ); // rewind the caret afterwards
 
@@ -844,7 +864,7 @@ texture_source::load_DDS() {
     if( true == Global.gfx_texture_streaming ) {
         // the data is read by a worker thread, everything else about the texture is known already
         request = std::make_shared<texture_request>();
-        request->file = name + type;
+        request->file = FileOnDisk( name + type );
         request->offset = static_cast<std::size_t>( file.tellg() ) + offset;
         request->size = datasize;
         request->flip = flip;
@@ -907,7 +927,7 @@ texture_source::load_DDS() {
 
 void
 texture_source::load_KTX() {
-    std::ifstream file( name + type, std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
     std::size_t filesize = static_cast<size_t>(file.tellg());   // ios::ate already positioned us at the end of the file
     file.seekg( 0, std::ios::beg ); // rewind the caret afterwards
 
@@ -968,7 +988,7 @@ texture_source::load_KTX() {
 void
 texture_source::load_TEX() {
 
-    std::ifstream file( name + type, std::ios::binary ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary ); file.unsetf( std::ios::skipws );
 
     char head[ 5 ];
     file.read( head, 4 );
@@ -1015,7 +1035,7 @@ texture_source::load_TEX() {
 void
 texture_source::load_TGA() {
 
-    std::ifstream file( name + type, std::ios::binary ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary ); file.unsetf( std::ios::skipws );
 
     // Read the header of the TGA, compare it with the known headers for compressed and uncompressed TGAs
     unsigned char tgaheader[ 18 ];
@@ -1427,29 +1447,13 @@ opengl_texture::release() {
         }
         else {
 	        ::glBindTexture(target, id );
-	        GLint datasize {};
 	        GLint iscompressed {};
 	        ::glGetTexLevelParameteriv(target, 0, GL_TEXTURE_COMPRESSED, &iscompressed );
-	        if( iscompressed == GL_TRUE ) {
-	            // texture is compressed on the gpu side
-	            // query texture details needed to perform the backup...
-	            ::glGetTexLevelParameteriv(target, 0, GL_TEXTURE_INTERNAL_FORMAT, &data_format );
-	            ::glGetTexLevelParameteriv(target, 0, GL_TEXTURE_COMPRESSED_IMAGE_SIZE, &datasize );
-	            data.resize( datasize );
-	            // ...fetch the data...
-	            ::glGetCompressedTexImage(target, 0, &data[ 0 ] );
+	        if( ( iscompressed != GL_TRUE )
+	         || ( false == read_back_compressed() ) ) {
+	            // the texture didn't get compressed during upload, or got a format the upload doesn't take
+	            read_back_uncompressed();
 	        }
-	        else {
-	            // for whatever reason texture didn't get compressed during upload
-	            // fallback on plain rgba storage...
-	            data_format = GL_RGBA;
-	            data_type = GL_UNSIGNED_BYTE;
-	            data.resize( data_width * data_height * 4 );
-	            // ...fetch the data...
-	            ::glGetTexImage(target, 0, data_format, GL_UNSIGNED_BYTE, &data[ 0 ] );
-	        }
-	        // ...and update texture object state
-	        data_mapcount = 1; // we keep copy of only top mipmap level
 	        data_state = resource_state::good;
         }
     }
@@ -1459,6 +1463,56 @@ opengl_texture::release() {
     is_ready = false;
 
     return;
+}
+
+// copies all mipmaps of the compressed gl texture into the data, in the layout of a dds file. returns false, leaving the data as
+// it was, when the format can't be uploaded again as it is. all levels are kept since the driver may not generate mipmaps
+// of a compressed format; without them the texture would be incomplete and drawn black
+bool
+opengl_texture::read_back_compressed() {
+
+    GLint internalformat {};
+    ::glGetTexLevelParameteriv( target, 0, GL_TEXTURE_INTERNAL_FORMAT, &internalformat );
+    auto const format { readback_format( internalformat ) };
+    if( ( false == precompressed_formats.contains( format ) )
+     || ( false == mapping.contains( format ) ) ) {
+        return false;
+    }
+    auto const levelcount { static_cast<int>( std::bit_width( std::max( data_width, data_height ) ) ) };
+    std::vector<unsigned char> leveldata;
+    auto mapcount { 0 };
+    while( mapcount < levelcount ) {
+        GLint levelwidth {};
+        GLint levelsize {};
+        ::glGetTexLevelParameteriv( target, mapcount, GL_TEXTURE_WIDTH, &levelwidth );
+        ::glGetTexLevelParameteriv( target, mapcount, GL_TEXTURE_COMPRESSED_IMAGE_SIZE, &levelsize );
+        if( ( levelwidth <= 0 ) || ( levelsize <= 0 ) ) {
+            // the levels past the last one present weren't made
+            break;
+        }
+        auto const offset { leveldata.size() };
+        leveldata.resize( offset + static_cast<std::size_t>( levelsize ) );
+        ::glGetCompressedTexImage( target, mapcount, &leveldata[ offset ] );
+        ++mapcount;
+    }
+    if( mapcount == 0 ) {
+        return false;
+    }
+    data.swap( leveldata );
+    data_format = format;
+    data_mapcount = static_cast<unsigned int>( mapcount );
+    return true;
+}
+
+// copies the top level of the gl texture into the data as plain rgba, the mipmaps are generated again on upload
+void
+opengl_texture::read_back_uncompressed() {
+
+    data_format = GL_RGBA;
+    data_type = GL_UNSIGNED_BYTE;
+    data.resize( data_width * data_height * 4 );
+    ::glGetTexImage( target, 0, data_format, GL_UNSIGNED_BYTE, &data[ 0 ] );
+    data_mapcount = 1;
 }
 
 void
@@ -1702,6 +1756,17 @@ opengl_texture::destroy() {
 }
 
 void
+opengl_texture::unload_object() {
+
+    // deleted outright: release() would read the texture back from the card with gfx.resource.move, only for it to be dropped
+    if( ( id != invalid_id ) && ( id != 0 ) ) {
+        ::glDeleteTextures( 1, &id );
+    }
+    id = invalid_id;
+    is_ready = false;
+}
+
+void
 opengl_texture::on_failed() {
 
     // NOTE: temporary workaround for texture assignment errors: the texture counts as made, with no gl texture
@@ -1744,6 +1809,48 @@ texture_bank::mark_as_needed( texture_handle const Texture, bool const Near ) {
         // from now on the texture can be released, if no vehicle near enough needs it for a while
         needed = m_releasescantime;
     }
+}
+
+void
+texture_bank::unload( texture_handle const Texture ) {
+
+    if( ( Texture <= 0 )
+     || ( Texture >= static_cast<texture_handle>( m_textures.size() ) ) ) {
+        return;
+    }
+    auto const &record { m_textures[ Texture ] };
+    auto &texture { *record.first };
+    if( ( record.second != resource_timestamp() )
+     || ( true == texture.busy() ) // another thread of the renderer makes it
+     || ( ( true == texture.resident() ) && ( texture.get_id() == 0 ) ) // failed to load
+     || ( true == texture.is_static )
+     || ( true == texture.is_rendertarget )
+     || ( texture.type == "make:" )
+     || ( texture.type == "internalsrc:" ) ) {
+        return;
+    }
+    if( ( texture.data_state == resource_state::loading )
+     && ( texture.request != nullptr ) ) {
+        // read by a worker thread: taken over first, to be dropped with the rest
+        texture.complete_data();
+        if( texture.data_state == resource_state::failed ) {
+            return;
+        }
+    }
+    auto const created { texture.resident() };
+    if( ( false == created )
+     && ( texture.data_state != resource_state::good ) ) {
+        // nothing read nor made, e.g. the textures of a material asked for without loading
+        return;
+    }
+    if( true == created ) {
+        texture.unload_object();
+        // the released names can be given to new textures, the unit cache can't trust them
+        released();
+    }
+    texture.data = std::vector<unsigned char>();
+    texture.data_state = resource_state::none;
+    texture.reload_on_use = true;
 }
 
 // releases gl textures of vehicles not needed nor drawn for a while

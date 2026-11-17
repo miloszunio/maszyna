@@ -168,28 +168,35 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 				return;
 			// a tool chosen again gives way to the select one
 			auto const chosen{(m_track_tab == Tab || (Tab == track_tab::straights && track_plan_tab())) && false == (Tab == track_tab::lineside && vehicle)};
-			Buttons.push_back({found->picture, STR_C(found->label), found->key, STR_C(found->tooltip), chosen, [this, Tab, chosen]() { show_track_tab(chosen ? track_tab::path : Tab); }, Group});
+			Buttons.push_back({found->picture, STR_C(found->label), found->key, STR_C(found->tooltip), chosen, [this, Tab, chosen]() {
+				                   show_track_tab(chosen ? track_tab::path : Tab);
+				                   // Posts opens on the posts, whichever part of the tab was left open
+				                   if (Tab == track_tab::lineside && false == chosen)
+					                   m_hekto.tab().expand = true;
+			                   }, Group});
 			Buttons.back().accent = family_colour(found->family);
 		};
-		// the tools of laying track first, the others behind More, shown while one of them is in use
+		// the tools of laying track first, then the signals, the km and the posts a plain line needs; the others behind More, shown while one of them is in use
 		add(track_tab::path, false);
 		add(track_tab::lay, false);
 		add(track_tab::straights, false);
 		add(track_tab::turnout, false);
 		add(track_tab::parallel, false);
-		auto const advanced{m_track_tab == track_tab::turntable || m_track_tab == track_tab::srk || m_track_tab == track_tab::kilometrage || m_track_tab == track_tab::lineside || m_track_tab == track_tab::profile || m_track_tab == track_tab::speed ||
-		                    m_track_tab == track_tab::joints || m_gauge.is_open()};
+		add(track_tab::signals, true);
+		add(track_tab::kilometrage, false);
+		add(track_tab::lineside, false);
+		auto const advanced{m_track_tab == track_tab::turntable || srk_tab() || vehicle || m_track_tab == track_tab::profile || m_track_tab == track_tab::speed || m_track_tab == track_tab::joints || m_gauge.is_open()};
 		auto const more{EditorSettings.track_tools_more()};
-		Buttons.push_back({icon::more, more ? STR_C("Less") : STR_C("More"), nullptr, STR_C("Turntable, signalling and signals, kilometrage, objects, trainset, profile, speed, joints, gauge"), more, [more]() {
+		Buttons.push_back({icon::more, more ? STR_C("Less") : STR_C("More"), nullptr, STR_C("Turntable, stations and their signals, line block, trainset, profile, speed, joints, gauge"), more, [more]() {
 			                   EditorSettings.track_tools_more(false == more);
 			                   EditorSettings.save();
 		                   }, true});
 		if (false == more && false == advanced)
 			break;
 		add(track_tab::turntable, true);
-		add(track_tab::srk, false);
-		add(track_tab::kilometrage, false);
-		add(track_tab::lineside, false);
+		add(track_tab::station, false);
+		add(track_tab::station_signals, false);
+		add(track_tab::line_block, false);
 		Buttons.push_back({icon::vehicle, STR_C("Trainset"), nullptr, STR_C("A trainset on the selected track: written to the scenery on save, and to drive at once"), vehicle, [this, vehicle]() {
 			                   show_track_tab(vehicle ? track_tab::path : track_tab::lineside);
 			                   m_vehicle.tab().expand = false == vehicle;
@@ -231,7 +238,14 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 	case work_area::terrain:
 	{
 		// what the left button does on the terrain
-		auto const choose = [this](terrain_tool const Tool) { return [this, Tool]() { m_terrain_tool = Tool; }; };
+		// another tool than the fields: the field picked with "Outline it again" no longer waits for its outline, which the fill can use up
+		auto const choose = [this](terrain_tool const Tool) {
+			return [this, Tool]() {
+				if (Tool != terrain_tool::fields)
+					m_patch_reoutline.clear();
+				m_terrain_tool = Tool;
+			};
+		};
 		auto const chosen = [this](terrain_tool const Tool) { return m_terrain_tool == Tool; };
 		Buttons.push_back({icon::select, STR_C("Select"), nullptr, STR_C("LMB picks the models, as in the surroundings"), chosen(terrain_tool::none), choose(terrain_tool::none)});
 		Buttons.push_back({icon::sculpt, STR_C("Sculpt"), nullptr, STR_C("LMB raises the terrain under the brush, Shift+LMB lowers it"), chosen(terrain_tool::sculpt), choose(terrain_tool::sculpt)});
@@ -245,6 +259,10 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::area_fill, STR_C("Water"), nullptr, STR_C("LMB adds a point of the outline of a body of water, Shift+LMB takes the last one back"), chosen(terrain_tool::water), choose(terrain_tool::water)});
 		Buttons.push_back({icon::count, STR_C("Fill"), nullptr, STR_C("LMB adds a point of the outline of an area to fill with a material, Shift+LMB takes the last one back"), chosen(terrain_tool::fill),
 		                   choose(terrain_tool::fill)});
+		Buttons.push_back({icon::grass, STR_C("Fields"), nullptr,
+		                   STR_C("LMB adds a point of the outline of a field: a surface cut out of the terrain with a material of its own, the ground under it made wavy if wanted; "
+		                         "Shift+LMB takes the last one back"),
+		                   chosen(terrain_tool::fields), choose(terrain_tool::fields)});
 		Buttons.push_back({icon::hole, STR_C("Holes"), nullptr, STR_C("LMB cuts a hole in the terrain under the brush (portals of tunnels), Shift+LMB closes it"), chosen(terrain_tool::holes),
 		                   choose(terrain_tool::holes)});
 		auto const orthophoto{m_orthophoto.enabled()};
