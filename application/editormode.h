@@ -3500,6 +3500,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void road_select(road_node *Road);
 	void junction_select(junction_node *Junction);
 	void road_apply();
+	void render_road_barriers();
+	void road_barriers_apply(std::vector<road_barrier::entry> const &Barriers);
 	bool road_delete();
 	bool road_split();
 	void road_cancel();

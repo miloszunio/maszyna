@@ -133,10 +133,23 @@ bool turning(road_node const &Road)
 	return false;
 }
 
+std::vector<double> stations(road_node::state const &State);
+double station_at(std::vector<double> const &Stations, double const T);
+
+// the barriers of a part of a piece, between two values of the curve parameter of its axis
+std::vector<road_barrier::entry> barriers_of_part(road_node::state const &State, double const From, double const To)
+{
+	if (State.barriers.empty())
+		return {};
+	auto const lengths{stations(State)};
+	return road_barrier::part(State.barriers, lengths.back(), station_at(lengths, From), station_at(lengths, To));
+}
+
 // definition of a part of a piece, between two values of the curve parameter of its axis
 road_node::state part(road_node::state const &State, double const From, double const To)
 {
 	auto result{State};
+	result.barriers = barriers_of_part(State, From, To);
 	result.axis = subpath(State.axis, From, To);
 	result.taper = {static_cast<float>(State.scale(From)), static_cast<float>(State.scale(To))};
 	if (State.divided())
@@ -436,6 +449,8 @@ road_node::state flipped(road_node::state const &State)
 		std::swap(bank.width[0], bank.width[1]);
 		std::swap(bank.drop[0], bank.drop[1]);
 	}
+	if (false == State.barriers.empty())
+		result.barriers = road_barrier::flipped(State.barriers, State.length());
 	return result;
 }
 
@@ -602,6 +617,84 @@ std::vector<road_node *> editor_road::neighbours(road_node const &Road)
 	return result;
 }
 
+namespace
+{
+
+// true if an end of the axis of one piece is within specified distance from an end of the axis of the other
+bool ends_within(road_node const &Left, road_node const &Right, double const Range)
+{
+	for (auto const leftend : {false, true})
+		for (auto const rightend : {false, true})
+			if (glm::distance(axis_end(Left.definition(), leftend), axis_end(Right.definition(), rightend)) < Range)
+				return true;
+	return false;
+}
+
+// adds the pieces whose barriers can come out different after a change of the listed ones. a barrier goes on from a piece
+// to the next, and it's shaped by how far away it ends, so it isn't only the pieces right next to the changed ones
+void add_barrier_dependents(std::vector<road_node *> &Dependents, std::vector<road_node *> const &Roads)
+{
+	auto const range{road_barrier::reach + 60.0};
+	for (auto *other : simulation::Roads.sequence())
+	{
+		if (other == nullptr || other->m_editorremoved || other->definition().barriers.empty())
+			continue;
+		if (std::ranges::any_of(Roads, [other, range](road_node const *Road) { return ends_within(*Road, *other, range); }))
+			add_unique(Dependents, other);
+	}
+}
+
+// makes geometry of the listed pieces anew, save for the ones which are being made anew anyway
+void reshow(std::vector<road_node *> const &Dependents, std::vector<road_node *> const &Except)
+{
+	for (auto *road : Dependents)
+	{
+		if (road->m_editorremoved || std::ranges::find(Except, road) != Except.end())
+			continue;
+		road->hide();
+		road->show();
+	}
+}
+
+} // namespace
+
+bool editor_road::can_restyle(road_node const &Road, std::string *Reason)
+{
+	std::string reason;
+	if (available(&reason) && Road.merged())
+		reason = "the scenery wasn't opened for editing (-edit), geometry of the roads it came with can't be taken apart";
+	if (reason.empty())
+		scene::Layers.editable(&Road, &reason);
+	if (false == reason.empty() && Reason != nullptr)
+		*Reason = reason;
+	return reason.empty();
+}
+
+void editor_road::apply_look(std::vector<std::pair<road_node *, road_node::state>> const &Changes)
+{
+	std::vector<road_node *> roads;
+	for (auto const &change : Changes)
+		if (false == change.first->m_editorremoved)
+			add_unique(roads, change.first);
+	if (roads.empty())
+		return;
+	// the neighbours are gathered by where the pieces are, which the change doesn't touch
+	std::vector<road_node *> dependents{roads};
+	add_barrier_dependents(dependents, roads);
+	for (auto const &change : Changes)
+	{
+		if (change.first->m_editorremoved)
+			continue;
+		// the lanes were made for the lanes the piece has, and these stay
+		auto state{change.second};
+		auto const &present{change.first->definition()};
+		state.axis = present.axis;
+		change.first->define(state);
+		change.first->mark_dirty();
+	}
+	reshow(dependents, {});
+}
+
 template <class Change_>
 void editor_road::refresh(std::vector<road_node *> const &Roads, std::vector<junction_node *> const &Junctions, Change_ Change)
 {
@@ -611,6 +704,9 @@ void editor_road::refresh(std::vector<road_node *> const &Roads, std::vector<jun
 	std::vector<junction_node *> crossings;
 	// level crossings and traffic points hold on to the lanes, which are about to be replaced
 	simulation::Roadpoints.unbind();
+	// pieces which keep their definitions, but whose barriers go on to the changed ones or end at them
+	std::vector<road_node *> dependents;
+	add_barrier_dependents(dependents, Roads);
 	auto const gather = [&]() {
 		std::vector<road_node *> roads{affected};
 		std::vector<junction_node *> junctions{crossings};
@@ -663,6 +759,7 @@ void editor_road::refresh(std::vector<road_node *> const &Roads, std::vector<jun
 
 	// the change could have moved things next to other ones
 	gather();
+	add_barrier_dependents(dependents, Roads);
 	std::vector<TTrack *> lanes;
 	for (auto *road : Roads)
 	{
@@ -688,6 +785,11 @@ void editor_road::refresh(std::vector<road_node *> const &Roads, std::vector<jun
 	for (auto *road : affected)
 		if (false == road->m_editorremoved)
 			road->close_ends();
+	// a barrier ends short of a junction, so the pieces a junction was attached to or taken from count as well
+	for (auto *road : affected)
+		if (false == road->definition().barriers.empty())
+			add_unique(dependents, road);
+	reshow(dependents, Roads);
 	simulation::Roadpoints.bind();
 }
 
@@ -1148,6 +1250,9 @@ bool editor_road::dissolve(glm::dvec3 const &Joint, record &Record, std::string 
 			merged.banks[side].drop[1] = after.banks[side].drop[1];
 		}
 	}
+	// the barriers of the two stand along the one
+	if (false == before.barriers.empty() || false == after.barriers.empty())
+		merged.barriers = road_barrier::joined(before.barriers, lengths.first, after.barriers, merged.length());
 	remember(Record, kept.road);
 	remove(std::vector<road_node *>{dropped.road});
 	Record.roads_removed.emplace_back(dropped.road);
@@ -1210,6 +1315,9 @@ road_node *editor_road::split(road_node &Road, double const T)
 		first.banks[side].width[1] = second.banks[side].width[0] = glm::mix(bank.width[0], bank.width[1], static_cast<float>(T));
 		first.banks[side].drop[1] = second.banks[side].drop[0] = glm::mix(bank.drop[0], bank.drop[1], static_cast<float>(T));
 	}
+	// each part keeps the barriers which stand along it
+	first.barriers = barriers_of_part(Road.definition(), 0.0, T);
+	second.barriers = barriers_of_part(Road.definition(), T, 1.0);
 	apply(std::vector<std::pair<road_node *, road_node::state>>{{&Road, first}});
 	auto const created{create(std::vector<road_node::state>{second})};
 	return created.empty() ? nullptr : created.front();
@@ -2024,6 +2132,8 @@ std::vector<road_node::state> editor_road::roundabout(glm::dvec3 const &Centre, 
 	layout.taper = {1.f, 1.f};
 	layout.median.width = {0.f, 0.f};
 	layout.roundabout = true;
+	// barriers are put along a road which is there, they aren't a part of what the next roads get
+	layout.barriers.clear();
 	layout.normalize();
 	auto const halfwidth{0.5 * layout.width()};
 	if (Radius - halfwidth < 1.0)

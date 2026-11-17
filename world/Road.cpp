@@ -585,6 +585,10 @@ void road_node::state::normalize()
 	{
 		change = std::clamp(change, static_cast<int>(change_none), static_cast<int>(change_both));
 	}
+	if (false == barriers.empty())
+	{
+		road_barrier::normalize(barriers, length());
+	}
 }
 
 // identifier of a lane: f1..fn go along the axis and b1..bn against it, both counted outwards from where the directions meet
@@ -1087,6 +1091,20 @@ void road_node::import(cParser &Input, glm::dvec3 const &Offset)
 		{
 			m_state.roundabout = true;
 		}
+		else if (token == "barrier")
+		{
+			// barrier <side>:<kind>:<offset>:<from>:<to>:<start>:<length>:<end>:<length>:<material>
+			auto const text{Input.getToken<std::string>()};
+			if (road_barrier::entry barrier; road_barrier::parse(text, barrier))
+			{
+				replace_slashes(barrier.material);
+				m_state.barriers.emplace_back(barrier);
+			}
+			else
+			{
+				ErrorLog("Bad road: barrier \"" + text + "\" defined for " + label + " isn't one, it's left out");
+			}
+		}
 		else
 		{
 			ErrorLog("Bad road: unknown property: \"" + token + "\" defined for " + label);
@@ -1475,7 +1493,197 @@ bool road_node::occupied() const
 	return false;
 }
 
-// generates geometry of the surface, the sides and the markings
+namespace
+{
+
+constexpr double barrier_setback{3.0}; // a barrier ends this far short of a junction
+
+// a barrier of a piece as something to make the shape of, with nothing known of where it ends.
+// the piece and its axis have to stay around for as long as what's returned is in use
+road_barrier::layout barrier_layout(road_node::state const &Road, road_axis const &Axis, road_barrier::entry const &Entry)
+{
+	road_barrier::layout layout;
+	layout.type = Entry.type;
+	layout.onleft = (Entry.where == road_barrier::side::left);
+	layout.offset = Entry.offset;
+	layout.from = Entry.from;
+	layout.to = road_barrier::end_of(Entry, Axis.length());
+	layout.step = Axis.step();
+	layout.ends[0].distant = true;
+	layout.ends[1].distant = true;
+	layout.at = [&Axis](double const Station) {
+		auto const frame{Axis.at(Station)};
+		return road_barrier::frame{frame.position, frame.tangent, frame.left};
+	};
+	layout.edge = [&Road, &Axis](double const Station) { return 0.5 * Road.span(Axis.length() > 0.0 ? Station / Axis.length() : 0.0); };
+	return layout;
+}
+
+// true if the barrier gets to specified end of the axis of its piece
+bool barrier_reaches(road_barrier::entry const &Entry, bool const Atend)
+{
+	return Atend ? Entry.to < 0.f : Entry.from <= 0.f;
+}
+
+// where the line the barrier stands on is at an end of the axis
+glm::dvec3 barrier_tip(road_node::state const &Road, road_axis const &Axis, road_barrier::entry const &Entry, bool const Atend)
+{
+	return road_barrier::line_point(barrier_layout(Road, Axis, Entry), Atend ? Axis.length() : 0.0);
+}
+
+// a barrier at an end of a piece
+struct barrier_link
+{
+	road_node const *road{nullptr};
+	road_barrier::entry const *entry{nullptr};
+	bool atend{false};
+};
+
+// the barrier of a piece which carries on a barrier whose line ends at specified point
+barrier_link barrier_on(road_node const &Other, road_barrier::entry const &Entry, glm::dvec3 const &Tip)
+{
+	auto const &state{Other.definition()};
+	auto const range{0.5 * std::max(state.span(0.0), state.span(1.0)) + 60.0};
+	for (auto const atend : {false, true})
+	{
+		// most of the pieces are nowhere near, which their ends tell without measuring their axes
+		if (glm::distance(state.axis.points[atend ? segment_data::point::end : segment_data::point::start], Tip) > range)
+		{
+			continue;
+		}
+		road_axis const axis{state.axis};
+		for (auto const &candidate : state.barriers)
+		{
+			if (candidate.type == Entry.type && candidate.material == Entry.material && barrier_reaches(candidate, atend) &&
+			    glm::distance(barrier_tip(state, axis, candidate, atend), Tip) < road_barrier::meeting)
+			{
+				return {&Other, &candidate, atend};
+			}
+		}
+	}
+	return {};
+}
+
+barrier_link barrier_next(barrier_link const &At, glm::dvec3 const &Tip)
+{
+	for (auto const *other : simulation::Roads.sequence())
+	{
+		if (other == nullptr || other == At.road || other->m_editorremoved || other->definition().barriers.empty())
+		{
+			continue;
+		}
+		if (auto const link{barrier_on(*other, *At.entry, Tip)}; link.road != nullptr)
+		{
+			return link;
+		}
+	}
+	return {};
+}
+
+// what's found by following a barrier from an end of its piece
+struct barrier_fate
+{
+	road_barrier::end_data end;
+	road_node const *neighbour{nullptr}; // the piece the barrier goes on to from there
+};
+
+// follows the barrier from specified end of its piece, over the pieces it carries on along, to where it really ends
+barrier_fate barrier_end(road_node const &Road, road_barrier::entry const &Entry, bool const Atend)
+{
+	barrier_fate fate;
+	barrier_link at{&Road, &Entry, Atend};
+	double beyond{0.0};
+	// a barrier going around a roundabout has no end to find
+	for (int guard = 0; guard < 64 && beyond <= road_barrier::reach; ++guard)
+	{
+		barrier_link next;
+		if (barrier_reaches(*at.entry, at.atend))
+		{
+			road_axis const axis{at.road->definition().axis};
+			next = barrier_next(at, barrier_tip(at.road->definition(), axis, *at.entry, at.atend));
+		}
+		if (next.road == nullptr)
+		{
+			// the barrier ends here, the way this piece says it does
+			fate.end.beyond = beyond;
+			fate.end.style = at.entry->endings[at.atend ? 1 : 0];
+			fate.end.length = at.entry->lengths[at.atend ? 1 : 0];
+			return fate;
+		}
+		if (fate.neighbour == nullptr)
+		{
+			fate.neighbour = next.road;
+		}
+		beyond += road_barrier::end_of(*next.entry, next.road->definition().length()) - next.entry->from;
+		at = barrier_link{next.road, next.entry, false == next.atend};
+	}
+	fate.end.distant = true;
+	return fate;
+}
+
+// true if a road ends at specified point for a junction to take over
+bool junction_at(glm::dvec3 const &Point)
+{
+	for (auto const *junction : simulation::Junctions.sequence())
+	{
+		if (junction == nullptr || junction->m_editorremoved)
+		{
+			continue;
+		}
+		if (std::ranges::any_of(junction->definition().arms, [&Point](junction_node::arm_data const &Arm) { return glm::distance(Arm.position, Point) < 0.25; }))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// a barrier of a piece with its ends worked out from what's around the piece
+road_barrier::layout barrier_shape(road_node const &Road, road_axis const &Axis, road_barrier::entry const &Entry)
+{
+	auto const &state{Road.definition()};
+	auto layout{barrier_layout(state, Axis, Entry)};
+	for (auto const atend : {false, true})
+	{
+		auto const end{atend ? 1 : 0};
+		auto const fate{barrier_end(Road, Entry, atend)};
+		layout.ends[end] = fate.end;
+		if (fate.neighbour != nullptr)
+		{
+			// one of the two pieces puts the post they share
+			layout.posted[end] = Road.name() < fate.neighbour->name();
+			continue;
+		}
+		if (false == barrier_reaches(Entry, atend) || false == junction_at(state.axis.points[atend ? segment_data::point::end : segment_data::point::start]))
+		{
+			continue;
+		}
+		// a barrier led away from the road would get into the corner of the junction
+		layout.ends[end].style = road_barrier::ending::ramp;
+		if (atend)
+		{
+			layout.to -= barrier_setback;
+		}
+		else
+		{
+			layout.from += barrier_setback;
+		}
+	}
+	return layout;
+}
+
+// galvanised steel
+lighting_data barrier_paint()
+{
+	lighting_data paint;
+	paint.diffuse = glm::vec4{0.62f, 0.64f, 0.66f, 1.f};
+	paint.ambient = paint.diffuse;
+	return paint;
+}
+
+} // namespace
+
+// generates geometry of the surface, the sides and the markings, and of the barriers
 std::vector<scene::shape_node> road_node::create_shapes() const
 {
 	// triangles are gathered separately for each look, so the lot can be drawn with as few shapes as possible
@@ -1919,6 +2127,17 @@ std::vector<scene::shape_node> road_node::create_shapes() const
 				lines.push_back({leftend, upwards, {0.f, 1.f}});
 			}
 		}
+	}
+
+	// safety barriers. these come last, so whatever is done to the road as a whole leaves them straight
+	for (auto const &barrier : road.barriers)
+	{
+		road_barrier::mesh mesh;
+		road_barrier::build(barrier_shape(*this, axis, barrier), mesh);
+		auto const plain{barrier.material.empty() || barrier.material == "none"};
+		auto &target{vertices(plain ? std::string{"colored"} : barrier.material, plain ? barrier_paint() : lighting_data{})};
+		target.insert(target.end(), mesh.rail.begin(), mesh.rail.end());
+		target.insert(target.end(), mesh.posts.begin(), mesh.posts.end());
 	}
 
 	std::vector<scene::shape_node> shapes;
@@ -4071,6 +4290,11 @@ float road_node::radius_() const
 			reach = std::max(reach, static_cast<double>(std::max(bank.width[0], bank.width[1])));
 		}
 	}
+	for (auto const &barrier : m_state.barriers)
+	{
+		// a barrier can be led away from the road at its ends
+		reach = std::max(reach, barrier.offset + 2.0 - m_state.kerbwidth - std::max(m_state.sides[0].width, m_state.sides[1].width));
+	}
 	return static_cast<float>(0.5 * m_state.length() + 0.5 * std::max(m_state.span(0.0), m_state.span(1.0)) + m_state.kerbwidth + std::max(m_state.sides[0].width, m_state.sides[1].width) + reach);
 }
 
@@ -4180,6 +4404,10 @@ void road_node::export_as_text_(std::ostream &Output) const
 	if (road.roundabout)
 	{
 		Output << "roundabout ";
+	}
+	for (auto const &barrier : road.barriers)
+	{
+		Output << "barrier " << road_barrier::format(barrier) << ' ';
 	}
 	// footer
 	Output << "endroad"

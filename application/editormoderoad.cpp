@@ -1408,6 +1408,8 @@ void editor_mode::road_click()
 		auto state{tool.settings};
 		state.axis = pieces[index];
 		state.missing = {};
+		// barriers are put along a road which is there; the ones of the piece the layout was taken from stay with that piece
+		state.barriers.clear();
 		auto const from{along(index)};
 		auto const to{along(index + 1)};
 		auto const &median{tool.settings.median};
@@ -1468,6 +1470,8 @@ void editor_mode::road_apply()
 	std::vector<std::pair<road_node *, road_node::state>> changes;
 	// the other pieces get what was changed, not the whole layout of the selected one: a road needn't be the same all the way
 	auto const before{tool.selected->definition()};
+	// the barriers of a piece are changed on their own, see road_barriers_apply()
+	tool.settings.barriers = before.barriers;
 	for (auto *road : pieces)
 	{
 		std::string reason;
@@ -1920,7 +1924,11 @@ void editor_mode::restore_road_snapshot(EditorSnapshot const &Snapshot, std::vec
 		editor_road::remove(record.junctions_removed);
 		editor_road::remove(record.points_removed);
 	}
-	editor_road::apply(record.roads);
+	// a change of what stands along the roads goes back the way it was made, with the lanes left alone
+	if (record.look_only)
+		editor_road::apply_look(record.roads);
+	else
+		editor_road::apply(record.roads);
 	editor_road::apply(record.junctions);
 	editor_road::apply(record.points);
 	if (Undo)
@@ -1945,6 +1953,151 @@ void editor_mode::restore_road_snapshot(EditorSnapshot const &Snapshot, std::vec
 	if (tool.marker != nullptr && tool.marker->m_editorremoved)
 		tool.marker = nullptr;
 	tool.aimedkind = -1;
+}
+
+namespace
+{
+
+// a number typed in, taken when confirmed
+bool barrier_number(char const *Label, float &Value, char const *Format)
+{
+	ImGui::SetNextItemWidth(120.0f);
+	return ImGui::InputFloat(Label, &Value, 0.0f, 0.0f, Format, ImGuiInputTextFlags_EnterReturnsTrue);
+}
+
+// what an end of a barrier is like where the barrier really ends, and the length it takes
+bool barrier_ending(char const *Label, char const *Lengthlabel, road_barrier::ending &Ending, float &Length)
+{
+	std::array<char const *, 3> const endings{STR_C("Led down into the ground##ending"), STR_C("Led down and away from the road##ending"), STR_C("Cut short##ending")};
+	auto choice{static_cast<int>(Ending)};
+	ImGui::SetNextItemWidth(220.0f);
+	auto changed{ImGui::Combo(Label, &choice, endings.data(), static_cast<int>(endings.size()))};
+	Ending = static_cast<road_barrier::ending>(std::clamp(choice, 0, 2));
+	if (Ending != road_barrier::ending::cap && barrier_number(Lengthlabel, Length, "%.1f"))
+		changed = true;
+	return changed;
+}
+
+// a barrier of the selected piece. returns: true if it was changed
+bool render_road_barrier(road_barrier::entry &Barrier, double const Length)
+{
+	auto changed{false};
+	if (Barrier.where == road_barrier::side::middle || Barrier.type != road_barrier::kind::wbeam)
+	{
+		ImGui::TextDisabled("%s", STR_C("A barrier of a kind which isn't drawn yet; it's kept as it is"));
+		return changed;
+	}
+	std::array<char const *, 2> const sides{STR_C("Left side##barrier"), STR_C("Right side##barrier")};
+	auto side{Barrier.where == road_barrier::side::left ? 0 : 1};
+	ImGui::SetNextItemWidth(120.0f);
+	if (ImGui::Combo(STR_C("Side##barrier"), &side, sides.data(), static_cast<int>(sides.size())))
+	{
+		Barrier.where = (side == 0 ? road_barrier::side::left : road_barrier::side::right);
+		changed = true;
+	}
+	item_tooltip("Left and right are told facing along the axis of the piece, as its sides are");
+	if (barrier_number(STR_C("From the edge of the lanes [m]##barrier"), Barrier.offset, "%.2f"))
+		changed = true;
+	if (barrier_number(STR_C("Starts at [m]##barrier"), Barrier.from, "%.1f"))
+		changed = true;
+	auto whole{Barrier.to < 0.f};
+	if (ImGui::Checkbox(STR_C("Up to the end of the piece##barrier"), &whole))
+	{
+		Barrier.to = (whole ? -1.f : static_cast<float>(Length));
+		changed = true;
+	}
+	if (false == whole && barrier_number(STR_C("Ends at [m]##barrier"), Barrier.to, "%.1f"))
+	{
+		Barrier.to = std::max(0.f, Barrier.to);
+		changed = true;
+	}
+	if (barrier_ending(STR_C("Start##barrier"), STR_C("over [m]##barrierstart"), Barrier.endings[0], Barrier.lengths[0]))
+		changed = true;
+	if (barrier_ending(STR_C("End##barrier"), STR_C("over [m]##barrierend"), Barrier.endings[1], Barrier.lengths[1]))
+		changed = true;
+	return changed;
+}
+
+// the barrier a side of a piece gets to begin with: clear of the shoulder, its ends as long as the speed of the road calls for
+road_barrier::entry fresh_barrier(road_node::state const &Road, bool const Left)
+{
+	road_barrier::entry barrier;
+	barrier.where = (Left ? road_barrier::side::left : road_barrier::side::right);
+	auto const &side{Road.sides[Left ? 0 : 1]};
+	barrier.offset = (side.type == road_node::side_type::shoulder ? side.width + 0.5f : 1.f);
+	auto const length{Road.velocity >= 90.f ? 16.f : 12.f};
+	barrier.lengths = {length, length};
+	return barrier;
+}
+
+}
+
+// the barriers standing along the selected piece. they're changed apart from its layout: a change is made to that piece alone,
+// and it leaves the lanes as they are, so vehicles on the road don't stand in its way
+void editor_mode::render_road_barriers()
+{
+	auto const &tool{m_roadtool};
+	if (tool.selected == nullptr || false == ImGui::CollapsingHeader(STR_C("Safety barriers##barriers")))
+		return;
+	auto const &road{tool.selected->definition()};
+	auto barriers{road.barriers};
+	auto changed{false};
+	std::size_t removed{barriers.size()};
+	for (std::size_t index = 0; index < barriers.size(); ++index)
+	{
+		ImGui::PushID(static_cast<int>(index));
+		if (render_road_barrier(barriers[index], road.length()))
+			changed = true;
+		// each barrier has a button of its own: Del takes the selected road
+		if (ImGui::Button(STR_C("Remove the barrier##barrier")))
+			removed = index;
+		ImGui::PopID();
+		ImGui::Separator();
+	}
+	if (removed < barriers.size())
+	{
+		barriers.erase(barriers.begin() + static_cast<std::ptrdiff_t>(removed));
+		changed = true;
+	}
+	if (ImGui::Button(STR_C("Add on the left##barrier")))
+	{
+		barriers.emplace_back(fresh_barrier(road, true));
+		changed = true;
+	}
+	ImGui::SameLine();
+	if (ImGui::Button(STR_C("Add on the right##barrier")))
+	{
+		barriers.emplace_back(fresh_barrier(road, false));
+		changed = true;
+	}
+	item_tooltip("A steel rail on posts along the whole piece. Where the barriers of two pieces meet they're one barrier:\nit's led down into the ground only where it really ends, and it ends short of a junction");
+	if (changed)
+		road_barriers_apply(barriers);
+}
+
+void editor_mode::road_barriers_apply(std::vector<road_barrier::entry> const &Barriers)
+{
+	auto &tool{m_roadtool};
+	auto *road{tool.selected};
+	if (road == nullptr)
+		return;
+	if (std::string reason; false == editor_road::can_restyle(*road, &reason))
+	{
+		tool.status = cannot_change(road->name(), reason);
+		return;
+	}
+	auto state{road->definition()};
+	state.barriers = Barriers;
+	state.normalize();
+	if (state.barriers == road->definition().barriers)
+		return;
+	editor_road::record record;
+	record.look_only = true;
+	record.roads.emplace_back(road, road->definition());
+	editor_road::apply_look(std::vector<std::pair<road_node *, road_node::state>>{{road, state}});
+	push_road_snapshot(std::move(record));
+	tool.settings.barriers = road->definition().barriers;
+	tool.status = STR_C("Barriers changed, Ctrl+Z takes it back");
 }
 
 // a field of the material of a part of a road or of a junction. returns: true if the material was changed
@@ -2527,6 +2680,7 @@ void editor_mode::render_road_selection()
 		ImGui::Separator();
 		if (tool.selected != nullptr && render_road_layout(tool.settings))
 			road_apply();
+		render_road_barriers();
 	}
 	else
 	{

@@ -14236,3 +14236,69 @@ msgstr "Kursor rysowany w obrazie (stream)"
 
 msgid "The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\nor a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"
 msgstr "Wskaźnik rysowany przez edytor w klatce zamiast systemowego: widać go w streamie\ni w nagraniu okna (Discord, OBS, przechwytywanie systemowe), które pomijają wskaźnik systemu"
+
+msgid "Safety barriers##barriers"
+msgstr "Bariery ochronne##barriers"
+
+msgid "A barrier of a kind which isn't drawn yet; it's kept as it is"
+msgstr "Bariera rodzaju, który nie jest jeszcze rysowany; zostaje zapisana bez zmian"
+
+msgid "Left side##barrier"
+msgstr "Lewa strona##barrier"
+
+msgid "Right side##barrier"
+msgstr "Prawa strona##barrier"
+
+msgid "Side##barrier"
+msgstr "Strona##barrier"
+
+msgid "Left and right are told facing along the axis of the piece, as its sides are"
+msgstr "Lewa i prawa są liczone patrząc wzdłuż osi odcinka, tak jak jego pobocza"
+
+msgid "From the edge of the lanes [m]##barrier"
+msgstr "Od krawędzi pasów [m]##barrier"
+
+msgid "Starts at [m]##barrier"
+msgstr "Początek [m]##barrier"
+
+msgid "Up to the end of the piece##barrier"
+msgstr "Do końca odcinka##barrier"
+
+msgid "Ends at [m]##barrier"
+msgstr "Koniec [m]##barrier"
+
+msgid "Start##barrier"
+msgstr "Zakończenie na początku##barrier"
+
+msgid "End##barrier"
+msgstr "Zakończenie na końcu##barrier"
+
+msgid "over [m]##barrierstart"
+msgstr "na długości [m]##barrierstart"
+
+msgid "over [m]##barrierend"
+msgstr "na długości [m]##barrierend"
+
+msgid "Led down into the ground##ending"
+msgstr "Pochylona do ziemi##ending"
+
+msgid "Led down and away from the road##ending"
+msgstr "Pochylona do ziemi i odgięta od drogi##ending"
+
+msgid "Cut short##ending"
+msgstr "Krótka końcówka##ending"
+
+msgid "Remove the barrier##barrier"
+msgstr "Usuń barierę##barrier"
+
+msgid "Add on the left##barrier"
+msgstr "Dodaj z lewej##barrier"
+
+msgid "Add on the right##barrier"
+msgstr "Dodaj z prawej##barrier"
+
+msgid "A steel rail on posts along the whole piece. Where the barriers of two pieces meet they're one barrier:\nit's led down into the ground only where it really ends, and it ends short of a junction"
+msgstr "Stalowa prowadnica na słupkach wzdłuż całego odcinka. Gdzie bariery dwóch odcinków się stykają, są jedną barierą:\nschodzi do ziemi tylko tam, gdzie naprawdę się kończy, i kończy się przed skrzyżowaniem"
+
+msgid "Barriers changed, Ctrl+Z takes it back"
+msgstr "Bariery zmienione, Ctrl+Z cofa"
