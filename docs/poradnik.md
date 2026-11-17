@@ -246,6 +246,18 @@ Narzędzie **Pędzel** (klawisz 3 w Otoczeniu) ma dwie ścieżki:
   - losowa: ± procent, jednakowa na wszystkich osiach (model zachowuje proporcje) albo osobno na każdej osi.
 - „Losowy model z zestawu” działa jak dotąd: każdy model losowany z wybranego zestawu albo ręcznej listy.
 
+### Co kładzie pędzel: Modele, Trawa 3D, Tekstura gruntu
+
+Na górze opcji pędzla jest wybór **„Pędzel kładzie:”**:
+
+- **Modele**: wszystko, co wyżej.
+- **Trawa 3D**: prawdziwe źdźbła rysowane przez shader terenu (robota Hirka), bez żadnych modeli. Rodzaje bierzesz z palety traw (ta sama co w trybie Teren → Trawa 3D). Dwa kształty:
+  - **W kole**: trzymasz LPM, trawa gęstnieje pod kursorem; Shift+LPM zabiera całą trawę.
+  - **Wzdłuż ścieżki**: LPM klika punkty, **Enter** sadzi trawę pasem wzdłuż nich, **Shift+Enter** zabiera ją pasem, **Backspace** cofa ostatni punkt, **Esc** porzuca ścieżkę. Ustawiasz **szerokość w każdą stronę**, **miękką krawędź** (na ilu metrach trawa rzednie do zera) i **pełność** (100% = pełna gęstość rodzaju). Pobocze, rów, pas między torami jednym ruchem; całość cofa jedno Ctrl+Z.
+- **Tekstura gruntu**: maluje materiały palety terenu w ziemi (Mieszaj / Kryj / Zmazuj), jak Teren → Tekstura gruntu. Zmienia się tylko obraz gruntu, źdźbła nie rosną; Shift+LPM maluje pierwszy materiał palety.
+
+Wspólne: **Alt+LPM** pobiera spod kursora rodzaj trawy albo materiał. **Esc przy trzymanym przycisku** cofa całe pociągnięcie (także modeli). Promień i siła są te same co pędzli trybu Teren. Trawa i tekstura potrzebują terenu z trybu Teren; bez niego pędzel o tym mówi.
+
 ## Nazwy torów w ASCII (od nr 181)
 
 - Przy otwarciu scenerii w edytorze każda nazwa toru z polskimi literami (albo innymi znakami spoza ASCII) jest zamieniana na ASCII: `Łąka_1` → `laka_1`, `żółw` → `zolw`. Znaki nie do odczytania jako litera zamieniają się na `_`.

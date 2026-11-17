@@ -65,6 +65,11 @@ class editor_ui : public ui_layer
 	{
 		m_filloptions = std::move(Renderer);
 	}
+	// draws the settings of the brush putting 3D grass or the ground texture (the terrain lives in the editor mode)
+	void set_brush_surface_options(std::function<void()> Renderer)
+	{
+		m_brushobjects.surface_options = std::move(Renderer);
+	}
 	// the open track window takes the mouse over, whichever toolset tab is chosen
 	// the title of the tool options of the tracks; empty: "Tracks"
 	void set_track_title(std::string Title) { m_tracktitle = std::move(Title); }

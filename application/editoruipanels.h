@@ -131,6 +131,25 @@ class brush_object_list
 		line,
 	};
 
+	// what the brush puts on the ground: models of the node bank, the 3D grass of the terrain (the blades the shader draws), or
+	// the materials of the terrain palette painted into the ground
+	enum class target
+	{
+		models,
+		grass,
+		texture,
+	};
+	// the grass along the path of the cursor in a circle, or in a band along a path clicked point by point
+	enum class grass_shape
+	{
+		circle,
+		path,
+	};
+
+	target what{target::models};
+	grass_shape grass_stroke{grass_shape::circle};
+	// the settings of the 3D grass and of the ground texture, drawn by the editor mode, which keeps the terrain and its palettes
+	std::function<void()> surface_options;
 	kind way{kind::multi};
 	shape stroke{shape::circle};
 	scatter::dab_settings dab; // the circle of the many and how they fill it
@@ -138,6 +157,10 @@ class brush_object_list
 	scatter::look_settings look; // the turn and the scale of each model
 
   private:
+	// which of the three the brush puts, as tabs over its settings
+	void render_target();
+	// the 3D grass in a circle or along a path
+	void render_grass_shape();
 	void render_look();
 	// the settings of the stroke of many models
 	void render_dab();

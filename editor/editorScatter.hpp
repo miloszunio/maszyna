@@ -4,6 +4,7 @@
 
 #include <random>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -71,6 +72,31 @@ std::vector<line_place> along(std::vector<glm::dvec3> const &Points, line_settin
 
 // the share of its size a model gets at the place Side of the band (0 on the line, 1 at the edge)
 float side_scale(line_settings const &Settings, double Side);
+
+// a band painted along a path (the 3D grass of the terrain): the full Amount within Width of the path, down to nothing over
+// Feather beyond it
+struct band_settings
+{
+	double width{1.0}; // m each side of the path
+	double feather{1.0}; // m beyond the width the paint fades out over; 0: a sharp edge
+	double amount{1.0}; // 0 to 1: how far of the way to the full each place within the width gets
+};
+
+// the piece of the path through Points (x, height, z) nearest to At in the plan (x, z), the first of those as near, and the distance
+// to it; a single point is a path of one piece, 0
+std::pair<std::size_t, double> nearest_piece(std::vector<glm::dvec3> const &Points, glm::dvec2 const &At);
+
+// the least distance in the plan (x, z) from At to the path through Points (x, height, z)
+double distance_to_path(std::vector<glm::dvec3> const &Points, glm::dvec2 const &At);
+
+// how much of the way a place Distance from the path gets painted, 0 to 1
+double band_amount(band_settings const &Settings, double Distance);
+
+// the rectangle (x, z) the band of the path reaches: low and high corners
+std::pair<glm::dvec2, glm::dvec2> band_bounds(std::vector<glm::dvec3> const &Points, band_settings const &Settings);
+
+// the rectangle (x, z) the band of the piece Piece of the path reaches (the piece from point Piece to the next one)
+std::pair<glm::dvec2, glm::dvec2> piece_bounds(std::vector<glm::dvec3> const &Points, std::size_t Piece, band_settings const &Settings);
 
 // a setting the same for every model, or drawn for each from a range
 enum class vary

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <limits>
 #include <numbers>
 
 namespace scatter
@@ -247,6 +248,64 @@ std::vector<line_place> along(std::vector<glm::dvec3> const &Points, line_settin
 	if (Settings.mode == line_fill::irregular)
 		return irregular_line(line, Settings, spacing, Random);
 	return regular_line{line, Settings, spacing, Random}.make();
+}
+
+std::pair<std::size_t, double> nearest_piece(std::vector<glm::dvec3> const &Points, glm::dvec2 const &At)
+{
+	if (Points.empty())
+		return {0, std::numeric_limits<double>::max()};
+	std::pair<std::size_t, double> nearest{0, glm::distance(At, glm::dvec2{Points.front().x, Points.front().z})};
+	for (std::size_t i = 1; i < Points.size(); ++i)
+	{
+		glm::dvec2 const a{Points[i - 1].x, Points[i - 1].z};
+		glm::dvec2 const run{glm::dvec2{Points[i].x, Points[i].z} - a};
+		auto const length2{glm::dot(run, run)};
+		auto const share{length2 > 0.0 ? std::clamp(glm::dot(At - a, run) / length2, 0.0, 1.0) : 0.0};
+		if (auto const distance{glm::distance(At, a + run * share)}; i == 1 || distance < nearest.second)
+			nearest = {i - 1, distance};
+	}
+	return nearest;
+}
+
+double distance_to_path(std::vector<glm::dvec3> const &Points, glm::dvec2 const &At)
+{
+	return nearest_piece(Points, At).second;
+}
+
+double band_amount(band_settings const &Settings, double const Distance)
+{
+	auto const amount{std::clamp(Settings.amount, 0.0, 1.0)};
+	auto const width{std::max(0.0, Settings.width)};
+	if (Distance <= width)
+		return amount;
+	auto const feather{std::max(0.0, Settings.feather)};
+	if (feather <= 0.0 || Distance >= width + feather)
+		return 0.0;
+	// smooth at both ends of the fade
+	auto const t{(Distance - width) / feather};
+	return amount * (1.0 - t * t * (3.0 - 2.0 * t));
+}
+
+std::pair<glm::dvec2, glm::dvec2> band_bounds(std::vector<glm::dvec3> const &Points, band_settings const &Settings)
+{
+	glm::dvec2 low{std::numeric_limits<double>::max()};
+	glm::dvec2 high{std::numeric_limits<double>::lowest()};
+	for (auto const &point : Points)
+	{
+		low = glm::min(low, glm::dvec2{point.x, point.z});
+		high = glm::max(high, glm::dvec2{point.x, point.z});
+	}
+	auto const reach{std::max(0.0, Settings.width) + std::max(0.0, Settings.feather)};
+	return {low - glm::dvec2{reach}, high + glm::dvec2{reach}};
+}
+
+std::pair<glm::dvec2, glm::dvec2> piece_bounds(std::vector<glm::dvec3> const &Points, std::size_t const Piece, band_settings const &Settings)
+{
+	if (Piece >= Points.size())
+		return band_bounds({}, Settings);
+	auto const last{std::min(Piece + 1, Points.size() - 1)};
+	auto const first{Points.begin() + static_cast<std::ptrdiff_t>(Piece)};
+	return band_bounds(std::vector<glm::dvec3>(first, Points.begin() + static_cast<std::ptrdiff_t>(last) + 1), Settings);
 }
 
 float side_scale(line_settings const &Settings, double const Side)

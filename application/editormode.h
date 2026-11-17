@@ -227,7 +227,33 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool brush_on_line();
 	void brush_line_point();
 	void brush_line_finish();
-	void draw_brush_line(glm::dvec3 const *Cursor);
+	// Width: of the band each side of the line, Fade: beyond it, where the paint of a band fades out (drawn fainter)
+	void draw_brush_line(glm::dvec3 const *Cursor, double Width, double Fade = 0.0);
+	// a circle laid on the ground round Centre
+	void draw_brush_circle(glm::dvec3 const &Centre, double Radius);
+	// the cross on the ground at Centre, its arms Arm metres long
+	void draw_brush_cross(glm::dvec3 const &Centre, double Arm);
+	// the brush putting 3D grass or the ground texture instead of models (editormodebrushsurface.cpp): the terrain grows the
+	// grass and takes the paint, a stroke held in a circle or the grass in a band along a path is one step of the history
+	bool brush_puts_surface() const;
+	bool brush_grass_path() const;
+	// a stroke of the 3D grass or of the ground texture in a circle is on: the button held, not given up with Esc
+	bool brush_surface_painting() const;
+	void brush_surface_press();
+	void brush_surface_stroke(double Deltatime);
+	// the grass grown (or taken away, Erase) in the band along the path clicked
+	void brush_grass_along(bool Erase);
+	// Alt+LMB: the kind of grass or the material under the cursor chosen in its palette; returns: something was picked
+	bool brush_pick_under_cursor();
+	// the kind of grass growing the densest under the cursor
+	bool grass_at_cursor(std::uint16_t &Kind) const;
+	void render_brush_surface_options();
+	void draw_brush_surface_cursor();
+	// Esc: the line or the path being clicked dropped, or the stroke held taken back; returns: the key was the brush's
+	bool brush_escape();
+	scatter::band_settings m_grass_band{1.0, 1.0, 1.0}; // the band of the 3D grass along a path
+	bool m_brush_cancelled{false}; // the stroke held was given up (Esc) or the press picked (Alt): nothing more until the button is let go
+	std::size_t m_brush_history_mark{0}; // the size of the history when the stroke started
 	TAnimModel *place_brush_model(glm::dvec3 const &At, float Scale = 1.0f);
 	void apply_rotation_for_new_node(scene::basic_node *node, int rotation_mode, float fixed_rotation_value);
 	// members
@@ -677,6 +703,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	bool cursor_on_ground(glm::dvec3 &World);
 	// the grass of the terrain: the palette, the kind grown, presets
 	void render_grass_ui();
+	// the materials of the terrain palette: the entries, the size and turn of the chosen one, a material added
+	void render_materials_ui();
 	// converts the point spacing of the selected chunks to m_terrain_convert_spacing
 	void convert_selected_chunks();
 	// the chunks selected with the spacing tool taken out of the terrain, in one step of the history

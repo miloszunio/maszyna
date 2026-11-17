@@ -235,3 +235,60 @@ TEST_CASE("scatter: the size of a model across the band, full on the line, as se
 	std::mt19937 random{1}; // NOSONAR(cpp:S2245) a repeatable test, not security
 	CHECK(scatter::along({{0.0, 0.0, 0.0}}, settings, random).empty());
 }
+
+TEST_CASE("scatter: the distance to a path in the plan, to its pieces and to their ends")
+{
+	std::vector<glm::dvec3> const path{{0.0, 5.0, 0.0}, {10.0, 7.0, 0.0}, {10.0, 7.0, 10.0}};
+	CHECK(scatter::distance_to_path(path, {5.0, 3.0}) == doctest::Approx(3.0));
+	CHECK(scatter::distance_to_path(path, {13.0, 5.0}) == doctest::Approx(3.0));
+	CHECK(scatter::distance_to_path(path, {-4.0, -3.0}) == doctest::Approx(5.0));
+	CHECK(scatter::distance_to_path(path, {10.0, 14.0}) == doctest::Approx(4.0));
+	// one point is a path too, and the height plays no part
+	CHECK(scatter::distance_to_path({{1.0, 100.0, 1.0}}, {4.0, 5.0}) == doctest::Approx(5.0));
+	CHECK(scatter::distance_to_path({}, {0.0, 0.0}) > 1e300);
+}
+
+TEST_CASE("scatter: the band along a path, full within the width, fading out over the feather")
+{
+	scatter::band_settings settings;
+	settings.width = 2.0;
+	settings.feather = 1.0;
+	settings.amount = 0.8;
+	CHECK(scatter::band_amount(settings, 0.0) == doctest::Approx(0.8));
+	CHECK(scatter::band_amount(settings, 2.0) == doctest::Approx(0.8));
+	CHECK(scatter::band_amount(settings, 2.5) == doctest::Approx(0.4));
+	CHECK(scatter::band_amount(settings, 3.0) == doctest::Approx(0.0));
+	CHECK(scatter::band_amount(settings, 10.0) == doctest::Approx(0.0));
+	CHECK(scatter::band_amount(settings, 2.25) > scatter::band_amount(settings, 2.75));
+	// a sharp edge
+	settings.feather = 0.0;
+	CHECK(scatter::band_amount(settings, 2.0) == doctest::Approx(0.8));
+	CHECK(scatter::band_amount(settings, 2.01) == doctest::Approx(0.0));
+	// the amount kept between none and full
+	settings.amount = 3.0;
+	CHECK(scatter::band_amount(settings, 1.0) == doctest::Approx(1.0));
+	auto const [low, high]{scatter::band_bounds({{0.0, 0.0, 0.0}, {10.0, 0.0, -5.0}}, scatter::band_settings{2.0, 1.0, 1.0})};
+	CHECK(low.x == doctest::Approx(-3.0));
+	CHECK(low.y == doctest::Approx(-8.0));
+	CHECK(high.x == doctest::Approx(13.0));
+	CHECK(high.y == doctest::Approx(3.0));
+}
+
+TEST_CASE("scatter: the nearest piece of a path, and the rectangles of its pieces")
+{
+	std::vector<glm::dvec3> const path{{0.0, 0.0, 0.0}, {10.0, 0.0, 0.0}, {10.0, 0.0, 10.0}};
+	CHECK(scatter::nearest_piece(path, {5.0, -2.0}).first == 0);
+	CHECK(scatter::nearest_piece(path, {12.0, 6.0}).first == 1);
+	// the corner is as near to both: the first of them
+	CHECK(scatter::nearest_piece(path, {11.0, -1.0}).first == 0);
+	CHECK(scatter::nearest_piece({{3.0, 0.0, 4.0}}, {0.0, 0.0}).first == 0);
+	scatter::band_settings const band{1.0, 0.5, 1.0};
+	auto const [low, high]{scatter::piece_bounds(path, 1, band)};
+	CHECK(low.x == doctest::Approx(8.5));
+	CHECK(low.y == doctest::Approx(-1.5));
+	CHECK(high.x == doctest::Approx(11.5));
+	CHECK(high.y == doctest::Approx(11.5));
+	// a piece past the end reaches nowhere
+	auto const [nolow, nohigh]{scatter::piece_bounds(path, 5, band)};
+	CHECK(nolow.x > nohigh.x);
+}

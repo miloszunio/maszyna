@@ -290,6 +290,7 @@ set(SOURCES
 "application/editormodevehicle.cpp"
 "application/editormodeselection.cpp"
 "application/editormodebrush.cpp"
+"application/editormodebrushsurface.cpp"
 "application/editormodetracknames.cpp"
 "application/editormodeviewport.cpp"
 "application/editormodeterrainchunks.cpp"

@@ -241,9 +241,14 @@ void editor_mode::work_area_tools(std::vector<tool_button> &Buttons)
 		Buttons.push_back({icon::smooth, STR_C("Smooth"), nullptr, STR_C("LMB evens the terrain out under the brush"), chosen(terrain_tool::smooth), choose(terrain_tool::smooth)});
 		Buttons.push_back({icon::profile, STR_C("Level"), nullptr, STR_C("LMB leads the terrain under the brush to the target height, Ctrl+LMB takes the target height from what's under the cursor"),
 		                   chosen(terrain_tool::level), choose(terrain_tool::level)});
-		Buttons.push_back({icon::brush, STR_C("Paint"), nullptr, STR_C("LMB paints the material chosen in the palette, Shift+LMB the first material of the palette"), chosen(terrain_tool::paint), choose(terrain_tool::paint)});
-		Buttons.push_back({icon::grass, STR_C("Grass"), nullptr, STR_C("LMB grows the kind of grass chosen in the grass palette, Shift+LMB takes the grass away"), chosen(terrain_tool::grass),
-		                   choose(terrain_tool::grass)});
+		Buttons.push_back({icon::brush, STR_C("Ground texture"), nullptr,
+		                   STR_C("LMB paints the material chosen in the palette into the ground, Shift+LMB the first material of the palette, Alt+LMB picks the material "
+		                         "under the cursor.\nThe Brush of the Surroundings paints it too (Ground texture)"),
+		                   chosen(terrain_tool::paint), choose(terrain_tool::paint)});
+		Buttons.push_back({icon::grass, STR_C("3D grass"), nullptr,
+		                   STR_C("LMB grows the kind of 3D grass chosen in the grass palette (blades drawn by the shader of the terrain), Shift+LMB takes the grass away.\n"
+		                         "The Brush of the Surroundings grows it too (3D grass), also in a band along a path"),
+		                   chosen(terrain_tool::grass), choose(terrain_tool::grass)});
 		Buttons.push_back({icon::chunks, STR_C("Chunks"), nullptr, STR_C("LMB adds a chunk next to the clicked one, Shift+LMB removes it"), chosen(terrain_tool::chunks), choose(terrain_tool::chunks)});
 		Buttons.push_back({icon::area_fill, STR_C("Water"), nullptr, STR_C("LMB adds a point of the outline of a body of water, Shift+LMB takes the last one back"), chosen(terrain_tool::water), choose(terrain_tool::water)});
 		Buttons.push_back({icon::count, STR_C("Fill"), nullptr, STR_C("LMB adds a point of the outline of an area to fill with a material, Shift+LMB takes the last one back"), chosen(terrain_tool::fill),

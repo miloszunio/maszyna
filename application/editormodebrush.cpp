@@ -30,6 +30,7 @@ namespace
 ImU32 constexpr kCrossColour{IM_COL32(255, 220, 70, 255)};
 ImU32 constexpr kCircleColour{IM_COL32(255, 220, 70, 170)};
 ImU32 constexpr kShadowColour{IM_COL32(0, 0, 0, 140)};
+ImU32 constexpr kFadeColour{IM_COL32(255, 220, 70, 90)};
 
 // the last press of the left button landed in the viewport, not on a window (see editormode.cpp)
 bool viewport_click()
@@ -79,6 +80,13 @@ void editor_mode::brush_press()
 	mouseHold = true;
 	m_brush_has_last = false;
 	m_brush_taken.clear();
+	m_brush_cancelled = false;
+	m_brush_history_mark = m_history.size();
+	if (brush_puts_surface())
+	{
+		brush_surface_press();
+		return;
+	}
 	auto const &settings{ui()->brush()};
 	if (settings.way != brush_object_list::kind::single && settings.stroke == brush_object_list::shape::line)
 	{
@@ -175,8 +183,13 @@ void editor_mode::end_brush_stroke()
 
 bool editor_mode::brush_on_line()
 {
+	if (ui()->mode() != nodebank_panel::BRUSH)
+		return false;
 	auto const &settings{ui()->brush()};
-	return ui()->mode() == nodebank_panel::BRUSH && settings.way == brush_object_list::kind::multi && settings.stroke == brush_object_list::shape::line;
+	if (settings.what == brush_object_list::target::models)
+		return settings.way == brush_object_list::kind::multi && settings.stroke == brush_object_list::shape::line;
+	// the 3D grass along a path clicked takes the same keys
+	return brush_grass_path();
 }
 
 void editor_mode::brush_line_point()
@@ -190,6 +203,12 @@ void editor_mode::brush_line_point()
 
 void editor_mode::brush_line_finish()
 {
+	if (brush_puts_surface())
+	{
+		// Shift+Enter takes the grass away along the path
+		brush_grass_along(Global.shiftState);
+		return;
+	}
 	if (m_brush_line.size() < 2)
 	{
 		ui()->set_status(STR_C("Brush: a line needs two points at least"));
@@ -227,13 +246,14 @@ void editor_mode::brush_line_finish()
 		ui()->set_status(format(STR_C("Brush: %zu models put along the line; Ctrl+Z takes them back"), count));
 }
 
-void editor_mode::draw_brush_line(glm::dvec3 const *Cursor)
+void editor_mode::draw_brush_line(glm::dvec3 const *Cursor, double const Width, double const Fade)
 {
 	if (m_brush_line.empty())
 		return;
 	screen_projection const view;
 	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
-	auto const width{std::max(0.0, ui()->brush().line.width)};
+	auto const width{std::max(0.0, Width)};
+	auto const outer{width + std::max(0.0, Fade)};
 	auto const lifted = [](glm::dvec3 const &Point) { return Point + glm::dvec3{0.0, 0.05, 0.0}; };
 	auto const side = [this, &lifted](glm::dvec3 const &Point, glm::dvec2 const &Offset) {
 		glm::dvec2 const at{Point.x + Offset.x, Point.z + Offset.y};
@@ -253,6 +273,12 @@ void editor_mode::draw_brush_line(glm::dvec3 const *Cursor)
 		auto const normal{glm::dvec2{-run.y, run.x} * (width / length)};
 		view.line(drawlist, side(a, normal), side(b, normal), kCircleColour, 1.5f);
 		view.line(drawlist, side(a, -normal), side(b, -normal), kCircleColour, 1.5f);
+		if (outer <= width)
+			continue;
+		// where the paint of the band fades out
+		auto const fade{glm::dvec2{-run.y, run.x} * (outer / length)};
+		view.line(drawlist, side(a, fade), side(b, fade), kFadeColour, 1.0f);
+		view.line(drawlist, side(a, -fade), side(b, -fade), kFadeColour, 1.0f);
 	}
 	// the piece the next click would add
 	if (Cursor != nullptr)
@@ -264,41 +290,56 @@ void editor_mode::draw_brush_line(glm::dvec3 const *Cursor)
 	}
 }
 
+void editor_mode::draw_brush_circle(glm::dvec3 const &Centre, double const Radius)
+{
+	screen_projection const view;
+	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
+	auto const ground = [this, &Centre](double const X, double const Z) { return glm::dvec3{X, brush_height({X, Z}, Centre.y) + 0.05, Z}; };
+	int constexpr pieces{64};
+	auto const radius{std::max(0.1, Radius)};
+	auto previous{ground(Centre.x + radius, Centre.z)};
+	for (int i = 1; i <= pieces; ++i)
+	{
+		auto const angle{2.0 * std::numbers::pi * i / pieces};
+		auto const next{ground(Centre.x + radius * std::cos(angle), Centre.z + radius * std::sin(angle))};
+		view.line(drawlist, previous, next, kShadowColour, 3.5f);
+		view.line(drawlist, previous, next, kCircleColour, 1.8f);
+		previous = next;
+	}
+}
+
+void editor_mode::draw_brush_cross(glm::dvec3 const &Centre, double const Arm)
+{
+	screen_projection const view;
+	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
+	auto const ground = [this, &Centre](double const X, double const Z) { return glm::dvec3{X, brush_height({X, Z}, Centre.y) + 0.05, Z}; };
+	std::array<std::pair<glm::dvec3, glm::dvec3>, 2> const arms{std::make_pair(ground(Centre.x - Arm, Centre.z), ground(Centre.x + Arm, Centre.z)),
+	                                                             std::make_pair(ground(Centre.x, Centre.z - Arm), ground(Centre.x, Centre.z + Arm))};
+	for (auto const &[a, b] : arms)
+	{
+		view.line(drawlist, a, b, kShadowColour, 4.0f);
+		view.line(drawlist, a, b, kCrossColour, 2.0f);
+	}
+}
+
 void editor_mode::draw_brush_cursor()
 {
+	if (brush_puts_surface())
+	{
+		draw_brush_surface_cursor();
+		return;
+	}
 	auto const &settings{ui()->brush()};
 	auto const many{settings.way == brush_object_list::kind::multi};
 	auto const on_line{many && settings.stroke == brush_object_list::shape::line};
 	glm::dvec3 centre;
 	auto const on_ground{brush_ground(centre)};
 	if (on_line)
-		draw_brush_line(on_ground ? &centre : nullptr);
+		draw_brush_line(on_ground ? &centre : nullptr, settings.line.width);
 	if (false == on_ground)
 		return;
-	screen_projection const view;
-	auto *drawlist{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
 	// the cross on the ground, as large as a tenth of the circle (a metre for the single model), between 0.5 and 3 m
-	auto const arm{std::clamp(many && false == on_line ? 0.1 * settings.dab.radius : 1.0, 0.5, 3.0)};
-	auto const ground = [&](double const X, double const Z) { return glm::dvec3{X, brush_height({X, Z}, centre.y) + 0.05, Z}; };
-	std::array<std::pair<glm::dvec3, glm::dvec3>, 2> const arms{std::make_pair(ground(centre.x - arm, centre.z), ground(centre.x + arm, centre.z)),
-	                                                             std::make_pair(ground(centre.x, centre.z - arm), ground(centre.x, centre.z + arm))};
-	for (auto const &[a, b] : arms)
-	{
-		view.line(drawlist, a, b, kShadowColour, 4.0f);
-		view.line(drawlist, a, b, kCrossColour, 2.0f);
-	}
-	if (false == many || on_line)
-		return;
-	// the circle, laid on the ground
-	int constexpr pieces{64};
-	auto const radius{std::max(0.1, settings.dab.radius)};
-	auto previous{ground(centre.x + radius, centre.z)};
-	for (int i = 1; i <= pieces; ++i)
-	{
-		auto const angle{2.0 * std::numbers::pi * i / pieces};
-		auto const next{ground(centre.x + radius * std::cos(angle), centre.z + radius * std::sin(angle))};
-		view.line(drawlist, previous, next, kShadowColour, 3.5f);
-		view.line(drawlist, previous, next, kCircleColour, 1.8f);
-		previous = next;
-	}
+	draw_brush_cross(centre, std::clamp(many && false == on_line ? 0.1 * settings.dab.radius : 1.0, 0.5, 3.0));
+	if (many && false == on_line)
+		draw_brush_circle(centre, settings.dab.radius);
 }

@@ -608,8 +608,60 @@ std::string *brush_object_list::GetRandomObject()
 	return &Objects[dist(Global.local_random_engine)];
 }
 
+void brush_object_list::render_target()
+{
+	struct choice
+	{
+		target value;
+		char const *label;
+		char const *tip;
+	};
+	std::array<choice, 3> const choices{
+	    choice{target::models, STR_C("Models##brushwhat"), STR_C("Puts models of the node bank on the ground: one at a click, many in a circle or along a line")},
+	    choice{target::grass, STR_C("3D grass##brushwhat"),
+	           STR_C("Grows 3D grass on the terrain: blades drawn by the shader of the terrain (Hirek's), no models.\n"
+	                 "The kinds of grass are those of the grass palette, the same as the 3D grass tool of the Terrain mode")},
+	    choice{target::texture, STR_C("Ground texture##brushwhat"),
+	           STR_C("Paints the materials of the terrain palette into the ground (grass, earth, gravel and the like),\n"
+	                 "as the Ground texture tool of the Terrain mode does. Only the picture of the ground changes, no blades grow")}};
+	ImGui::TextUnformatted(STR_C("The brush puts:"));
+	for (auto const &[value, label, tip] : choices)
+	{
+		ImGui::SameLine();
+		if (ImGui::RadioButton(label, what == value))
+			what = value;
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("%s", tip);
+	}
+	ImGui::Separator();
+}
+
+void brush_object_list::render_grass_shape()
+{
+	if (ImGui::RadioButton(STR_C("In a circle##grassshape"), grass_stroke == grass_shape::circle))
+		grass_stroke = grass_shape::circle;
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("The grass grows in the circle under the cursor while LMB is held, the longer the denser"));
+	ImGui::SameLine();
+	if (ImGui::RadioButton(STR_C("Along a path##grassshape"), grass_stroke == grass_shape::path))
+		grass_stroke = grass_shape::path;
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("%s", STR_C("LMB clicks the points of a path on the ground, Enter grows the grass in a band along it at once:\n"
+		                              "a verge, a ditch, a strip between the tracks, a path across a meadow"));
+}
+
 void brush_object_list::render_options(nodebank_panel &Bank)
 {
+	render_target();
+	// the 3D grass and the ground texture are settings of the terrain, which the editor mode keeps
+	if (what != target::models)
+	{
+		if (what == target::grass)
+			render_grass_shape();
+		if (surface_options)
+			surface_options();
+		return;
+	}
 	// one model at a click, or many in the circle while the button is held
 	auto many{way == kind::multi};
 	if (ImGui::RadioButton(STR_C("Single model##brush"), false == many))

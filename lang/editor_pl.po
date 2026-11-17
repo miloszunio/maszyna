@@ -18185,3 +18185,144 @@ msgstr "Pędzel: postawiono %zu modeli wzdłuż linii, najwięcej, ile stawia je
 
 msgid "Brush: %zu models put along the line; Ctrl+Z takes them back"
 msgstr "Pędzel: postawiono %zu modeli wzdłuż linii; Ctrl+Z je cofa"
+
+msgid "Brush: the scenery has no terrain of the Terrain mode to grow the 3D grass on or to paint"
+msgstr "Pędzel: sceneria nie ma terenu z trybu Teren, nie ma na czym sadzić trawy 3D ani malować"
+
+msgid "3D grass: a path needs two points at least"
+msgstr "Trawa 3D: ścieżka potrzebuje co najmniej dwóch punktów"
+
+msgid "3D grass: no grass along the path to take away"
+msgstr "Trawa 3D: wzdłuż ścieżki nie ma trawy do zabrania"
+
+msgid "3D grass: nothing grown, no chunk of the terrain under the path, or no room for another kind of grass"
+msgstr "Trawa 3D: nic nie wyrosło, pod ścieżką nie ma kawałka terenu albo nie ma miejsca na kolejny rodzaj trawy"
+
+msgid "3D grass taken away along the path; Ctrl+Z puts it back"
+msgstr "Trawa 3D zabrana wzdłuż ścieżki; Ctrl+Z ją przywraca"
+
+msgid "3D grass grown along the path: %s; Ctrl+Z takes it back"
+msgstr "Trawa 3D wyrosła wzdłuż ścieżki: %s; Ctrl+Z cofa"
+
+msgid "3D grass: no grass under the cursor to pick"
+msgstr "Trawa 3D: pod kursorem nie ma trawy do pobrania"
+
+msgid "3D grass: picked %s"
+msgstr "Trawa 3D: pobrano %s"
+
+msgid "Ground texture: no terrain under the cursor to pick a material from"
+msgstr "Tekstura gruntu: pod kursorem nie ma terenu, z którego można pobrać materiał"
+
+msgid "Ground texture: picked %s"
+msgstr "Tekstura gruntu: pobrano %s"
+
+msgid "3D grass: the path dropped"
+msgstr "Trawa 3D: ścieżka porzucona"
+
+msgid "Brush: the line dropped"
+msgstr "Pędzel: linia porzucona"
+
+msgid "Brush: the stroke taken back (Esc)"
+msgstr "Pędzel: pociągnięcie cofnięte (Esc)"
+
+msgid "The scenery has no terrain of the Terrain mode yet: there's nothing to grow the 3D grass on or to paint the ground texture of. Make it in the Terrain mode, from the terrain model or an empty, flat one."
+msgstr "Sceneria nie ma jeszcze terenu z trybu Teren: nie ma na czym sadzić trawy 3D ani malować tekstury gruntu. Zrób go w trybie Teren, z prawdziwego terenu z map albo pusty, płaski."
+
+msgid "LMB: the points of the path. Enter grows the grass along it, Shift+Enter takes the grass away along it. Backspace takes the last point back, Esc drops the path. Alt+LMB picks the kind of grass under the cursor"
+msgstr "LPM: punkty ścieżki. Enter sadzi trawę wzdłuż niej, Shift+Enter zabiera trawę wzdłuż niej. Backspace cofa ostatni punkt, Esc porzuca ścieżkę. Alt+LPM pobiera rodzaj trawy spod kursora"
+
+msgid "Width each side##grasspath"
+msgstr "Szerokość w każdą stronę##grasspath"
+
+msgid "How far to each side of the path the grass grows fully"
+msgstr "Jak daleko w każdą stronę od ścieżki trawa rośnie w pełni"
+
+msgid "Soft edge##grasspath"
+msgstr "Miękka krawędź##grasspath"
+
+msgid "Metres beyond the width over which the grass thins out to nothing; 0: a sharp edge"
+msgstr "Ile metrów za szerokością trawa rzednie do zera; 0: ostra krawędź"
+
+msgid "Fullness##grasspath"
+msgstr "Pełność##grasspath"
+
+msgid "100%: the full density of the kind (blades/m2 in the palette below), the other kinds there giving way;\nless: part of the way there, the grass growing there already partly kept. With Shift+Enter: how much of the grass is taken away"
+msgstr "100%: pełna gęstość rodzaju (źdźbła/m2 w palecie niżej), inne rodzaje ustępują mu miejsca;\nmniej: część drogi do pełnej, trawa, która już tam rośnie, częściowo zostaje. Przy Shift+Enter: ile trawy zabrać"
+
+msgid "Points of the path: %zu"
+msgstr "Punkty ścieżki: %zu"
+
+msgid "Hold LMB: paints the material chosen below in the circle. Shift+LMB: the first material of the palette. Alt+LMB: picks the material under the cursor. Esc with the button held takes the stroke back"
+msgstr "Trzymaj LPM: maluje w kole materiał wybrany niżej. Shift+LPM: pierwszy materiał palety. Alt+LPM: pobiera materiał spod kursora. Esc przy wciśniętym przycisku cofa pociągnięcie"
+
+msgid "Hold LMB: grows the kind of grass chosen below in the circle. Shift+LMB: takes all grass away. Alt+LMB: picks the kind of grass under the cursor. Esc with the button held takes the stroke back"
+msgstr "Trzymaj LPM: sadzi w kole rodzaj trawy wybrany niżej. Shift+LPM: zabiera całą trawę. Alt+LPM: pobiera rodzaj trawy spod kursora. Esc przy wciśniętym przycisku cofa pociągnięcie"
+
+msgid "Radius##brushsurface"
+msgstr "Promień##brushsurface"
+
+msgid "The radius of the brush, the same as of the brushes of the Terrain mode"
+msgstr "Promień pędzla, ten sam co pędzli trybu Teren"
+
+msgid "Strength##brushsurface"
+msgstr "Siła##brushsurface"
+
+msgid "How fast the material covers the ground while the button is held (Mix); Cover covers at once"
+msgstr "Jak szybko materiał pokrywa grunt przy trzymanym przycisku (Mieszaj); Kryj pokrywa od razu"
+
+msgid "How fast the grass grows dense while the button is held"
+msgstr "Jak szybko trawa gęstnieje przy trzymanym przycisku"
+
+msgid "Materials##brushtexture"
+msgstr "Materiały##brushtexture"
+
+msgid "Kinds of 3D grass##brushgrass"
+msgstr "Rodzaje trawy 3D##brushgrass"
+
+msgid "Models##brushwhat"
+msgstr "Modele##brushwhat"
+
+msgid "Puts models of the node bank on the ground: one at a click, many in a circle or along a line"
+msgstr "Stawia na gruncie modele z banku obiektów: jeden na kliknięcie, wiele w kole albo wzdłuż linii"
+
+msgid "3D grass##brushwhat"
+msgstr "Trawa 3D##brushwhat"
+
+msgid "Grows 3D grass on the terrain: blades drawn by the shader of the terrain (Hirek's), no models.\nThe kinds of grass are those of the grass palette, the same as the 3D grass tool of the Terrain mode"
+msgstr "Sadzi trawę 3D na terenie: źdźbła rysowane przez shader terenu (Hirka), bez modeli.\nRodzaje trawy są z palety traw, tej samej co w narzędziu Trawa 3D trybu Teren"
+
+msgid "Ground texture##brushwhat"
+msgstr "Tekstura gruntu##brushwhat"
+
+msgid "Paints the materials of the terrain palette into the ground (grass, earth, gravel and the like),\nas the Ground texture tool of the Terrain mode does. Only the picture of the ground changes, no blades grow"
+msgstr "Maluje w gruncie materiały z palety terenu (trawa, ziemia, żwir i tym podobne),\njak narzędzie Tekstura gruntu trybu Teren. Zmienia się tylko obraz gruntu, źdźbła nie rosną"
+
+msgid "The brush puts:"
+msgstr "Pędzel kładzie:"
+
+msgid "In a circle##grassshape"
+msgstr "W kole##grassshape"
+
+msgid "The grass grows in the circle under the cursor while LMB is held, the longer the denser"
+msgstr "Trawa rośnie w kole pod kursorem, dopóki trzymasz LPM; im dłużej, tym gęściej"
+
+msgid "Along a path##grassshape"
+msgstr "Wzdłuż ścieżki##grassshape"
+
+msgid "LMB clicks the points of a path on the ground, Enter grows the grass in a band along it at once:\na verge, a ditch, a strip between the tracks, a path across a meadow"
+msgstr "LPM klika punkty ścieżki na gruncie, Enter od razu sadzi trawę pasem wzdłuż niej:\npobocze, rów, pas między torami, ścieżka przez łąkę"
+
+msgid "Ground texture"
+msgstr "Tekstura gruntu"
+
+msgid "LMB paints the material chosen in the palette into the ground, Shift+LMB the first material of the palette, Alt+LMB picks the material under the cursor.\nThe Brush of the Surroundings paints it too (Ground texture)"
+msgstr "LPM maluje w gruncie materiał wybrany w palecie, Shift+LPM pierwszy materiał palety, Alt+LPM pobiera materiał spod kursora.\nPędzel w Otoczeniu też to maluje (Tekstura gruntu)"
+
+msgid "3D grass"
+msgstr "Trawa 3D"
+
+msgid "LMB grows the kind of 3D grass chosen in the grass palette (blades drawn by the shader of the terrain), Shift+LMB takes the grass away.\nThe Brush of the Surroundings grows it too (3D grass), also in a band along a path"
+msgstr "LPM sadzi rodzaj trawy 3D wybrany w palecie traw (źdźbła rysowane przez shader terenu), Shift+LPM zabiera trawę.\nPędzel w Otoczeniu też ją sadzi (Trawa 3D), także pasem wzdłuż ścieżki"
+
+msgid "3D grass##terrain"
+msgstr "Trawa 3D##terrain"

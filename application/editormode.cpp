@@ -551,6 +551,7 @@ editor_mode::editor_mode() {
 	m_userinterface = std::make_shared<editor_ui>();
 	// the area fill settings live in the node bank window, in the tab of the fill mode
 	ui()->set_fill_options([this]() { render_area_fill(); });
+	ui()->set_brush_surface_options([this]() { render_brush_surface_options(); });
 	ui()->set_gizmo_options([this]() { render_gizmo_options(); });
 	ui()->set_toolbar_options([this]() { render_toolbar(); });
 	ui()->set_workspace_bar([this]() { render_workspaces(); });
@@ -933,7 +934,8 @@ void editor_mode::terrain_history_step()
         return;
     if (m_streamer.recording())
     {
-        if (terrain_brush() && mouseHold && false == m_history_busy)
+        auto const held{(terrain_brush() && mouseHold) || brush_surface_painting()};
+        if (held && false == m_history_busy)
             return; // the stroke goes on
         auto change{m_streamer.end_change()};
         if (false == change.empty())
@@ -970,7 +972,6 @@ void editor_mode::undo_last()
 {
     // Ctrl+Z with the brush still held: the stroke so far is a step of its own, the one taken back, and the dabs stop there
     end_brush_stroke();
-    first_step_done(first_step::undo);
     // the warning by the cursor told of the step taken back now: "Ctrl+Z takes it back" is done
     ui()->drop_refusal();
     ++m_history_changes; // for those who watch the history: a step was taken back or done again
@@ -1524,6 +1525,9 @@ bool editor_mode::update()
         handle_terrain_brush(deltarealtime);
     else
         m_terrain_stroke = false;
+    // the brush of the Surroundings growing the 3D grass or painting the ground texture, the same way
+    if (brush_surface_painting())
+        brush_surface_stroke(deltarealtime);
     // the handles of a point being put, the line drawn by hand
     if (m_terrain_open && outlining())
     {
@@ -1935,42 +1939,9 @@ void editor_mode::render_terrain_ui()
     }
 
     if (ImGui::CollapsingHeader(STR_C("Materials"), m_terrain_tool == terrain_tool::paint ? ImGuiTreeNodeFlags_DefaultOpen : 0))
-    {
-        auto const &layers{m_streamer.manifest().layers};
-        // the entries, moved up and down and taken off the palette as in the Features
-        render_palette_entries();
-        if (false == layers.empty())
-        {
-            // the values are kept while dragged and given to the palette once the dragging ends;
-            // read back from the palette every frame, the release would hand it the old value
-            if (false == m_terrain_layer_size_dragged)
-                m_terrain_layer_size = layers[m_terrain_layer].size;
-            ImGui::SetNextItemWidth(120.0f);
-            ImGui::DragFloat(STR_C("Repeats every (m)"), &m_terrain_layer_size, 0.1f, 0.0f, 200.0f, "%.1f");
-            m_terrain_layer_size_dragged = ImGui::IsItemActive();
-            if (ImGui::IsItemDeactivatedAfterEdit())
-                m_streamer.layer_size(static_cast<std::uint16_t>(m_terrain_layer), m_terrain_layer_size);
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s", STR_C("Metres the textures of the chosen material repeat at; 0: as the material gives it, or 8 m"));
-            if (false == m_terrain_layer_rotation_dragged)
-                m_terrain_layer_rotation = layers[m_terrain_layer].rotation;
-            ImGui::SetNextItemWidth(120.0f);
-            ImGui::SliderFloat(STR_C("Turned by (deg)"), &m_terrain_layer_rotation, -180.0f, 180.0f, "%.0f");
-            m_terrain_layer_rotation_dragged = ImGui::IsItemActive();
-            if (ImGui::IsItemDeactivatedAfterEdit())
-                m_streamer.layer_rotation(static_cast<std::uint16_t>(m_terrain_layer), m_terrain_layer_rotation);
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s", STR_C("Angle the textures of the chosen material are turned by, on every chunk painted with it.\n"
-                                        "Ctrl+click to type it. To have the material turned in one place only, fill it there with an angle of its own."));
-        }
-        texture_field(STR_C("Material"), 160.0f, m_terrain_material, IM_ARRAYSIZE(m_terrain_material), terrain_texture_offer(nullptr));
-        ImGui::SameLine();
-        if (ImGui::Button(STR_C("Add to the palette")) && m_terrain_material[0] != '\0')
-            m_terrain_layer = m_streamer.layer(m_terrain_material, m_terrain_material_size);
-        ImGui::TextDisabled("%s", STR_C("A chunk holds up to 8 materials"));
-    }
+        render_materials_ui();
 
-    if (ImGui::CollapsingHeader(STR_C("Grass"), m_terrain_tool == terrain_tool::grass ? ImGuiTreeNodeFlags_DefaultOpen : 0))
+    if (ImGui::CollapsingHeader(STR_C("3D grass##terrain"), m_terrain_tool == terrain_tool::grass ? ImGuiTreeNodeFlags_DefaultOpen : 0))
         render_grass_ui();
 
     if (ImGui::CollapsingHeader(STR_C("Holes"), m_terrain_tool == terrain_tool::holes ? ImGuiTreeNodeFlags_DefaultOpen : 0))
@@ -3695,6 +3666,42 @@ bool editor_mode::terrain_cursor(glm::dvec3 &World) const
     auto const back{Global.EditorOrtho ? 10000.0 : 0.0};
     auto const along{glm::normalize(direction)};
     return m_streamer.raycast(GfxRenderer->Camera_Position() + point(0.0f) - along * back, along, 5000.0 + back, World);
+}
+
+void editor_mode::render_materials_ui()
+{
+    auto const &layers{m_streamer.manifest().layers};
+    // the entries, moved up and down and taken off the palette as in the Features
+    render_palette_entries();
+    if (false == layers.empty())
+    {
+        // the values are kept while dragged and given to the palette once the dragging ends;
+        // read back from the palette every frame, the release would hand it the old value
+        if (false == m_terrain_layer_size_dragged)
+            m_terrain_layer_size = layers[m_terrain_layer].size;
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::DragFloat(STR_C("Repeats every (m)"), &m_terrain_layer_size, 0.1f, 0.0f, 200.0f, "%.1f");
+        m_terrain_layer_size_dragged = ImGui::IsItemActive();
+        if (ImGui::IsItemDeactivatedAfterEdit())
+            m_streamer.layer_size(static_cast<std::uint16_t>(m_terrain_layer), m_terrain_layer_size);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", STR_C("Metres the textures of the chosen material repeat at; 0: as the material gives it, or 8 m"));
+        if (false == m_terrain_layer_rotation_dragged)
+            m_terrain_layer_rotation = layers[m_terrain_layer].rotation;
+        ImGui::SetNextItemWidth(120.0f);
+        ImGui::SliderFloat(STR_C("Turned by (deg)"), &m_terrain_layer_rotation, -180.0f, 180.0f, "%.0f");
+        m_terrain_layer_rotation_dragged = ImGui::IsItemActive();
+        if (ImGui::IsItemDeactivatedAfterEdit())
+            m_streamer.layer_rotation(static_cast<std::uint16_t>(m_terrain_layer), m_terrain_layer_rotation);
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", STR_C("Angle the textures of the chosen material are turned by, on every chunk painted with it.\n"
+                                    "Ctrl+click to type it. To have the material turned in one place only, fill it there with an angle of its own."));
+    }
+    texture_field(STR_C("Material"), 160.0f, m_terrain_material, IM_ARRAYSIZE(m_terrain_material), terrain_texture_offer(nullptr));
+    ImGui::SameLine();
+    if (ImGui::Button(STR_C("Add to the palette")) && m_terrain_material[0] != '\0')
+        m_terrain_layer = m_streamer.layer(m_terrain_material, m_terrain_material_size);
+    ImGui::TextDisabled("%s", STR_C("A chunk holds up to 8 materials"));
 }
 
 void editor_mode::render_grass_ui()
@@ -6951,12 +6958,9 @@ void editor_mode::on_key(int const Key, int const Scancode, int const Action, in
         // GeoTools: what's outlined, chosen or designed there is dropped
         if (is_press(Action) && current_work_area() == work_area::features && false == ImGui::GetIO().WantTextInput && features_escape())
             break;
-        // the line of the brush being clicked given up
-        if (is_press(Action) && brush_on_line() && false == m_brush_line.empty())
-        {
-            m_brush_line.clear();
+        // the line or the path of the brush being clicked given up, or the stroke held taken back
+        if (is_press(Action) && ui()->mode() == nodebank_panel::BRUSH && brush_escape())
             break;
-        }
         if (is_press(Action))
         {
             road_cancel();
