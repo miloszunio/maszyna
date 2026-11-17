@@ -122,6 +122,7 @@ set(SOURCES
 "world/RailLayer.cpp"
 "world/TrackUneven.cpp"
 "world/Road.cpp"
+"world/RoadBarrier.cpp"
 "world/Sweep.cpp"
 "world/RoadPoint.cpp"
 "world/Traction.cpp"

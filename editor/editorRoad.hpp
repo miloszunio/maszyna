@@ -61,6 +61,8 @@ class editor_road
 		std::vector<std::pair<roadpoint_node *, roadpoint_node::state>> points; // crossings and traffic points with what they were like before
 		std::vector<roadpoint_node *> points_created;
 		std::vector<roadpoint_node *> points_removed;
+		// only the looks of the pieces were changed, their lanes weren't: it's taken back the same way, with the lanes left alone
+		bool look_only{false};
 
 		bool empty() const
 		{
@@ -90,6 +92,12 @@ class editor_road
 	static std::vector<road_node *> create(std::vector<road_node::state> const &States);
 	// replaces definitions of the pieces and makes their lanes and geometry anew
 	static void apply(std::vector<std::pair<road_node *, road_node::state>> const &Changes);
+	// true if what's standing along specified piece can be changed: unlike can_edit() it doesn't mind vehicles on the road,
+	// as their lanes stay. optionally explains why it can't
+	static bool can_restyle(road_node const &Road, std::string *Reason = nullptr);
+	// replaces definitions of the pieces which differ from the present ones in nothing the lanes are made of (the barriers),
+	// and makes their geometry anew. the lanes, what they're joined with and what holds on to them are left alone
+	static void apply_look(std::vector<std::pair<road_node *, road_node::state>> const &Changes);
 	// replaces definitions of the junctions, and makes their geometry and the ways through them anew
 	static void apply(std::vector<std::pair<junction_node *, junction_node::state>> const &Changes);
 	// takes the pieces out of the scenery. they're kept around, so they can be brought back

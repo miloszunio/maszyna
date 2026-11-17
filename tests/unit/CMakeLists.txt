@@ -38,6 +38,8 @@ add_executable(${UNIT_TESTS_NAME}
 	"${CMAKE_SOURCE_DIR}/utilities/asciiname.cpp"
 	# and what a change of the layout of a piece of a road means for the rest of the road
 	"${CMAKE_SOURCE_DIR}/editor/editorRoadLayout.cpp"
+	# and the safety barriers along the roads
+	"${CMAKE_SOURCE_DIR}/world/RoadBarrier.cpp"
 	${UNIT_TEST_CASES})
 
 # the core library brings the game's build settings along

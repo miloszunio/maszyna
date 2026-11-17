@@ -19,6 +19,7 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/Names.h"
 #include "scene/scenenode.h"
 #include "world/Segment.h"
+#include "world/RoadBarrier.h"
 
 namespace scene
 {
@@ -60,6 +61,7 @@ class owned_shapes
 // kerbs <left|right|both> <width> <material>, bank <left|right|both> <width at the start> <drop at the start> <width at the end> <drop at the end>,
 // bankmaterial <material>, weight <value>, roundabout,
 // lanesto <along the axis> <against the axis>: lanes the piece has at the end of its axis, where these aren't the ones it starts with
+// barrier <side>:<kind>:<offset>:<from>:<to>:<start>:<length>:<end>:<length>:<material>: a safety barrier, see world/RoadBarrier.h; can be repeated
 class road_node : public scene::basic_node
 {
 
@@ -161,6 +163,8 @@ class road_node : public scene::basic_node
 		// these are the outermost lanes of the direction, which the road gains or loses along the piece;
 		// forward and backward say how many lanes there are where the piece has the most of them
 		std::array<std::array<int, 2>, 2> missing{};
+		// safety barriers standing along the piece. each piece has its own; where the barriers of two pieces meet they're one barrier
+		std::vector<road_barrier::entry> barriers;
 
 		// brings the content to a usable form: values within their limits, an entry for each lane and for each pair of neighbours
 		void normalize();
