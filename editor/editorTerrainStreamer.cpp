@@ -829,9 +829,22 @@ void terrain_streamer::publish_grass(glm::dvec3 const &Camera)
 			entry.bend = kind.bend;
 			entry.dry = glm::pow(glm::clamp(kind.dry, glm::vec3{0.f}, glm::vec3{1.f}), glm::vec3{2.2f});
 			entry.seasonal = kind.seasonal;
+			entry.archetype = static_cast<int>(kind.archetype);
+			entry.head = glm::pow(glm::clamp(kind.head, glm::vec3{0.f}, glm::vec3{1.f}), glm::vec3{2.2f});
+			entry.head_length = kind.head_length;
+			entry.head_width = kind.head_width;
+			entry.head_droop = kind.head_droop;
+			entry.awns = kind.awns;
+			entry.translucency = kind.translucency;
+			entry.sheen = kind.sheen;
+			entry.reach = kind.reach;
 			kinds.push_back(entry);
 		}
-		auto const reach{static_cast<double>(std::max(Global.gfx_grass_distance, Global.gfx_grass_fadedistance)) + 2.0};
+		// the crops can reach further than the grass
+		auto farthest{std::max(Global.gfx_grass_distance, Global.gfx_grass_fadedistance)};
+		for (auto const &kind : kinds)
+			farthest = std::max(farthest, kind.reach * Global.gfx_grass_crops);
+		auto const reach{static_cast<double>(farthest) + 2.0};
 		for (auto const &entry : m_chunks)
 		{
 			auto const &chunk{*entry.second};

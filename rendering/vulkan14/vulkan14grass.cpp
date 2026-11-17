@@ -119,14 +119,19 @@ grass_field::chunk_images const *grass_field::images(chunk_draw const &Draw)
 			return nullptr;
 		}
 	}
-	// the kinds of the chunk, by columns: base, tip, shape, dry; the share and the chunk in the last row
-	std::array<glm::vec4, 20> table{};
+	// the kinds of the chunk, by columns: base, tip, shape, dry; the share and the chunk in the fifth row; then the plants: head,
+	// headshape, light, lods
+	std::array<glm::vec4, 36> table{};
 	for (std::size_t i = 0; i < 4; ++i)
 	{
 		table[0 * 4 + i] = Draw.base[i];
 		table[1 * 4 + i] = Draw.tip[i];
 		table[2 * 4 + i] = Draw.shape[i];
 		table[3 * 4 + i] = Draw.dry[i];
+		table[5 * 4 + i] = Draw.head[i];
+		table[6 * 4 + i] = Draw.headshape[i];
+		table[7 * 4 + i] = Draw.light[i];
+		table[8 * 4 + i] = Draw.lods[i];
 	}
 	table[4 * 4 + 0] = Draw.share;
 	table[4 * 4 + 1] = Draw.chunk;
@@ -135,9 +140,9 @@ grass_field::chunk_images const *grass_field::images(chunk_draw const &Draw)
 		auto map{chunk.images[3]};
 		if (map == nullptr)
 		{
-			map = make_image(VK_FORMAT_R32G32B32A32_SFLOAT, 4, 5, table.data(), sizeof(table), "grass kinds");
+			map = make_image(VK_FORMAT_R32G32B32A32_SFLOAT, 4, 9, table.data(), sizeof(table), "grass kinds");
 		}
-		else if (false == m_resources->uploads->upload(map, table.data(), sizeof(table), {{0, {4, 5, 1}}}, false))
+		else if (false == m_resources->uploads->upload(map, table.data(), sizeof(table), {{0, {4, 9, 1}}}, false))
 		{
 			map.reset();
 		}

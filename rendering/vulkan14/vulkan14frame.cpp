@@ -2852,7 +2852,7 @@ void vulkan14_renderer::render_grass(glm::mat4 const &Future)
 			constants.data[0] = tile.tile;
 			constants.data[1] = tile.part;
 			push_constants(&constants);
-			draw.commands->draw(static_cast<std::uint32_t>(tile.segments * 2 + 1), static_cast<std::uint32_t>(tile.count), 0, 0);
+			draw.commands->draw(static_cast<std::uint32_t>(tile.vertices), static_cast<std::uint32_t>(tile.count), 0, 0);
 			++draw.draws;
 		}
 	}

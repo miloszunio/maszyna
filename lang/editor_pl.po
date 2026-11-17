@@ -18044,3 +18044,15 @@ msgstr "%d z nich jest w plikach, których edytor nie zapisuje; tam zostają po 
 
 msgid "Track names changed to ASCII: %zu"
 msgstr "Nazwy torów zamienione na ASCII: %zu"
+
+msgid "Stalks sown (per m2)##fields"
+msgstr "Obsada (źdźbeł/m²)##fields"
+
+msgid "How dense the crop stands in this field, up to the most its kind of the grass palette can have. A poor soil or the edge of a field: fewer"
+msgstr "Jak gęsto stoi uprawa na tym polu, najwyżej tyle, ile może mieć jej rodzaj w palecie traw. Słaba gleba albo brzeg pola: mniej"
+
+msgid "Update the crops of the grass palette##fields"
+msgstr "Odśwież uprawy w palecie traw##fields"
+
+msgid "The kinds of the grass palette named as the crops take the plants of the crops as they are now: the ear, the colours, the light of the canopy, the reach. The fields sown with them change with them"
+msgstr "Rodzaje palety traw nazwane jak uprawy dostają obecne rośliny upraw: kłos, kolory, światło w łanie, zasięg. Pola obsiane nimi zmieniają się razem z nimi"

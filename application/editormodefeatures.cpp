@@ -1368,36 +1368,76 @@ struct crop_preset
 	float tramlines;
 	float lands;
 	float headland;
+	// the plant of the 3D grass (heightmap::grass_def); a blade with nothing else: the grass as it always was
+	heightmap::grass_archetype archetype{heightmap::grass_archetype::blade};
+	glm::vec3 head{0.f};
+	float head_length{0.f};
+	float head_width{0.f};
+	float head_droop{0.f};
+	float awns{0.f};
+	float translucency{0.f};
+	float sheen{0.f};
+	float reach{0.f};
+	float sown{0.f}; // stalks per square metre sown by default, of the density at most; 0: the density
 };
 
 
+// a crop of the presets: its plant (the ear and the light of its canopy), its reach and the stalks sown, given after the field
+crop_preset sown_crop(crop_preset Preset, heightmap::grass_archetype const Archetype, glm::vec3 const &Head, glm::vec4 const &Ear, glm::vec4 const &Canopy)
+{
+	Preset.archetype = Archetype;
+	Preset.head = Head;
+	Preset.head_length = Ear.x;
+	Preset.head_width = Ear.y;
+	Preset.head_droop = Ear.z;
+	Preset.awns = Ear.w;
+	Preset.translucency = Canopy.x;
+	Preset.sheen = Canopy.y;
+	Preset.reach = Canopy.z;
+	Preset.sown = Canopy.w;
+	return Preset;
+}
+
 std::array<crop_preset, 15> const &crop_presets()
 {
+	using enum heightmap::grass_archetype;
+	// the colours: docs/koncepcje/pola-uprawy.md, 7; the stalks of the cereals as thin as they are, the ear on top, sown as dense
+	// as a field is (the density is the most the field can be given, the stalks sown its default)
 	static std::array<crop_preset, 15> const presets{{
 	    {"Ploughed", "Turned over in autumn or before sowing: dark furrows of soil, clods, the lands with their dead furrows; no grass", "uprawy/zaorane", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f,
 	     true, 0.16f, 1.5f, 0.5f, 0.f, 30.f, 12.f},
 	    {"Harrowed and sown", "Smooth, crumbly soil just sown, the tramlines already driven", "uprawy/zbronowane", 6.f, {}, {}, 0.f, 0.f, 0.f, 0.f, 0.f, 0.f, true, 0.03f, 1.5f,
 	     0.15f, 24.f, 30.f, 18.f},
-	    {"Winter crop, young", "Wheat, rye or barley sown in autumn: a low green carpet in rows over the soil, from October till April", "uprawy/ozimina", 6.f, {0.17f, 0.30f, 0.08f},
-	     {0.34f, 0.55f, 0.15f}, 0.12f, 0.3f, 0.006f, 220.f, 0.25f, 0.3f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Cereal, green", "A cereal grown up but still green, May and June: dense knee-high stalks", "uprawy/zboze_zielone", 6.f, {0.15f, 0.29f, 0.07f}, {0.37f, 0.57f, 0.17f}, 0.55f, 0.15f,
-	     0.010f, 180.f, 0.15f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Cereal, heading", "Ears out, the green going yellow: the end of June", "uprawy/zboze_klos", 6.f, {0.24f, 0.35f, 0.12f}, {0.66f, 0.68f, 0.32f}, 0.85f, 0.12f, 0.010f, 180.f,
-	     0.12f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Wheat, ripe", "Golden, waist-high, ears upright: July and August till the harvest", "uprawy/pszenica_dojrzala", 6.f, {0.52f, 0.42f, 0.20f}, {0.90f, 0.77f, 0.42f}, 0.85f,
-	     0.10f, 0.010f, 180.f, 0.08f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Barley, ripe", "Paler than wheat, lower, the ears bowed: ripe from the start of July", "uprawy/jeczmien_dojrzaly", 6.f, {0.60f, 0.52f, 0.32f}, {0.93f, 0.86f, 0.60f}, 0.7f,
-	     0.12f, 0.010f, 180.f, 0.35f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Rye, ripe", "The tallest of them, greyish straw: a man's height, the poorer sandy soils", "uprawy/zyto_dojrzale", 6.f, {0.45f, 0.42f, 0.30f}, {0.80f, 0.72f, 0.50f}, 1.3f,
-	     0.15f, 0.010f, 160.f, 0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Oats, ripe", "Light, loose panicles instead of ears, a greenish straw", "uprawy/owies_dojrzaly", 6.f, {0.50f, 0.48f, 0.33f}, {0.88f, 0.84f, 0.60f}, 0.9f, 0.15f, 0.010f,
-	     150.f, 0.3f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Rape in flower", "Yellow over the whole field, high: the end of April and May", "uprawy/rzepak_kwitnacy", 6.f, {0.20f, 0.35f, 0.10f}, {1.00f, 0.88f, 0.15f}, 1.3f, 0.15f,
-	     0.020f, 110.f, 0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Rape, ripe", "Brown pods on dry stalks: July before the harvest", "uprawy/rzepak_dojrzaly", 6.f, {0.35f, 0.32f, 0.18f}, {0.55f, 0.48f, 0.25f}, 1.3f, 0.15f, 0.015f, 110.f,
-	     0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
-	    {"Stubble", "After the harvest: short straw in rows over the soil, the tramlines still there", "uprawy/sciernisko", 6.f, {0.60f, 0.50f, 0.30f}, {0.85f, 0.76f, 0.50f}, 0.12f,
-	     0.3f, 0.004f, 200.f, 0.05f, 0.f, true, 0.02f, 1.5f, 0.15f, 24.f, 30.f, 18.f},
+	    sown_crop({"Winter crop, young", "Wheat, rye or barley sown in autumn: a low green carpet in rows over the soil, from October till April", "uprawy/ozimina", 6.f, {0.16f, 0.24f, 0.11f},
+	          {0.36f, 0.48f, 0.24f}, 0.12f, 0.3f, 0.006f, 400.f, 0.25f, 0.3f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         blade, {}, {}, {0.f, 0.f, 150.f, 300.f}),
+	    sown_crop({"Cereal, green", "A cereal grown up but still green, May and June: dense knee-high stalks", "uprawy/zboze_zielone", 6.f, {0.16f, 0.25f, 0.11f}, {0.38f, 0.50f, 0.27f}, 0.6f, 0.12f,
+	          0.004f, 800.f, 0.12f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         cereal, {0.42f, 0.54f, 0.30f}, {0.05f, 0.007f, 0.05f, 0.f}, {0.6f, 0.5f, 220.f, 550.f}),
+	    sown_crop({"Cereal, heading", "Ears out, the green going yellow: the end of June", "uprawy/zboze_klos", 6.f, {0.22f, 0.32f, 0.13f}, {0.44f, 0.52f, 0.26f}, 0.85f, 0.10f, 0.004f, 800.f,
+	          0.12f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         cereal, {0.60f, 0.62f, 0.38f}, {0.09f, 0.012f, 0.08f, 0.f}, {0.45f, 0.35f, 220.f, 550.f}),
+	    sown_crop({"Wheat, ripe", "Golden, waist-high, ears upright: July and August till the harvest", "uprawy/pszenica_dojrzala", 6.f, {0.46f, 0.38f, 0.22f}, {0.74f, 0.62f, 0.40f}, 0.85f,
+	          0.08f, 0.0035f, 800.f, 0.08f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         cereal, {0.80f, 0.63f, 0.36f}, {0.09f, 0.013f, 0.10f, 0.f}, {0.25f, 0.1f, 220.f, 600.f}),
+	    sown_crop({"Barley, ripe", "Paler than wheat, lower, the ears bowed: ripe from the start of July", "uprawy/jeczmien_dojrzaly", 6.f, {0.52f, 0.46f, 0.30f}, {0.80f, 0.73f, 0.52f}, 0.7f,
+	          0.10f, 0.0035f, 900.f, 0.3f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         awned, {0.88f, 0.80f, 0.58f}, {0.07f, 0.010f, 0.65f, 0.12f}, {0.3f, 0.45f, 220.f, 700.f}),
+	    sown_crop({"Rye, ripe", "The tallest of them, greyish straw: a man's height, the poorer sandy soils", "uprawy/zyto_dojrzale", 6.f, {0.42f, 0.40f, 0.31f}, {0.66f, 0.63f, 0.50f}, 1.35f,
+	          0.12f, 0.004f, 700.f, 0.2f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         awned, {0.62f, 0.60f, 0.50f}, {0.12f, 0.008f, 0.25f, 0.04f}, {0.25f, 0.25f, 220.f, 500.f}),
+	    sown_crop({"Oats, ripe", "Light, loose panicles instead of ears, a greenish straw", "uprawy/owies_dojrzaly", 6.f, {0.48f, 0.50f, 0.36f}, {0.72f, 0.72f, 0.56f}, 0.95f, 0.12f, 0.0035f,
+	          700.f, 0.25f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         panicle, {0.80f, 0.80f, 0.64f}, {0.2f, 0.007f, 0.85f, 0.f}, {0.3f, 0.1f, 220.f, 450.f}),
+	    sown_crop({"Rape in flower", "Yellow over the whole field, high: the end of April and May", "uprawy/rzepak_kwitnacy", 6.f, {0.20f, 0.30f, 0.13f}, {0.30f, 0.42f, 0.18f}, 1.3f, 0.12f,
+	          0.008f, 150.f, 0.15f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         rape, {0.95f, 0.85f, 0.14f}, {0.25f, 0.05f, 0.f, 0.f}, {0.5f, 0.f, 220.f, 80.f}),
+	    sown_crop({"Rape, ripe", "Brown pods on dry stalks: July before the harvest", "uprawy/rzepak_dojrzaly", 6.f, {0.36f, 0.32f, 0.20f}, {0.52f, 0.45f, 0.28f}, 1.3f, 0.12f, 0.008f, 150.f,
+	          0.15f, 0.f, true, 0.03f, 1.5f, 0.1f, 24.f, 30.f, 18.f},
+	         rape, {0.48f, 0.42f, 0.27f}, {0.3f, 0.04f, 0.f, 0.f}, {0.1f, 0.f, 220.f, 80.f}),
+	    sown_crop({"Stubble", "After the harvest: short straw in rows over the soil, the tramlines still there", "uprawy/sciernisko", 6.f, {0.62f, 0.57f, 0.43f}, {0.74f, 0.68f, 0.50f}, 0.15f,
+	          0.25f, 0.004f, 700.f, 0.1f, 0.f, true, 0.02f, 1.5f, 0.15f, 24.f, 30.f, 18.f},
+	         stubble, {0.84f, 0.78f, 0.60f}, {}, {0.1f, 0.f, 150.f, 450.f}),
 	    {"High meadow", "Mown once or twice a year, the grass and the herbs up to the knees, the ground gently uneven", "uprawy/laka_wysoka", 5.f, {0.20f, 0.32f, 0.09f},
 	     {0.55f, 0.62f, 0.28f}, 0.6f, 0.5f, 0.010f, 200.f, 0.45f, 1.f, false, 0.4f, 40.f, 0.3f, 0.f, 0.f, 0.f},
 	    {"Low meadow, pasture", "Grazed or mown often: short dense grass, tussocks and trodden places", "uprawy/pastwisko", 5.f, {0.20f, 0.33f, 0.09f}, {0.45f, 0.60f, 0.22f}, 0.1f, 0.4f,
@@ -1406,6 +1446,32 @@ std::array<crop_preset, 15> const &crop_presets()
 	     0.45f, 1.f, false, 0.3f, 25.f, 0.45f, 0.f, 0.f, 0.f},
 	}};
 	return presets;
+}
+
+// the kind of the grass palette of a crop
+heightmap::grass_def crop_kind(crop_preset const &Preset)
+{
+	heightmap::grass_def kind;
+	kind.name = STR(Preset.name);
+	kind.base = Preset.base;
+	kind.tip = Preset.tip;
+	kind.height = Preset.height;
+	kind.variation = Preset.variation;
+	kind.width = Preset.width;
+	kind.density = Preset.density;
+	kind.bend = Preset.bend;
+	kind.dry = Preset.tip;
+	kind.seasonal = Preset.seasonal;
+	kind.archetype = Preset.archetype;
+	kind.head = Preset.head;
+	kind.head_length = Preset.head_length;
+	kind.head_width = Preset.head_width;
+	kind.head_droop = Preset.head_droop;
+	kind.awns = Preset.awns;
+	kind.translucency = Preset.translucency;
+	kind.sheen = Preset.sheen;
+	kind.reach = Preset.reach;
+	return kind;
 }
 } // namespace
 
@@ -1450,24 +1516,14 @@ void editor_mode::cut_out_surface()
 			if (found != kinds.end())
 				patch.grass = static_cast<int>(found - kinds.begin());
 			else
-			{
-				heightmap::grass_def kind;
-				kind.name = grass_name;
-				kind.base = preset.base;
-				kind.tip = preset.tip;
-				kind.height = preset.height;
-				kind.variation = preset.variation;
-				kind.width = preset.width;
-				kind.density = preset.density;
-				kind.bend = preset.bend;
-				kind.dry = preset.tip;
-				kind.seasonal = preset.seasonal;
-				patch.grass = m_streamer.add_grass_kind(std::move(kind));
-			}
+				patch.grass = m_streamer.add_grass_kind(crop_kind(preset));
 		}
 	}
 	if (m_waves.on && m_waves.kind == terrain_waves::field && m_waves.tramlines >= 1.0f && patch.paint)
 		patch.field = format("tram=%g angle=%g head=%g drift=%g soil=uprawy/zbronowane", m_waves.tramlines, m_waves.angle, m_waves.headland, m_waves.drift);
+	// the stalks sown, where the crop has a plant of its own
+	if (patch.grass >= 0 && m_crop > 0 && m_crop <= static_cast<int>(presets.size()) && presets[m_crop - 1].sown > 0.f && m_crop_sown > 0.f)
+		patch.field += format(patch.field.empty() ? "dens=%g" : " dens=%g", m_crop_sown);
 	auto patches{m_streamer.patches()};
 	// the outline of a field put back to be drawn again: that field gets it, the rest of it as it was
 	auto const again{std::find_if(patches.begin(), patches.end(), [this](heightmap::surface_patch const &Other) { return Other.name == m_patch_reoutline; })};
@@ -1674,6 +1730,7 @@ struct field_spec
 	double headland{0.0};
 	double drift{0.0};
 	std::string soil{"farm03"};
+	double sown{0.0}; // stalks per square metre of the crop, "dens="; 0: as dense as its kind is
 };
 
 field_spec read_field(std::string const &Text)
@@ -1698,6 +1755,8 @@ field_spec read_field(std::string const &Text)
 			spec.headland = std::atof(value.c_str());
 		else if (key == "drift")
 			spec.drift = std::atof(value.c_str());
+		else if (key == "dens")
+			spec.sown = std::max(0.0, std::atof(value.c_str()));
 	}
 	return spec;
 }
@@ -2059,6 +2118,7 @@ void editor_mode::choose_crop(int const Crop)
 	if (Crop <= 0 || Crop > static_cast<int>(crop_presets().size()))
 		return;
 	auto const &preset{crop_presets()[Crop - 1]};
+	m_crop_sown = preset.sown;
 	auto &waves{m_waves};
 	waves.on = true;
 	waves.kind = preset.field ? terrain_waves::field : terrain_waves::hills;
@@ -2097,6 +2157,31 @@ void editor_mode::render_crop_options()
 	             "and the shape of the ground below; the texture lies along the rows. Each of them can be changed below before cutting out");
 	if (m_crop > 0)
 		ImGui::TextColored(ImVec4(0.96f, 0.79f, 0.24f, 1.0f), STR_C("Texture: %s"), presets[m_crop - 1].material);
+	if (m_crop > 0 && presets[m_crop - 1].sown > 0.f)
+	{
+		auto const &preset{presets[m_crop - 1]};
+		ImGui::SetNextItemWidth(160.0f);
+		ImGui::DragFloat(STR_C("Stalks sown (per m2)##fields"), &m_crop_sown, 5.0f, 10.0f, preset.density, "%.0f");
+		item_tooltip("How dense the crop stands in this field, up to the most its kind of the grass palette can have. A poor soil or the edge of a field: fewer");
+	}
+	if (ImGui::Button(STR_C("Update the crops of the grass palette##fields")))
+		update_crop_kinds();
+	item_tooltip("The kinds of the grass palette named as the crops take the plants of the crops as they are now: the ear, the colours, the light of the canopy, the reach. "
+	             "The fields sown with them change with them");
+}
+
+void editor_mode::update_crop_kinds()
+{
+	auto const &kinds{m_streamer.grass_kinds()};
+	for (auto const &preset : crop_presets())
+	{
+		if (preset.height <= 0.f)
+			continue;
+		auto const grass_name{STR(preset.name)};
+		auto const found{std::ranges::find_if(kinds, [&grass_name](heightmap::grass_def const &Kind) { return Kind.name == grass_name; })};
+		if (found != kinds.end())
+			m_streamer.grass_kind(static_cast<std::uint16_t>(found - kinds.begin()), crop_kind(preset));
+	}
 }
 
 void editor_mode::render_field_layout()
@@ -2146,11 +2231,32 @@ bool editor_mode::paint_patch(heightmap::surface_patch const &Patch)
 	{
 		m_streamer.grass(Patch.outline, 0, true);
 		if (Patch.grass >= 0 && Patch.grass < static_cast<int>(m_streamer.grass_kinds().size()))
-			m_streamer.grass(Patch.outline, static_cast<std::uint16_t>(Patch.grass), false);
+			grow_patch_grass(Patch);
 	}
 	if (Patch.paint && false == Patch.field.empty())
 		paint_tramlines(Patch);
 	return painted;
+}
+
+void editor_mode::grow_patch_grass(heightmap::surface_patch const &Patch)
+{
+	auto const kind{static_cast<std::uint16_t>(Patch.grass)};
+	auto const most{m_streamer.grass_kinds()[kind].density};
+	auto const sown{read_field(Patch.field).sown};
+	if (sown <= 0.0 || most <= 0.f)
+	{
+		m_streamer.grass(Patch.outline, kind, false);
+		return;
+	}
+	// the stalks sown, as a share of the most the kind has
+	auto const share{std::clamp(sown / most, 0.0, 1.0)};
+	glm::dvec2 low;
+	glm::dvec2 high;
+	Patch.bounds(low, high);
+	m_streamer.grass_where(low, high, kind, false, [&Patch, share](double const X, double const Z) {
+		double edge;
+		return within_outline(Patch.outline, {X, Z}, edge) ? share : 0.0;
+	});
 }
 
 void editor_mode::paint_tramlines(heightmap::surface_patch const &Patch)

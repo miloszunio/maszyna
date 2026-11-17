@@ -69,6 +69,10 @@ bool opengl46_grass::init()
 	m_uniforms.share = 18;
 	m_uniforms.dry = 19;
 	m_uniforms.season = 23;
+	m_uniforms.head = 24;
+	m_uniforms.headshape = 28;
+	m_uniforms.light = 32;
+	m_uniforms.lods = 36;
 	m_state = 1;
 	return true;
 }
@@ -142,6 +146,10 @@ std::size_t opengl46_grass::render(opengl_camera const &Camera, glm::mat4 const 
 		::glUniform4fv(m_uniforms.shape, 4, glm::value_ptr(chunk.shape[0]));
 		::glUniform4fv(m_uniforms.share, 1, glm::value_ptr(chunk.share));
 		::glUniform4fv(m_uniforms.dry, 4, glm::value_ptr(chunk.dry[0]));
+		::glUniform4fv(m_uniforms.head, 4, glm::value_ptr(chunk.head[0]));
+		::glUniform4fv(m_uniforms.headshape, 4, glm::value_ptr(chunk.headshape[0]));
+		::glUniform4fv(m_uniforms.light, 4, glm::value_ptr(chunk.light[0]));
+		::glUniform4fv(m_uniforms.lods, 4, glm::value_ptr(chunk.lods[0]));
 		auto const &textures{m_textures[chunk.id]};
 		GLuint const units[]{textures.heights, textures.density, textures.holes};
 		::glBindTextures(0, 3, units);
@@ -150,7 +158,7 @@ std::size_t opengl46_grass::render(opengl_camera const &Camera, glm::mat4 const 
 			auto const &tile{tiles[i]};
 			::glUniform4fv(m_uniforms.tile, 1, glm::value_ptr(tile.tile));
 			::glUniform4fv(m_uniforms.part, 1, glm::value_ptr(tile.part));
-			::glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, tile.segments * 2 + 1, tile.count);
+			::glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, tile.vertices, tile.count);
 		}
 	}
 

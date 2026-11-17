@@ -237,7 +237,12 @@
 	// the crop sown in the field cut out: 0 none (the material of the palette, the grass chosen), else a preset of
 	// editormodefeatures.cpp which gives the material, the 3D grass and the layout of the field
 	int m_crop{0};
+	float m_crop_sown{0.f}; // stalks per square metre of the crop sown in the field cut out, "dens=" of its field
 	void render_crop_options();
+	// the kinds of the grass palette named as the crops take the plants of the presets as they are now
+	void update_crop_kinds();
+	// the grass of the surface Patch grown in it: as dense as its field sows it, or fully
+	void grow_patch_grass(heightmap::surface_patch const &Patch);
 	void render_field_layout();
 	// the preset Crop put in the settings of the Fields: the waves of the ground, the turn of the texture
 	void choose_crop(int Crop);
