@@ -19850,3 +19850,6 @@ msgstr "Ponów  [Ctrl+Y]"
 
 msgid "The editor draws the mouse pointer into the picture itself, so it is seen by those who watch a stream or a recording of the window: Discord, OBS and the capture of the system leave the pointer of the system out."
 msgstr "Edytor sam rysuje kursor myszy w obrazie, żeby widzieli go oglądający transmisję albo nagranie okna: Discord, OBS i przechwytywanie systemu pomijają kursor systemowy."
+
+msgid "No terrain under the selected nodes"
+msgstr "Pod zaznaczonymi węzłami nie ma terenu"
