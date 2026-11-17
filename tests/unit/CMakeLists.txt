@@ -32,6 +32,8 @@ add_executable(${UNIT_TESTS_NAME}
 	# and the fouling points of the switches, widened in the curves as the gauge is
 	"${CMAKE_SOURCE_DIR}/editor/editorGauge.cpp"
 	"${CMAKE_SOURCE_DIR}/editor/editorFouling.cpp"
+	# and what a change of the layout of a piece of a road means for the rest of the road
+	"${CMAKE_SOURCE_DIR}/editor/editorRoadLayout.cpp"
 	${UNIT_TEST_CASES})
 
 # the core library brings the game's build settings along
