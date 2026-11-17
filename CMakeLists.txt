@@ -805,11 +805,19 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
 	set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/LARGEADDRESSAWARE")
 endif()
 
+# where the simulator lands: bin of the build folder, unless -DCMAKE_RUNTIME_OUTPUT_DIRECTORY names another folder, such as the game
+# folder with the assets at home; the libraries, the shaders and the translations go there with it, so it starts from there as built
+if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+	set(EU07_RUNTIME_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+else()
+	set(EU07_RUNTIME_DIR "${CMAKE_BINARY_DIR}/bin")
+endif()
+
 set_target_properties( ${PROJECT_NAME}
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    RUNTIME_OUTPUT_DIRECTORY "${EU07_RUNTIME_DIR}"
     PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/pdb"
 	OUTPUT_NAME "${PROJECT_NAME}${PREFIX}${SUFFIX}"
 	DEBUG_POSTFIX "_d"
@@ -984,6 +992,15 @@ if(WIN32 AND WITH_PYTHON)
 	)
 endif()
 
+# built straight into a game folder (see EU07_RUNTIME_DIR): the shaders and the translations of these sources go with the simulator,
+# as the packaging of the workflow puts them next to it
+if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/shaders" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/lang" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/lang"
+	)
+endif()
+
 # the Visual C++ runtime the simulator is built with, next to it: older runtimes installed in the system crash the programs of newer
 # compilers (std::mutex of Visual Studio 2022 17.10 and newer with a runtime older than 14.40), missing ones keep them from starting
 if (MSVC AND BUNDLE_VC_RUNTIME)
@@ -1082,7 +1099,7 @@ if (MSVC)
 	# the static C runtime: the starter runs where the Visual C++ runtime is missing, to say so
 	set_target_properties(eu07_starter PROPERTIES
 		MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+		RUNTIME_OUTPUT_DIRECTORY "${EU07_RUNTIME_DIR}"
 		PDB_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/pdb"
 		FOLDER "tools")
 	target_compile_options(eu07_starter PRIVATE $<IF:$<CONFIG:Debug>,/MTd,/MT>)
