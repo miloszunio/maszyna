@@ -33,6 +33,14 @@ int constexpr EU07_REFLECTIONFIDELITYOFFSET { 250 }; // artificial increase of r
 
 namespace {
 
+// the top view of the editor shows everything this close to the camera, the corners of the screen included
+float
+editor_ortho_reach()
+{
+    auto const aspect{ Global.window_size.x / std::max( 1.f, static_cast<float>( Global.window_size.y ) ) };
+    return Global.EditorOrthoExtent * std::sqrt( 1.f + aspect * aspect ) + 500.f;
+}
+
 float
 editor_track_view_range(float const Range, bool const Apply)
 {
@@ -40,16 +48,21 @@ editor_track_view_range(float const Range, bool const Apply)
         return Range;
     float extra = 50000.0f;
     if( Global.EditorOrtho )
-        extra = Global.EditorOrthoExtent * 3.0f;
+        extra = editor_ortho_reach();
     return Range > extra ? Range : extra;
 }
 
+// far off the camera the tracks of the editor are drawn alone, the terrain, the models and the rest only as far as the
+// scenery reaches in the game; the top view measures it off its centre on the ground, its camera being high above it
 bool
-editor_far_tracks_only(bool const Apply, scene::basic_cell const *Cell, glm::dvec3 const &Camera, double const SceneryLimit)
+editor_far_tracks_only(bool const Apply, scene::bounding_area const &Area, glm::dvec3 const &Camera, double const SceneryLimit)
 {
     if( false == Apply )
         return false;
-    double nearest = glm::length( Cell->m_area.center - Camera ) - static_cast<double>( Cell->m_area.radius );
+    auto offset{ Area.center - Camera };
+    if( Global.EditorOrtho )
+        offset.y = 0.0;
+    double nearest = glm::length( offset ) - static_cast<double>( Area.radius );
     if( nearest < 0.0 )
         nearest = 0.0;
     return nearest > SceneryLimit;
@@ -68,12 +81,38 @@ submodel_material( TSubModel const *Submodel ) {
             null_handle );
 }
 
+bool
+is_scaled( glm::vec3 const &Scale ) {
+
+    return ( Scale.x != 1.0f ) || ( Scale.y != 1.0f ) || ( Scale.z != 1.0f );
+}
+
+// pushes the placement of a scaled model instance: the translation and rotation of Render( TModel3d *, ..., Position, Angle ),
+// followed by the scale of the instance, applied before the submodel transforms (as in the opengl 3.3 renderer)
+void
+push_scaled_instance_transform( glm::dvec3 const &Position, glm::vec3 const &Angle, glm::vec3 const &Scale ) {
+
+    ::glPushMatrix();
+    ::glTranslated( Position.x, Position.y, Position.z );
+    if( Angle.y != 0.0 )
+        ::glRotatef( Angle.y, 0.f, 1.f, 0.f );
+    if( Angle.x != 0.0 )
+        ::glRotatef( Angle.x, 1.f, 0.f, 0.f );
+    if( Angle.z != 0.0 )
+        ::glRotatef( Angle.z, 0.f, 0.f, 1.f );
+    ::glScalef( Scale.x, Scale.y, Scale.z );
+}
+
 } // namespace
 
 float const EU07_OPACITYDEFAULT { 0.5f };
 
 bool
 opengl_renderer::Init( GLFWwindow *Window ) {
+
+    glClearColor( 0.f, 0.f, 0.f, 1.f );
+    glClear( GL_COLOR_BUFFER_BIT );
+    glfwSwapBuffers( Window );
 
     if( false == Init_caps() ) { return false; }
 
@@ -928,6 +967,8 @@ bool
 opengl_renderer::Render_reflections() {
 
     if( Global.reflectiontune.update_interval == 0 ) { return false; }
+    // the top view of the editor shows nothing the reflections would be seen on: the cube map stays as it was
+    if( EditorModeFlag && Global.EditorOrtho ) { return false; }
 
     auto const timestamp { Timer::GetRenderTime() };
     if( ( timestamp - m_environmentupdatetime < Global.reflectiontune.update_interval )
@@ -1758,6 +1799,11 @@ bool opengl_renderer::Append(gfx::vertex_array &Vertices, gfx::userdata_array &U
     return m_geometry.append( Vertices, Userdata, Geometry );
 }
 
+void opengl_renderer::Erase( gfx::geometry_handle const &Geometry )
+{
+    m_geometry.erase( Geometry );
+}
+
 // provides direct access to vertex data of specfied chunk
 gfx::index_array const &
 opengl_renderer::Indices( gfx::geometry_handle const &Geometry ) const {
@@ -1889,6 +1935,15 @@ opengl_renderer::Pick_Node_Callback( std::function<void( scene::basic_node * )> 
 }
 
 void
+opengl_renderer::Forget_Node( scene::basic_node const *Node ) {
+
+    if( m_picksceneryitem == Node ) {
+        m_picksceneryitem = nullptr;
+    }
+    std::ranges::replace_if( m_picksceneryitems, [Node]( scene::basic_node const *Item ) { return Item == Node; }, nullptr );
+}
+
+void
 opengl_renderer::Render( scene::basic_region *Region ) {
 
     m_sectionqueue.clear();
@@ -1980,6 +2035,11 @@ opengl_renderer::Render( section_sequence::iterator First, section_sequence::ite
             break; }
     }
 
+    // the ground of the sections far off, the terrain of the editor among it, isn't drawn with the tracks reaching there
+    auto const scenery_limit{ static_cast<double>( Global.BaseDrawRange ) * Global.fDistanceFactor + 250.0 };
+    bool const far_paths{ EditorModeFlag && Global.editor_tracks && ( m_renderpass.draw_mode == rendermode::color || m_renderpass.draw_mode == rendermode::pickscenery ) };
+    glm::dvec3 const camera{ m_renderpass.camera.position() };
+
     while( First != Last ) {
 
         auto *section = *First;
@@ -1992,7 +2052,7 @@ opengl_renderer::Render( section_sequence::iterator First, section_sequence::ite
             case rendermode::shadows:
             case rendermode::cabshadows:
             case rendermode::pickscenery: {
-                if( false == section->m_shapes.empty() ) {
+                if( false == section->m_shapes.empty() && false == editor_far_tracks_only( far_paths, section->m_area, camera, scenery_limit ) ) {
                     // since all shapes of the section share center point we can optimize out a few calls here
                     ::glPushMatrix();
                     auto const originoffset { section->m_area.center - m_renderpass.camera.position() };
@@ -2073,7 +2133,7 @@ opengl_renderer::Render( cell_sequence::iterator First, cell_sequence::iterator 
         auto *cell = First->second;
         // przeliczenia animacji torów w sektorze
         cell->RaAnimate( m_framestamp );
-        bool const tracks_only{ editor_far_tracks_only( far_paths, cell, camera, scenery_limit ) };
+        bool const tracks_only{ editor_far_tracks_only( far_paths, cell->m_area, camera, scenery_limit ) };
 
         switch( m_renderpass.draw_mode ) {
             case rendermode::color: {
@@ -2220,7 +2280,7 @@ opengl_renderer::Render( cell_sequence::iterator First, cell_sequence::iterator 
             case rendermode::color:
             case rendermode::shadows:
             case rendermode::cabshadows: {
-                if( editor_far_tracks_only( far_paths, cell, camera, scenery_limit ) )
+                if( editor_far_tracks_only( far_paths, cell->m_area, camera, scenery_limit ) )
                     break;
                 // TBD, TODO: refactor in to a method to reuse in branch below?
                 // opaque parts of instanced models
@@ -2264,7 +2324,7 @@ opengl_renderer::Render( cell_sequence::iterator First, cell_sequence::iterator 
                 break;
             }
             case rendermode::pickscenery: {
-                if( editor_far_tracks_only( far_paths, cell, camera, scenery_limit ) )
+                if( editor_far_tracks_only( far_paths, cell->m_area, camera, scenery_limit ) )
                     break;
                 // opaque parts of instanced models
                 // same procedure like with regular render, but each node receives custom colour used for picking
@@ -2457,12 +2517,23 @@ opengl_renderer::Render( TAnimModel *Instance ) {
     Instance->RaPrepare();
     if( Instance->pModel ) {
         // renderowanie rekurencyjne submodeli
-        Render(
-            Instance->pModel,
-            Instance->Material(),
-            distancesquared,
-            Instance->location() - m_renderpass.camera.position(),
-            Instance->vAngle );
+        auto const position { Instance->location() - m_renderpass.camera.position() };
+        if( is_scaled( Instance->Scale() ) ) {
+            // the scale stretches the normals too, they're normalized again for the lighting
+            push_scaled_instance_transform( position, Instance->vAngle, Instance->Scale() );
+            m_normalizenormals = true;
+            Render( Instance->pModel, Instance->Material(), distancesquared );
+            m_normalizenormals = false;
+            ::glPopMatrix();
+        }
+        else {
+            Render(
+                Instance->pModel,
+                Instance->Material(),
+                distancesquared,
+                position,
+                Instance->vAngle );
+        }
         // debug data
         ++m_renderpass.draw_stats.models;
     }
@@ -2776,6 +2847,21 @@ opengl_renderer::Render( TModel3d *Model, material_data const *Material, float c
     return result;
 }
 
+// opaque characters of a text display, laid out in a row the same way as the translucent ones
+void
+opengl_renderer::Render_text( TSubModel *Submodel ) {
+
+    if( TSubModel::pasText == nullptr ) { return; }
+
+    ::glPushMatrix();
+    for( auto *p : Submodel->text_letters( *TSubModel::pasText ) ) {
+        Render( p );
+        if( p->fMatrix )
+            ::glMultMatrixf( p->fMatrix->readArray() ); // move on to the place of the next character
+    }
+    ::glPopMatrix();
+}
+
 void
 opengl_renderer::Render( TSubModel *Submodel ) {
 
@@ -2815,7 +2901,7 @@ opengl_renderer::Render( TSubModel *Submodel ) {
                                 break; }
                         }
 #else
-                        if( true == m_renderspecular ) {
+                        if( ( true == m_renderspecular ) || ( true == m_normalizenormals ) ) {
                             ::glEnable( GL_NORMALIZE );
                         }
 #endif
@@ -2904,7 +2990,7 @@ opengl_renderer::Render( TSubModel *Submodel ) {
                                 break; }
                         }
 #else
-                        if( true == m_renderspecular ) {
+                        if( ( true == m_renderspecular ) || ( true == m_normalizenormals ) ) {
                             ::glDisable( GL_NORMALIZE );
                         }
 #endif
@@ -3094,9 +3180,15 @@ opengl_renderer::Render( TSubModel *Submodel ) {
                 }
             }
         }
-        if( Submodel->Child != nullptr )
-            if( Submodel->iAlpha & Submodel->iFlags & 0x001F0000 )
+        if( Submodel->Child != nullptr
+         && ( TSubModel::iAlpha & Submodel->iFlags & 0x001F0000 ) ) {
+            if( Submodel->eType == TP_TEXT ) {
+                Render_text( Submodel );
+            }
+            else {
                 Render( Submodel->Child );
+            }
+        }
 
         if( Submodel->iFlags & 0xC000 )
             ::glPopMatrix();
@@ -3140,6 +3232,10 @@ opengl_renderer::Render( TTrack *Track ) {
                 Bind_Material( Track->m_material2 );
                 m_geometry.draw( std::begin( Track->Geometry2 ), std::end( Track->Geometry2 ) );
             }
+            for( auto const &tread : Track->GeometryTreads ) {
+                Bind_Material( tread.material );
+                m_geometry.draw( std::begin( tread.geometry ), std::end( tread.geometry ) );
+            }
             if( ( Track->eType == tt_Switch )
              && ( Track->SwitchExtension->m_material3 != 0 ) ) {
                 Bind_Material( Track->SwitchExtension->m_material3 );
@@ -3149,6 +3245,31 @@ opengl_renderer::Render( TTrack *Track ) {
         }
         default: {
             break;
+        }
+    }
+}
+
+// the cut faces of the rails of a track and the treads of the wheels on them, in the matte variants of the rail materials
+void
+opengl_renderer::Render_cuts( TTrack const *Track ) {
+
+    std::vector<std::pair<material_handle, TTrack::geometryhandle_sequence const *>> parts { { Track->m_materialcut1, &Track->GeometryCut1 }, { Track->m_materialcut2, &Track->GeometryCut2 } };
+    for( auto const &tread : Track->GeometryTreads ) {
+        parts.emplace_back( tread.material, &tread.geometry );
+        parts.emplace_back( tread.matte, &tread.cuts );
+    }
+    for( auto const &[ material, geometry ] : parts ) {
+        if( ( material == null_handle )
+         || ( geometry->empty() ) ) {
+            continue;
+        }
+        if( Track->eEnvironment != e_flat ) {
+            setup_environment_light( Track->eEnvironment );
+        }
+        Bind_Material( material );
+        m_geometry.draw( std::begin( *geometry ), std::end( *geometry ) );
+        if( Track->eEnvironment != e_flat ) {
+            setup_environment_light();
         }
     }
 }
@@ -3327,6 +3448,19 @@ opengl_renderer::Render( scene::basic_cell::path_sequence::const_iterator First,
             }
         }
     }
+    // cut faces of rails
+    if( ( m_renderpass.draw_mode == rendermode::color )
+     || ( m_renderpass.draw_mode == rendermode::reflections ) ) {
+        for( auto first { First }; first != Last; ++first ) {
+
+            auto const track { *first };
+
+            if( false == track->m_visible ) {
+                continue;
+            }
+            Render_cuts( track );
+        }
+    }
     // post-render reset
     switch( m_renderpass.draw_mode ) {
         case rendermode::shadows:
@@ -3471,6 +3605,11 @@ void
 opengl_renderer::Render_Alpha( cell_sequence::reverse_iterator First, cell_sequence::reverse_iterator Last ) {
 
     // NOTE: this method is launched only during color pass therefore we don't bother with mode test here
+    // the cells far off with the tracks alone drawn there have nothing translucent drawn either
+    auto const scenery_limit{ static_cast<double>( Global.BaseDrawRange ) * Global.fDistanceFactor + 250.0 };
+    bool const far_paths{ EditorModeFlag && Global.editor_tracks };
+    glm::dvec3 const camera{ m_renderpass.camera.position() };
+    auto const distant = [&]( scene::basic_cell const *Cell ) { return editor_far_tracks_only( far_paths, Cell->m_area, camera, scenery_limit ); };
     // first pass draws elements which we know are located in section banks, to reduce vbo switching
     {
         auto first { First };
@@ -3478,7 +3617,7 @@ opengl_renderer::Render_Alpha( cell_sequence::reverse_iterator First, cell_seque
 
             auto const *cell = first->second;
 
-            if( false == cell->m_shapestranslucent.empty() ) {
+            if( false == cell->m_shapestranslucent.empty() && false == distant( cell ) ) {
                 // since all shapes of the cell share center point we can optimize out a few calls here
                 ::glPushMatrix();
                 auto const originoffset{ cell->m_area.center - m_renderpass.camera.position() };
@@ -3499,6 +3638,10 @@ opengl_renderer::Render_Alpha( cell_sequence::reverse_iterator First, cell_seque
         while( first != Last ) {
 
             auto const *cell = first->second;
+            if( distant( cell ) ) {
+                ++first;
+                continue;
+            }
 
             // translucent parts of instanced models
             for( auto *instance : cell->m_instancetranslucent ) { Render_Alpha( instance ); }
@@ -3528,7 +3671,8 @@ opengl_renderer::Render_Alpha( cell_sequence::reverse_iterator First, cell_seque
             auto const *cell = first->second;
 
             if( ( false == cell->m_traction.empty()
-             || ( false == cell->m_lines.empty() ) ) ) {
+             || ( false == cell->m_lines.empty() ) )
+             && false == distant( cell ) ) {
                 // since all shapes of the cell share center point we can optimize out a few calls here
                 ::glPushMatrix();
                 auto const originoffset { cell->m_area.center - m_renderpass.camera.position() };
@@ -3593,12 +3737,23 @@ opengl_renderer::Render_Alpha( TAnimModel *Instance ) {
     Instance->RaPrepare();
     if( Instance->pModel ) {
         // renderowanie rekurencyjne submodeli
-        Render_Alpha(
-            Instance->pModel,
-            Instance->Material(),
-            distancesquared,
-            Instance->location() - m_renderpass.camera.position(),
-            Instance->vAngle );
+        auto const position { Instance->location() - m_renderpass.camera.position() };
+        if( is_scaled( Instance->Scale() ) ) {
+            // the scale stretches the normals too, they're normalized again for the lighting
+            push_scaled_instance_transform( position, Instance->vAngle, Instance->Scale() );
+            m_normalizenormals = true;
+            Render_Alpha( Instance->pModel, Instance->Material(), distancesquared );
+            m_normalizenormals = false;
+            ::glPopMatrix();
+        }
+        else {
+            Render_Alpha(
+                Instance->pModel,
+                Instance->Material(),
+                distancesquared,
+                position,
+                Instance->vAngle );
+        }
     }
 }
 
@@ -3901,7 +4056,7 @@ opengl_renderer::Render_Alpha( TSubModel *Submodel ) {
                                 break; }
                         }
 #else
-                        if( true == m_renderspecular ) {
+                        if( ( true == m_renderspecular ) || ( true == m_normalizenormals ) ) {
                             ::glEnable( GL_NORMALIZE );
                         }
 #endif
@@ -3971,7 +4126,7 @@ opengl_renderer::Render_Alpha( TSubModel *Submodel ) {
                                 break; }
                         }
 #else
-                        if( true == m_renderspecular ) {
+                        if( ( true == m_renderspecular ) || ( true == m_normalizenormals ) ) {
                             ::glDisable( GL_NORMALIZE );
                         }
 #endif
@@ -4205,7 +4360,8 @@ opengl_renderer::Update_Mouse_Position() {
     GLfloat pointdepth;
     ::glReadPixels( mousepos.x, mousepos.y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &pointdepth );
 
-    if( pointdepth < 1.0 ) {
+    m_mousehit = pointdepth < 1.0;
+    if( m_mousehit ) {
         m_worldmousecoordinates =
             glm::unProject(
                 glm::vec3{ mousepos, pointdepth },
@@ -4288,12 +4444,15 @@ opengl_renderer::Update( double const Deltatime ) {
     }
 
     m_updateaccumulator = 0.0;
-    m_framerate = 1000.f / ( Timer::subsystem.gfx_total.average() );
+    // the frames actually shown, the wait for fpslimit included (eu07/maszyna#416)
+    m_framerate = 1000.f / ( Timer::subsystem.mainloop_period.average() );
+    // the draw ranges follow the time spent on drawing alone, as before
+    auto const drawframerate { 1000.f / ( Timer::subsystem.gfx_total.average() ) };
 
 	// adjust draw ranges etc, based on recent performance
 	// TODO: it doesn't make much sense with vsync
     if( Global.targetfps != 0.f ) {
-        auto const fps_diff = m_framerate - Global.targetfps;
+        auto const fps_diff = drawframerate - Global.targetfps;
         if( fps_diff < -0.5f ) {
             Global.fDistanceFactor = std::min( std::max( 1.0f, Global.fDistanceFactor - 0.05f ), Global.gfx_distance_factor_max );
         }
@@ -4303,7 +4462,7 @@ opengl_renderer::Update( double const Deltatime ) {
     }
     // legacy framerate parameters
     else if( Global.fFpsAverage != 0.f ) {
-        auto const fps_diff = m_framerate - Global.fFpsAverage;
+        auto const fps_diff = drawframerate - Global.fFpsAverage;
         if( fps_diff < -Global.fFpsDeviation ) {
             Global.fDistanceFactor = std::min( std::max( 1.0f, Global.fDistanceFactor - 0.05f ), Global.gfx_distance_factor_max );
         }

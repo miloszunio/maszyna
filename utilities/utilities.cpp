@@ -73,6 +73,24 @@ std::filesystem::path user_config_path(const std::string &filename)
 	return {}; // env var missing → caller falls back to CWD-relative filename
 }
 
+std::filesystem::path user_cache_path(const std::string &filename)
+{
+	namespace fs = std::filesystem;
+#if defined(_WIN32)
+	if (const char *local = std::getenv("LOCALAPPDATA"))
+		return fs::path(local) / "MaSzyna" / "cache" / filename;
+#elif defined(__APPLE__)
+	if (const char *home = std::getenv("HOME"))
+		return fs::path(home) / "Library" / "Caches" / "MaSzyna" / filename;
+#else
+	if (const char *cache = std::getenv("XDG_CACHE_HOME"); cache != nullptr && *cache != '\0')
+		return fs::path(cache) / "MaSzyna" / filename;
+	if (const char *home = std::getenv("HOME"))
+		return fs::path(home) / ".cache" / "MaSzyna" / filename;
+#endif
+	return {};
+}
+
 // zwraca różnicę czasu
 // jeśli pierwsza jest aktualna, a druga rozkładowa, to ujemna oznacza opóżnienie
 // na dłuższą metę trzeba uwzględnić datę, jakby opóżnienia miały przekraczać 12h (towarowych)
@@ -317,8 +335,11 @@ void win1250_to_ascii(std::string &Input)
 
 std::string win1250_to_utf8(const std::string &Input)
 {
-	std::unordered_map<char, std::string> const charmap{{165, "Ą"}, {198, "Ć"}, {202, "Ę"}, {163, "Ł"}, {209, "Ń"}, {211, "Ó"}, {140, "Ś"}, {143, "Ź"}, {175, "Ż"},
-	                                                    {185, "ą"}, {230, "ć"}, {234, "ę"}, {179, "ł"}, {241, "ń"}, {243, "ó"}, {156, "ś"}, {159, "ź"}, {191, "ż"}};
+	// the utf-8 sequences written as bytes: the file has a byte order mark and the build doesn't give the compiler /utf-8, so letters
+	// written as letters would end up in the program in windows-1250, the same as the input
+	static std::unordered_map<char, std::string> const charmap{{'\xA5', "\xC4\x84"}, {'\xC6', "\xC4\x86"}, {'\xCA', "\xC4\x98"}, {'\xA3', "\xC5\x81"}, {'\xD1', "\xC5\x83"}, {'\xD3', "\xC3\x93"},
+	                                                           {'\x8C', "\xC5\x9A"}, {'\x8F', "\xC5\xB9"}, {'\xAF', "\xC5\xBB"}, {'\xB9', "\xC4\x85"}, {'\xE6', "\xC4\x87"}, {'\xEA', "\xC4\x99"},
+	                                                           {'\xB3', "\xC5\x82"}, {'\xF1', "\xC5\x84"}, {'\xF3', "\xC3\xB3"}, {'\x9C', "\xC5\x9B"}, {'\x9F', "\xC5\xBA"}, {'\xBF', "\xC5\xBC"}};
 	std::string output;
 	std::unordered_map<char, std::string>::const_iterator lookup;
 	for (auto &input : Input)
@@ -327,6 +348,30 @@ std::string win1250_to_utf8(const std::string &Input)
 			output += lookup->second;
 		else
 			output += input;
+	}
+	return output;
+}
+
+// counterpart of win1250_to_utf8(). characters outside of the supported set are replaced with question marks
+std::string utf8_to_win1250(std::string const &Text)
+{
+	// polish letters, as utf-8 sequences; the same set win1250_to_utf8() handles
+	static std::unordered_map<std::string, char> const charmap{{"\xC4\x84", '\xA5'}, {"\xC4\x86", '\xC6'}, {"\xC4\x98", '\xCA'}, {"\xC5\x81", '\xA3'}, {"\xC5\x83", '\xD1'}, {"\xC3\x93", '\xD3'},
+	                                                           {"\xC5\x9A", '\x8C'}, {"\xC5\xB9", '\x8F'}, {"\xC5\xBB", '\xAF'}, {"\xC4\x85", '\xB9'}, {"\xC4\x87", '\xE6'}, {"\xC4\x99", '\xEA'},
+	                                                           {"\xC5\x82", '\xB3'}, {"\xC5\x84", '\xF1'}, {"\xC3\xB3", '\xF3'}, {"\xC5\x9B", '\x9C'}, {"\xC5\xBA", '\x9F'}, {"\xC5\xBC", '\xBF'}};
+	std::string output;
+	for (std::size_t idx = 0; idx < Text.size();)
+	{
+		auto const lead{static_cast<unsigned char>(Text[idx])};
+		if (lead < 0x80)
+		{
+			output += Text[idx++];
+			continue;
+		}
+		auto const length{std::min<std::size_t>((lead & 0xE0) == 0xC0 ? 2 : (lead & 0xF0) == 0xE0 ? 3 : (lead & 0xF8) == 0xF0 ? 4 : 1, Text.size() - idx)};
+		auto const lookup{charmap.find(Text.substr(idx, length))};
+		output += (lookup != charmap.end() ? lookup->second : '?');
+		idx += length;
 	}
 	return output;
 }
@@ -469,6 +514,26 @@ template <> bool extract_value(bool &Variable, std::string const &Key, std::stri
 bool FileExists(std::string const &Filename)
 {
 	return std::filesystem::exists(Filename);
+}
+
+std::string FileCased(std::filesystem::path const &Filename)
+{
+	std::error_code error;
+	if (std::filesystem::exists(Filename, error))
+		return Filename.string();
+#ifdef _WIN32
+	// the names there are found in any case already: no folder to go through for every file missing, nor names outside of the
+	// code page to throw on
+	return {};
+#else
+	// only the name of the file itself, a folder named in another case isn't found
+	auto const directory{Filename.has_parent_path() ? Filename.parent_path() : std::filesystem::path{"."}};
+	auto const wanted{ToLower(Filename.filename().string())};
+	for (std::filesystem::directory_iterator entry{directory, error}, end; entry != end; entry.increment(error))
+		if (ToLower(entry->path().filename().string()) == wanted)
+			return Filename.has_parent_path() ? (directory / entry->path().filename()).string() : entry->path().filename().string();
+	return {};
+#endif
 }
 
 std::pair<std::string, std::string> FileExists(std::vector<std::string> const &Names, std::vector<std::string> const &Extensions)

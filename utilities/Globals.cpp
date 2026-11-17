@@ -72,6 +72,14 @@ void global_settings::FinalizeConfig()
     python_enabled = false;
 #endif
 
+#ifndef WITH_WASM
+    wasm_enabled = false;
+#endif
+
+#ifndef WITH_LUA
+    luascreens_enabled = false;
+#endif
+
 #ifdef _WIN32
     Console::ModeSet(iFeedbackMode, iFeedbackPort);
 #endif
@@ -456,6 +464,66 @@ bool global_settings::ConfigParseInput(cParser& Parser, const std::string& token
     return false;
 }
 
+bool global_settings::ConfigParseTest(cParser& Parser, std::string_view const Token)
+{
+    // integration test limits, usually given in the config block of a test scenery
+    if (Token == "test.timeout")
+    {
+        double value{ test.timeout };
+        ParseOne(Parser, value);
+        if (false == test.timeout_from_command_line)
+            test.timeout = std::max(0.0, value);
+        return true;
+    }
+
+    if (Token == "test.wall_timeout")
+    {
+        double value{ 0.0 };
+        ParseOne(Parser, value);
+        if (false == test.wall_timeout_from_command_line)
+            test.wall_timeout = std::max(0.0, value);
+        return true;
+    }
+
+    if (Token == "test.vehicle")
+    {
+        // a vehicle of a train under test, by its name in the scenery; the pass and the standstill wait for its
+        // consist only, not for other trains (eu07/maszyna#541). given more than once, for each of them
+        std::string name;
+        ParseOne(Parser, name, 1, true);
+        if (false == name.empty() && std::ranges::find(test.vehicles, name) == test.vehicles.end())
+            test.vehicles.emplace_back(name);
+        return true;
+    }
+
+    if (Token == "test.standstill")
+    {
+        ParseOne(Parser, test.standstill);
+        test.standstill = std::max(0.0, test.standstill);
+        return true;
+    }
+
+    if (Token == "test.pass_on_standstill")
+    {
+        ParseOne(Parser, test.pass_on_standstill);
+        return true;
+    }
+
+    if (Token == "test.fail_if_stop_overran")
+    {
+        ParseOne(Parser, test.fail_if_stop_overran);
+        return true;
+    }
+
+    if (Token == "test.no_movement_before_pass")
+    {
+        ParseOne(Parser, test.no_movement_before_pass);
+        return true;
+    }
+
+    return false;
+}
+
 bool global_settings::ConfigParseSimulation(cParser& Parser, const std::string& token)
 {
     if (token == "async.trainThreads")
@@ -467,6 +535,12 @@ bool global_settings::ConfigParseSimulation(cParser& Parser, const std::string& 
     if (token == "physicslog")
     {
         ParseOne(Parser, WriteLogFlag);
+        return true;
+    }
+
+    if (token == "blackbox")
+    {
+        ParseOne(Parser, BlackBox);
         return true;
     }
 
@@ -589,9 +663,50 @@ bool global_settings::ConfigParseSimulation(cParser& Parser, const std::string& 
         return true;
     }
 
+    if (token == "sleepers3d")
+    {
+        // model of the sleepers and switch timbers, put together from its submodels begin, main and end; none: no such sleepers
+        ParseOne(Parser, Sleepers3D);
+        if (Sleepers3D == "none")
+        {
+            Sleepers3D.clear();
+        }
+        return true;
+    }
+
+    if (token == "sleepers3dbed")
+    {
+        // the ballast under the tracks with 3D sleepers; no: the sleepers are laid on the ground alone
+        ParseOne(Parser, Sleepers3DBed);
+        return true;
+    }
+
+    if (token == "sleepers3dplain")
+    {
+        // model, skin and the height of the rail seat of the sleepers of a track running alone, square to it; none: the timbers of sleepers3d there too
+        Parser.getTokens(3, false);
+        Parser >> Sleepers3DPlain >> Sleepers3DPlainSkin >> Sleepers3DPlainSeat;
+        if (Sleepers3DPlain == "none")
+        {
+            Sleepers3DPlain.clear();
+        }
+        if (Sleepers3DPlainSkin == "none")
+        {
+            Sleepers3DPlainSkin.clear();
+        }
+        return true;
+    }
+
     if (token == "createswitchtrackbeds")
     {
         ParseOne(Parser, CreateSwitchTrackbeds);
+        return true;
+    }
+
+    if (token == "frogs")
+    {
+        // yes: the rails of the plain tracks and of the switches with the key frogs cut where they cross other rails
+        ParseOne(Parser, Frogs);
         return true;
     }
 
@@ -699,6 +814,12 @@ bool global_settings::ConfigParseSimulation(cParser& Parser, const std::string& 
         return true;
     }
 
+    if (token == "ai.brakesetting.cw1")
+    {
+        ParseOne(Parser, AIBrakeSettingCw1, 1, false);
+        return true;
+    }
+
     if (token == "pause")
     {
         std::string value;
@@ -748,6 +869,22 @@ bool global_settings::ConfigParseSimulation(cParser& Parser, const std::string& 
     if (token == "crashdamage")
     {
         ParseOne(Parser, crash_damage, 1);
+        return true;
+    }
+
+    if (token == "couplerphysics")
+    {
+        // yes: the player's train and the trains it closes in on, all: every train
+        std::string scope;
+        ParseOne(Parser, scope, 1);
+        coupler_physics_all = scope == "all";
+        coupler_physics = coupler_physics_all || scope == "yes" || scope == "true" || scope == "1";
+        return true;
+    }
+
+    if (token == "controlcoupling.enginecheck")
+    {
+        ParseOne(Parser, control_coupling_engine_check, 1);
         return true;
     }
 
@@ -805,6 +942,42 @@ bool global_settings::ConfigParseUI(cParser& Parser, const std::string& token)
     if (token == "gui.trainingdefault")
     {
         ParseOne(Parser, gui_trainingdefault, 1);
+        return true;
+    }
+
+    return false;
+}
+
+bool global_settings::ConfigParseScriptScreens(cParser& Parser, std::string_view const token)
+{
+    if (token == "luascreens.enabled")
+    {
+        ParseOne(Parser, luascreens_enabled, 1);
+        return true;
+    }
+
+    if (token == "wasm.enabled")
+    {
+        ParseOne(Parser, wasm_enabled, 1);
+        return true;
+    }
+
+    // wasm.cabframes and wasm.externalframes: the first names of the keys, from before the Lua screens
+    if (token == "screens.cabframes" || token == "wasm.cabframes")
+    {
+        ParseOneClamped(Parser, screens_cabframes, 1, 1000);
+        return true;
+    }
+
+    if (token == "screens.externalframes" || token == "wasm.externalframes")
+    {
+        ParseOneClamped(Parser, screens_externalframes, 1, 1000);
+        return true;
+    }
+
+    if (token == "screens.gpupost")
+    {
+        ParseOne(Parser, screens_gpupost, 1);
         return true;
     }
 
@@ -1307,6 +1480,9 @@ void global_settings::ConfigParse(cParser& Parser)
         if (ConfigParsePython(Parser, token))
             continue;
 
+        if (ConfigParseScriptScreens(Parser, token))
+            continue;
+
         if (ConfigParseNetwork(Parser, token))
             continue;
 
@@ -1314,6 +1490,9 @@ void global_settings::ConfigParse(cParser& Parser)
             continue;
 
         if (ConfigParseDebug(Parser, token))
+            continue;
+
+        if (ConfigParseTest(Parser, token))
             continue;
 
         // WriteLog(std::format("Unknown config token: {}", token), logtype::warning, false);
@@ -1556,6 +1735,7 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "sound.volume.ambient", EnvironmentAmbientVolume );
     export_as_text( Output, "sound.asyncload", AudioAsyncLoad );
     export_as_text( Output, "physicslog", WriteLogFlag );
+    export_as_text( Output, "blackbox", BlackBox );
     export_as_text( Output, "fullphysics", FullPhysics );
     export_as_text( Output, "debuglog", iWriteLogEnabled );
     export_as_text( Output, "multiplelogs", MultipleLogs );
@@ -1590,6 +1770,13 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "scenario.time.current", ScenarioTimeCurrent );
     export_as_text( Output, "scenario.weather.temperature", AirTemperature );
     export_as_text( Output, "ai.trainman", AITrainman );
+    export_as_text( Output, "controlcoupling.enginecheck", control_coupling_engine_check );
+    std::string couplerphysics { coupler_physics ? "yes" : "no" };
+    if( coupler_physics_all ) {
+        couplerphysics = "all";
+    }
+    export_as_text( Output, "couplerphysics", couplerphysics );
+    export_as_text( Output, "ai.brakesetting.cw1", AIBrakeSettingCw1 );
     export_as_text( Output, "scalespeculars", ScaleSpecularValues );
     export_as_text( Output, "gfxrenderer", GfxRenderer );
     export_as_text( Output, "shadows", RenderShadows );
@@ -1605,8 +1792,12 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "smoothtraction", bSmoothTraction );
     export_as_text( Output, "splinefidelity", SplineFidelity );
     export_as_text( Output, "sleeperdistance", SleeperDistance );
+    export_as_text( Output, "sleepers3d", ( Sleepers3D.empty() ? std::string{ "none" } : Sleepers3D ) );
+    export_as_text( Output, "sleepers3dbed", Sleepers3DBed );
+    Output << "sleepers3dplain " << ( Sleepers3DPlain.empty() ? std::string{ "none" } : Sleepers3DPlain ) << ' ' << ( Sleepers3DPlainSkin.empty() ? std::string{ "none" } : Sleepers3DPlainSkin ) << ' ' << Sleepers3DPlainSeat << '\n';
     export_as_text( Output, "rendercab", render_cab );
     export_as_text( Output, "createswitchtrackbeds", CreateSwitchTrackbeds );
+    export_as_text( Output, "frogs", Frogs );
     export_as_text( Output, "gfx.resource.sweep", ResourceSweep );
     export_as_text( Output, "gfx.resource.move", ResourceMove );
     export_as_text( Output, "gfx.textures.streaming", gfx_texture_streaming );
@@ -1742,6 +1933,17 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "gfx.shadowmap.enabled", gfx_shadowmap_enabled );
     // TODO: export fpslimit
     export_as_text( Output, "randomseed", Global.random_seed );
+    export_as_text( Output, "test.timeout", test.timeout );
+    if( test.wall_timeout.has_value() ) {
+        export_as_text( Output, "test.wall_timeout", *test.wall_timeout );
+    }
+    export_as_text( Output, "test.standstill", test.standstill );
+    export_as_text( Output, "test.pass_on_standstill", test.pass_on_standstill );
+    export_as_text( Output, "test.fail_if_stop_overran", test.fail_if_stop_overran );
+    export_as_text( Output, "test.no_movement_before_pass", test.no_movement_before_pass );
+    for( auto const &vehicle : test.vehicles ) {
+        export_as_text( Output, "test.vehicle", vehicle );
+    }
     export_as_text( Output, "gfx.envmap.enabled", gfx_envmap_enabled );
     export_as_text( Output, "gfx.postfx.motionblur.enabled", gfx_postfx_motionblur_enabled );
     export_as_text( Output, "gfx.postfx.motionblur.shutter", gfx_postfx_motionblur_shutter );
@@ -1759,6 +1961,11 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "python.threadedupload", python_threadedupload );
     export_as_text( Output, "python.uploadmain", python_uploadmain );
     export_as_text( Output, "python.mipmaps", python_mipmaps );
+    export_as_text( Output, "luascreens.enabled", luascreens_enabled );
+    export_as_text( Output, "wasm.enabled", wasm_enabled );
+    export_as_text( Output, "screens.cabframes", screens_cabframes );
+    export_as_text( Output, "screens.externalframes", screens_externalframes );
+    export_as_text( Output, "screens.gpupost", screens_gpupost );
     export_as_text( Output, "async.trainThreads", trainThreads );
     for( auto const &server : network_servers ) {
         Output

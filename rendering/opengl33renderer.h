@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulationenvironment.h"
 #include "scene/scene.h"
 #include "world/MemCell.h"
+#include "world/TrackSleepers.h"
 #include "rendering/lightarray.h"
 #include "vr/vr_interface.h"
 #include "gl/ubo.h"
@@ -30,6 +31,7 @@ http://mozilla.org/MPL/2.0/.
 #include "gl/pbo.h"
 #include "gl/query.h"
 #include "rendering/opengl33terrain.h"
+#include "rendering/opengl33screenpost.h"
 
 // bare-bones render controller, in lack of anything better yet
 class opengl33_renderer : public gfx_renderer {
@@ -66,6 +68,7 @@ class opengl33_renderer : public gfx_renderer {
 	bool Replace(gfx::vertex_array &Vertices, gfx::userdata_array &Userdata, gfx::geometry_handle const &Geometry, int const Type, const std::size_t Offset = 0) override;
     // adds supplied vertex data at the end of specified chunk
 	bool Append(gfx::vertex_array &Vertices, gfx::userdata_array &Userdata, gfx::geometry_handle const &Geometry, int const Type) override;
+	void Erase( gfx::geometry_handle const &Geometry ) override;
     // provides direct access to index data of specfied chunk
     gfx::index_array const &
         Indices( gfx::geometry_handle const &Geometry ) const override;
@@ -75,9 +78,17 @@ class opengl33_renderer : public gfx_renderer {
 	// provides direct access to vertex data of specfied chunk
 	gfx::userdata_array const &
 		UserData( gfx::geometry_handle const &Geometry ) const override;
+	int
+		Primitive( gfx::geometry_handle const &Geometry ) const override;
+	bool
+		Draws_Timbers() const override { return true; }
     // material methods
     material_handle
         Fetch_Material( std::string const &Filename, bool const Loadnow = true ) override;
+    material_handle
+        Matte_Material( material_handle const Material ) override;
+    material_handle
+        Tinted_Material( material_handle const Material, glm::vec3 const &Colour ) override;
     void
         Bind_Material( material_handle const Material, TSubModel const *sm = nullptr, lighting_data const *lighting = nullptr ) override;
     IMaterial const *
@@ -108,6 +119,8 @@ class opengl33_renderer : public gfx_renderer {
         Pick_Control() const override { return m_pickcontrolitem; }
     scene::basic_node const *
         Pick_Node() const override { return m_picksceneryitem; }
+    void
+        Forget_Node( scene::basic_node const *Node ) override;
     glm::dvec3
         Mouse_Position() const override { return m_worldmousecoordinates; }
     bool
@@ -136,6 +149,7 @@ class opengl33_renderer : public gfx_renderer {
         info_stats() const override;
 	  void MakeScreenshot() override;
     bool Render_Preview( TAnimModel *Instance, int const Size, int const Margin, bool const Shadows, std::vector<std::uint8_t> &Image ) override;
+    script_screens::post_processor *Screen_post_processor() override;
 
 
 
@@ -268,6 +282,8 @@ class opengl33_renderer : public gfx_renderer {
 	void setup_pass(viewport_config &Viewport, renderpass_config &Config, rendermode const Mode, float const Znear = 0.f, float const Zfar = 1.f, bool const Ignoredebug = false);
 	void setup_matrices();
     void setup_drawing(bool const Alpha = false);
+    // alpha to coverage for the alpha tested materials of the opaque colour pass, when multisampled
+    void setup_alpha_to_coverage(bool const Enable);
     void setup_shadow_unbind_map();
     void setup_shadow_bind_map();
     void setup_shadow_color( glm::vec4 const &Shadowcolor );
@@ -293,12 +309,19 @@ class opengl33_renderer : public gfx_renderer {
 	// adds the bucketed instances of a scene cell to the frame-level buckets drawn by Render_Instanced(),
 	// less the ones the copies of their bounds show to be out of sight in the current render pass
 	void Queue_Instances( scene::basic_cell const *Cell );
+	// brings up to date what the renderer keeps of the instances of the cell; returns: true if the cache can be used
+	bool Prepare_Instances( scene::basic_cell &Cell );
+	// true if the cache of the cell is up to date
+	bool Instance_Cache_Valid( scene::basic_cell const &Cell ) const;
+	// true if nothing of the cell would be drawn by the color pass from the camera of the pass
+	bool Cell_Out_Of_Range( scene::basic_cell const &Cell ) const;
 	// makes the copies of the bounds of the instances held by a bucket of a scene cell
 	void Update_Instance_Bounds( TModel3d const *Model, scene::basic_cell::instance_bucket const &Bucket );
 	bool Render(TDynamicObject *Dynamic);
     bool Render(TModel3d *Model, material_data const *Material, float const Squaredistance, glm::dvec3 const &Position, glm::vec3 const &Angle);
 	bool Render(TModel3d *Model, material_data const *Material, float const Squaredistance);
 	void Render(TSubModel *Submodel);
+	void Render_text(TSubModel *Submodel); // opaque characters of a text display
 	void Render(TTrack *Track);
 	void Render(scene::basic_cell::path_sequence::const_iterator First, scene::basic_cell::path_sequence::const_iterator Last);
 	// renders the per-track sleeper instances (TTrack::m_sleeper_local_transforms) via GPU instancing.
@@ -306,6 +329,16 @@ class opengl33_renderer : public gfx_renderer {
 	// no-op if the track has no sleepermodel, Global.SleeperDistance is 0, or the camera is beyond
 	// Global.SleeperDistance from the track origin.
 	void Render_Sleepers( TTrack *Track );
+	// renders the sleepers and switch timbers of the tracks in range (TTrack::m_sleepers3d), laying them first where they're out of date.
+	// the parts of the model are drawn in instanced batches for the whole run of tracks, the runs of beams out of sight left out
+	void Render_Timbers( scene::basic_cell::path_sequence::const_iterator First, scene::basic_cell::path_sequence::const_iterator Last );
+	// the cut faces of the rails of a track and the treads on them, batched with those of the other tracks where the light is the same
+	void Render_cuts( TTrack *Track, material_handle &Batchmaterial );
+	// the geometry of the neighbouring tracks gathered for one draw drawn, the batch of the material given emptied
+	void flush_path_batch( material_handle &Batchmaterial );
+	// a batch of the material started, the one gathered before drawn; returns: true if the material starts a new batch, false if it
+	// continues the current one
+	bool begin_path_batch( material_handle &Batchmaterial, material_handle const Material );
 	bool Render_cab(TDynamicObject const *Dynamic, float const Lightlevel, bool const Alpha = false);
     bool Render_interior( bool const Alpha = false );
     bool Render_lowpoly( TDynamicObject *Dynamic, float const Squaredistance, bool const Setup, bool const Alpha = false );
@@ -461,6 +494,35 @@ class opengl33_renderer : public gfx_renderer {
 	// than a single regular draw. The vertex shader reads per-instance modelview
 	// from instance_ubo[gl_InstanceID]. Reset to 0 by Render_Instanced() on exit.
 	std::size_t m_current_instance_count { 0 };
+	// camera-space transforms of the sleepers and timbers drawn by Render_Timbers, by the model and its part or its level of
+	// detail; kept from frame to frame to reuse their allocations
+	struct timber_bucket {
+		track_sleepers::beam_model const *model { nullptr };
+		int part { -1 }; // of a model put together from parts; -1: the whole model
+		float band { 0.f }; // the squared distance the level of detail of the whole model is seen from
+		std::vector<glm::mat4> instances;
+	};
+	std::vector<timber_bucket> m_timberbuckets;
+	// where the sleepers and timbers of a pass are seen from, and how far
+	struct timber_view {
+		glm::dvec3 camera { 0.0 };
+		double reach { 0.0 };
+		bool shadows { false };
+		glm::mat4 modelview { 1.f }; // of the origin of the tracks
+	};
+	// the camera-space transforms of the beams of a model and its part or its level of detail gathered for the frame
+	std::vector<glm::mat4> &timber_instances( track_sleepers::beam_model const *Model, int const Part, float const Band );
+	// the beams of a track in range and in sight gathered into the buckets
+	void gather_timbers( TTrack &Track, timber_view const &View );
+	// the beams of a run of them along a track gathered into the buckets, at the level of detail they're seen at from the nearest
+	void gather_timber_chunk( track_sleepers::laid const &Laid, track_sleepers::chunk const &Chunk, double const Nearest, glm::mat4 const &Modelview );
+	// the beams of a bucket drawn in as few instanced batches as they fit in
+	void draw_timbers( timber_bucket const &Bucket );
+	// only the given part of a timber model seen, and all its parts as they were
+	void show_timber_part( track_sleepers::beam_model const &Model, int const Part );
+	void restore_timber_parts( track_sleepers::beam_model const &Model );
+	// the visibility of the submodels of the top level of a timber model, kept while a part of it is drawn alone
+	std::vector<int> m_timbervisibility;
 	// persistent scratch buffer for Render_Instanced(): holds the per-instance
 	// camera-space root modelview matrices for the batch currently being built.
 	// Kept as a member rather than a function-local so its heap allocation is
@@ -497,6 +559,7 @@ class opengl33_renderer : public gfx_renderer {
     std::unique_ptr<gl::program> m_celestial_shader;
     std::unique_ptr<gl::program> m_hiddenarea_shader;
     std::unique_ptr<gl::program> m_copy_shader;
+    std::unique_ptr<opengl33_screen_post> m_screen_post; // made on the first request
 
     std::unique_ptr<gl::vao> m_empty_vao;
 
@@ -544,6 +607,7 @@ class opengl33_renderer : public gfx_renderer {
 	material_handle m_invalid_material;
 
     bool m_blendingenabled;
+    bool m_alphatocoverageenabled{ false };
 
 	bool m_widelines_supported;
 
