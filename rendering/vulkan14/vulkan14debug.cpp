@@ -396,6 +396,7 @@ void vulkan14_renderer::draw_debug_ui()
 			ImGui::SliderFloat("the grass drawn whole up to, m (gfx.grass.distance)", &Global.gfx_grass_distance, 10.f, 300.f, "%.0f");
 			ImGui::SliderFloat("thinning out up to, m (gfx.grass.fadedistance)", &Global.gfx_grass_fadedistance, 10.f, 350.f, "%.0f");
 			ImGui::SliderFloat("density of the grass (gfx.grass.density)", &Global.gfx_grass_density, 0.1f, 2.f, "%.2f");
+			ImGui::SliderFloat("reach of the crops, times (gfx.grass.crops)", &Global.gfx_grass_crops, 0.f, 2.f, "%.2f");
 		}
 		auto const info{cull_info()};
 		if (false == info.empty())

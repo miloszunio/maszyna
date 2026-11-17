@@ -728,6 +728,63 @@ std::optional<modifier_shape::effect> modifier_shape::evaluate(double const X, d
 
 // manifest
 
+namespace
+{
+std::array<std::string_view, static_cast<std::size_t>(grass_archetype::count)> constexpr archetype_names{"blade", "cereal", "awned", "panicle", "rape", "stubble", "straw"};
+
+// the parts of a kind of grass which only the plants other than the blade of grass have, as terrain.yaml holds them
+void read_plant(YAML::Node const &Entry, grass_def &Kind)
+{
+	if (auto const archetype{Entry["archetype"]})
+		Kind.archetype = grass_archetype_of(archetype.as<std::string>());
+	if (auto const head{Entry["head"]}; head && head.IsSequence() && head.size() >= 3)
+		Kind.head = glm::clamp(glm::vec3{head[0].as<float>(), head[1].as<float>(), head[2].as<float>()}, glm::vec3{0.f}, glm::vec3{1.f});
+	auto const number = [&Entry](char const *Key, float &Value, float const Low, float const High) {
+		if (auto const node{Entry[Key]})
+			Value = std::clamp(node.as<float>(), Low, High);
+	};
+	number("head_length", Kind.head_length, 0.f, 1.f);
+	number("head_width", Kind.head_width, 0.f, 0.2f);
+	number("head_droop", Kind.head_droop, 0.f, 1.f);
+	number("awns", Kind.awns, 0.f, 0.5f);
+	number("translucency", Kind.translucency, 0.f, 1.f);
+	number("sheen", Kind.sheen, 0.f, 1.f);
+	number("reach", Kind.reach, 0.f, 1000.f);
+}
+
+// written only where the kind has them, so a palette of blades of grass is written as it always was
+void write_plant(YAML::Emitter &Out, grass_def const &Kind)
+{
+	if (Kind.archetype != grass_archetype::blade)
+		Out << YAML::Key << "archetype" << YAML::Value << std::string{grass_archetype_name(Kind.archetype)};
+	if (Kind.head != glm::vec3{0.f})
+		Out << YAML::Key << "head" << YAML::Value << YAML::Flow << YAML::BeginSeq << Kind.head.r << Kind.head.g << Kind.head.b << YAML::EndSeq;
+	auto const number = [&Out](char const *Key, float const Value) {
+		if (Value != 0.f)
+			Out << YAML::Key << Key << YAML::Value << Value;
+	};
+	number("head_length", Kind.head_length);
+	number("head_width", Kind.head_width);
+	number("head_droop", Kind.head_droop);
+	number("awns", Kind.awns);
+	number("translucency", Kind.translucency);
+	number("sheen", Kind.sheen);
+	number("reach", Kind.reach);
+}
+} // namespace
+
+std::string_view grass_archetype_name(grass_archetype const Archetype)
+{
+	auto const index{static_cast<std::size_t>(Archetype)};
+	return index < archetype_names.size() ? archetype_names[index] : archetype_names[0];
+}
+
+grass_archetype grass_archetype_of(std::string_view const Name)
+{
+	auto const found{std::ranges::find(archetype_names, Name)};
+	return found != archetype_names.end() ? static_cast<grass_archetype>(found - archetype_names.begin()) : grass_archetype::blade;
+}
+
 std::vector<grass_def> const &grass_presets()
 {
 	static std::vector<grass_def> const presets{
@@ -930,6 +987,7 @@ bool load_manifest(std::string const &Path, manifest &Manifest, std::string *Err
 				colour(entry["dry"], kind.dry);
 				if (auto const seasonal{entry["seasonal"]})
 					kind.seasonal = std::clamp(seasonal.as<float>(), 0.f, 1.f);
+				read_plant(entry, kind);
 				result.grass.push_back(std::move(kind));
 			}
 		Manifest = std::move(result);
@@ -1111,6 +1169,7 @@ bool save_manifest(std::string const &Path, manifest const &Manifest, std::strin
 			out << YAML::Key << "bend" << YAML::Value << kind.bend;
 			out << YAML::Key << "dry" << YAML::Value << YAML::Flow << YAML::BeginSeq << kind.dry.r << kind.dry.g << kind.dry.b << YAML::EndSeq;
 			out << YAML::Key << "seasonal" << YAML::Value << kind.seasonal;
+			write_plant(out, kind);
 			out << YAML::EndMap;
 		}
 		out << YAML::EndSeq;

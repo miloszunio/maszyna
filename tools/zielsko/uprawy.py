@@ -72,26 +72,46 @@ shader: default
 texture_diffuse: {texture}
 param_specular: 0.05
 """
-# the colour the 3D grass of a crop has from afar, its root and its tips mixed as they are seen (the presets of the crops of
-# application/editormodefeatures.cpp): the texture under it is made of the same colour, so the field doesn't change its colour
-# where the grass ends
-GRASS = {
-    'zboze_zielone': ((0.15, 0.29, 0.07), (0.37, 0.57, 0.17)),
-    'zboze_klos': ((0.24, 0.35, 0.12), (0.66, 0.68, 0.32)),
-    'pszenica_dojrzala': ((0.52, 0.42, 0.20), (0.90, 0.77, 0.42)),
-    'jeczmien_dojrzaly': ((0.60, 0.52, 0.32), (0.93, 0.86, 0.60)),
-    'zyto_dojrzale': ((0.45, 0.42, 0.30), (0.80, 0.72, 0.50)),
-    'owies_dojrzaly': ((0.50, 0.48, 0.33), (0.88, 0.84, 0.60)),
-    'rzepak_dojrzaly': ((0.35, 0.32, 0.18), (0.55, 0.48, 0.25)),
-    'laka_wysoka': ((0.20, 0.32, 0.09), (0.55, 0.62, 0.28)),
-    'pastwisko': ((0.20, 0.33, 0.09), (0.45, 0.60, 0.22)),
-    'ugor': ((0.30, 0.33, 0.15), (0.62, 0.58, 0.35)),
+# the colour a field of a crop has from afar (canopy_colour()): the parts of its plants as the presets of the crops give them
+# (application/editormodefeatures.cpp; the root and the top of the stalk, the head: the ear, the panicle, the flowers, the cut
+# end), how much of the head is seen from a cab, how much darker the canopy is than its parts (the light of the sky reaching down
+# into it less, as grass_plant.glsl darkens it) and how much of the soil shows between the plants. the texture under the 3D grass
+# is made of the same colour, so the field doesn't change its colour where the grass ends. docs/koncepcje/pola-uprawy.md, 7
+SOIL = (0.40, 0.34, 0.27)
+CROPS = {
+    # name: root, top of the stalk, head (None: none), share of the head seen, darker by, share of the soil seen
+    'ozimina': ((0.16, 0.24, 0.11), (0.36, 0.48, 0.24), None, 0.0, 1.0, 0.25),
+    'zboze_zielone': ((0.16, 0.25, 0.11), (0.38, 0.50, 0.27), (0.42, 0.54, 0.30), 0.45, 0.85, 0.0),
+    'zboze_klos': ((0.22, 0.32, 0.13), (0.44, 0.52, 0.26), (0.60, 0.62, 0.38), 0.45, 0.85, 0.0),
+    'pszenica_dojrzala': ((0.46, 0.38, 0.22), (0.74, 0.62, 0.40), (0.80, 0.63, 0.36), 0.45, 0.85, 0.0),
+    'jeczmien_dojrzaly': ((0.52, 0.46, 0.30), (0.80, 0.73, 0.52), (0.88, 0.80, 0.58), 0.45, 0.85, 0.0),
+    'zyto_dojrzale': ((0.42, 0.40, 0.31), (0.66, 0.63, 0.50), (0.62, 0.60, 0.50), 0.45, 0.85, 0.0),
+    'owies_dojrzaly': ((0.48, 0.50, 0.36), (0.72, 0.72, 0.56), (0.80, 0.80, 0.64), 0.45, 0.85, 0.0),
+    'rzepak_kwitnacy': ((0.20, 0.30, 0.13), (0.30, 0.42, 0.18), (0.95, 0.85, 0.14), 0.8, 0.9, 0.0),
+    'rzepak_dojrzaly': ((0.36, 0.32, 0.20), (0.52, 0.45, 0.28), (0.48, 0.42, 0.27), 0.45, 0.85, 0.0),
+    'sciernisko': ((0.62, 0.57, 0.43), (0.74, 0.68, 0.50), (0.84, 0.78, 0.60), 0.3, 0.95, 0.18),
+    # the meadows: the grass as it was, its root and its tips
+    'laka_wysoka': ((0.20, 0.32, 0.09), (0.55, 0.62, 0.28), None, 0.0, 1.0, 0.0),
+    'pastwisko': ((0.20, 0.33, 0.09), (0.45, 0.60, 0.22), None, 0.0, 1.0, 0.0),
+    'ugor': ((0.30, 0.33, 0.15), (0.62, 0.58, 0.35), None, 0.0, 1.0, 0.0),
 }
 
 
+def canopy_colour(name):
+    """the colour of the field of the crop Name from a cab, sRGB 0..1"""
+    root, top, head, seen_head, darker, soil = CROPS[name]
+    root, top = np.asarray(root), np.asarray(top)
+    if head is None:
+        # the blades of grass, as the 3D grass mixes them from afar
+        colour = root * 0.35 + top * 0.65
+    else:
+        colour = (root * 0.3 + top * 0.7) * (1 - seen_head) + np.asarray(head) * seen_head
+    colour = colour * darker
+    return colour * (1 - soil) + np.asarray(SOIL) * soil
+
+
 def seen(name):
-    base, tip = GRASS[name]
-    return np.asarray(base) * 0.35 + np.asarray(tip) * 0.65
+    return canopy_colour(name)
 
 
 def matched(rgb, target):
@@ -131,14 +151,14 @@ def main(source, out):
     flowers = periodic_noise(size, 48, 3, 4)
     cover = np.clip((flowers - 0.36) / 0.22, 0, 1) * np.clip(0.55 + (patches - 0.5), 0.2, 1.0)
     yellow = ramp(normalised(fine) * 0.6 + light * 0.4, (0.80, 0.66, 0.05), (1.00, 0.92, 0.25))
-    keep('rzepak_kwitnacy', green * (1 - cover[..., None]) + yellow * cover[..., None])
+    keep('rzepak_kwitnacy', matched(green * (1 - cover[..., None]) + yellow * cover[..., None], seen('rzepak_kwitnacy')))
 
     # stubble: the rows of farm00 turned to straw, the soil between them kept
     greenness = young[..., 1] - (young[..., 0] + young[..., 2]) * 0.5
     mask = np.clip((greenness - np.percentile(greenness, 40)) / max(np.percentile(greenness, 95) - np.percentile(greenness, 40), 1e-6), 0, 1)
     straw = ramp(normalised(luminance(young)) * 0.7 + fine * 0.3, (0.58, 0.48, 0.28), (0.90, 0.81, 0.55))
     soil = young * 0.85 + 0.03
-    keep('sciernisko', soil * (1 - mask[..., None] * 0.9) + straw * mask[..., None] * 0.9)
+    keep('sciernisko', matched(soil * (1 - mask[..., None] * 0.9) + straw * mask[..., None] * 0.9, seen('sciernisko')))
 
     # the soil warmer than the grey of the textures, as wet brown earth looks under the sun
     warm = np.asarray((1.10, 0.98, 0.84))[None, None, :]

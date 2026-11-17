@@ -32,7 +32,7 @@ class grass_field : public gfx::grass_field
 	{
 		std::array<std::shared_ptr<image>, 4> images;
 		std::array<VkSampler, 4> samplers{};
-		std::array<glm::vec4, 20> table{}; // what the table holds
+		std::array<glm::vec4, 36> table{}; // what the table holds
 		bool table_made{false};
 	};
 

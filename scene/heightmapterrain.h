@@ -14,6 +14,7 @@ http://mozilla.org/MPL/2.0/.
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include <glm/glm.hpp>
@@ -272,6 +273,22 @@ struct layer_def
 	int place{-1};
 };
 
+// the shape of the plants of a kind of grass. new kinds are added at the end: the number is written in terrain.yaml (by name)
+enum class grass_archetype
+{
+	blade, // a blade of grass, narrowing to its tip
+	cereal, // a stalk with an ear on top (wheat)
+	awned, // an ear with awns, hanging as much as the droop says (barley, rye)
+	panicle, // a stalk with loose spikelets hanging around its top (oats)
+	rape, // a stalk with a cap of flowers or of pods on top
+	stubble, // a stalk cut flat, the cut end lighter
+	straw, // a stalk lying on the ground
+	count
+};
+// the name of an archetype in terrain.yaml, and back (blade for a name not known)
+std::string_view grass_archetype_name(grass_archetype Archetype);
+grass_archetype grass_archetype_of(std::string_view Name);
+
 // kind of grass of the grass palette: blades the renderer makes up where the grass is painted
 struct grass_def
 {
@@ -285,6 +302,16 @@ struct grass_def
 	float bend{0.3f}; // how far the tips lean over, share of the height
 	glm::vec3 dry{0.74f, 0.66f, 0.40f}; // colour of the tips dried out, in autumn and winter, sRGB 0..1
 	float seasonal{1.f}; // how much the kind follows the seasons: 0 the same all year, 1 fully
+	// the plant; a blade (the default) with none of the following is the grass as it always was
+	grass_archetype archetype{grass_archetype::blade};
+	glm::vec3 head{0.f}; // colour of the ear, the panicle, the flowers or the cut end, sRGB 0..1
+	float head_length{0.f}; // metres, of the ear (the panicle, the cap of flowers)
+	float head_width{0.f}; // metres, of the ear (a flower, a spikelet)
+	float head_droop{0.f}; // how the ear bows: 0 upright .. 1 hanging down
+	float awns{0.f}; // metres, of the awns over the ear
+	float translucency{0.f}; // 0..1, how much the light of the sun comes through the leaves seen against it
+	float sheen{0.f}; // 0..1, the sheen of the wax and the awns at grazing angles
+	float reach{0.f}; // metres the kind is drawn up to (times gfx.grass.crops); 0: as far as the grass is
 };
 
 // a few kinds to start the palette with

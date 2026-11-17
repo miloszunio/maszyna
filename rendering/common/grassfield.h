@@ -60,18 +60,29 @@ class grass_field
 		glm::vec4 chunk{0.f}; // grass_chunk
 		glm::vec4 camera{0.f}; // grass_camera
 		std::array<glm::vec4, 4> base{}, tip{}, shape{}, dry{};
+		// the plants of the kinds: the colour of the head and the archetype; the length, width, droop and awns of the head; the
+		// translucency and the sheen; the distances of the kind (as frame_draw::lod) and how much wider its blades grow as they thin out
+		std::array<glm::vec4, 4> head{};
+		std::array<glm::vec4, 4> headshape{};
+		std::array<glm::vec4, 4> light{};
+		std::array<glm::vec4, 4> lods{};
 		glm::vec4 share{0.f};
 		std::size_t first{0}; // tiles drawn, in tile_draws()
 		std::size_t count{0};
 	};
-	// a tile drawn: Count instances of a strip of 2 * Segments + 1 vertices
+	// a tile drawn: Count instances of a strip of Vertices vertices, the plant with the most of them of the kinds of the tile (see
+	// plant_vertices()); the plants of the others repeat their last vertex
 	struct tile_draw
 	{
 		glm::vec4 tile{0.f}; // grass_tile
 		glm::vec4 part{0.f}; // grass_part
 		int count{0};
 		int segments{0};
+		int vertices{0};
 	};
+	// the vertices of the strip of a plant of the archetype (heightmap::grass_archetype) made of Segments segments of its stalk; the
+	// same as plant_vertices() of grass.vert
+	static int plant_vertices(int const Archetype, int const Segments);
 	// the draws of the grass seen from Camera: false when there is nothing to draw (grass off, no chunks or kinds), the draws of
 	// the last call are left then. Visible: whether the bounds of a tile are seen
 	bool prepare(glm::dvec3 const &Camera, std::function<bool(scene::bounding_area const &)> const &Visible);
@@ -120,6 +131,8 @@ class grass_field
 	};
 
 	void upload(std::uint64_t const Id, chunk &Chunk, gfx::grass_chunk const &Source);
+	// the draws of the tiles of the chunk seen from Camera, added to those of the frame
+	void prepare_chunk(std::uint64_t const Id, chunk const &Chunk, glm::dvec3 const &Camera, std::function<bool(scene::bounding_area const &)> const &Visible);
 	void release(std::uint64_t const Id, chunk &Chunk);
 
 	std::vector<gfx::grass_kind> m_kinds;

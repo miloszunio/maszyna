@@ -46,6 +46,16 @@ struct grass_kind
 	float bend{0.3f}; // share of the height the tips lean over by
 	glm::vec3 dry{0.f}; // the tips dried out, in autumn and winter
 	float seasonal{1.f}; // how much the kind follows the seasons, 0..1
+	// the shape of a plant (heightmap::grass_archetype): 0 the blade of grass; the others are the crops, with a head of their own
+	int archetype{0};
+	glm::vec3 head{0.f}; // the ear, the panicle, the flowers, the cut end
+	float head_length{0.f}; // metres
+	float head_width{0.f}; // metres
+	float head_droop{0.f}; // 0 upright .. 1 hanging down
+	float awns{0.f}; // metres, of the awns over the ear
+	float translucency{0.f}; // the light of the sun through the leaves, seen against it
+	float sheen{0.f}; // the sheen of the wax and the awns at grazing angles
+	float reach{0.f}; // metres the kind is drawn up to, gfx.grass.crops times; 0: as the grass (gfx.grass.fadedistance)
 };
 
 // a chunk of the heightmap terrain the grass grows on, see gfx_renderer::Terrain_Grass()

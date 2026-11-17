@@ -1725,6 +1725,12 @@ global_settings::ConfigParse_gfx( cParser &Parser, std::string_view const Token 
         Parser >> gfx_grass_density;
         gfx_grass_density = std::clamp(gfx_grass_density, 0.f, 4.f);
     }
+    else if (Token == "gfx.grass.crops")
+    {
+        Parser.getTokens(1);
+        Parser >> gfx_grass_crops;
+        gfx_grass_crops = std::clamp(gfx_grass_crops, 0.f, 4.f);
+    }
     else if (Token == "gfx.smoke.gpu")
     {
         Parser.getTokens(1);
@@ -2474,6 +2480,7 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "gfx.grass.distance", gfx_grass_distance );
     export_as_text( Output, "gfx.grass.fadedistance", gfx_grass_fadedistance );
     export_as_text( Output, "gfx.grass.density", gfx_grass_density );
+    export_as_text( Output, "gfx.grass.crops", gfx_grass_crops );
     export_as_text( Output, "gfx.smoke.gpu", gfx_smoke_gpu );
     export_as_text( Output, "gfx.smoke.lighting", gfx_smoke_lighting );
     export_as_text( Output, "gfx.particles.soft", gfx_particles_soft );

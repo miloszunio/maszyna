@@ -56,5 +56,6 @@ class opengl46_grass : public gfx::grass_field
 	{
 		GLint tile{-1}, part{-1}, chunk{-1}, camera{-1}, lod{-1}, wind{-1};
 		GLint base{-1}, tip{-1}, shape{-1}, share{-1}, dry{-1}, season{-1};
+		GLint head{-1}, headshape{-1}, light{-1}, lods{-1};
 	} m_uniforms;
 };

@@ -411,6 +411,8 @@ struct global_settings {
     // (opengl 4.6) the grass thins out from gfx_grass_distance to here, where it ends
     float gfx_grass_fadedistance = 70.f;
     float gfx_grass_density = 1.f;
+    // the reach of the crops (the kinds of grass with a reach of their own) is multiplied by this; 0: they end where the grass does
+    float gfx_grass_crops = 1.f;
     // (opengl 4.6) the smoke is simulated and drawn on the gpu (opengl46_gpu_particles), lit by the sun, the sky and the lamps
     // when gfx_smoke_lighting; false: simulated on the cpu and drawn as before
     bool gfx_smoke_gpu = true;

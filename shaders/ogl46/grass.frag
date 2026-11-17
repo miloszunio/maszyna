@@ -1,6 +1,7 @@
 #version 460 core
 #define STAGE_FRAGMENT 1
-// grass of the heightmap terrain (opengl46_grass, grass.vert): the blades lit like the rest of the scene
+// grass of the heightmap terrain (opengl46_grass, grass.vert): the blades lit like the rest of the scene, the crops with their
+// canopy (grass_canopy.glsl)
 
 layout(location = 0) in vec3 f_normal;
 layout(location = 3) in vec4 f_pos;
@@ -16,13 +17,16 @@ layout(location = 1) out vec4 out_motion;
 #include "light_common.glsl"
 #include "apply_fog.glsl"
 #include "tonemapping.glsl"
+#include "grass_canopy.glsl"
 
 void main()
 {
 	vec3 fragnormal = normalize(f_normal);
 	glossiness = phong_glossiness(6.0);
 	metalic = 0.0;
-	vec3 fragcolor = apply_lights(ambient, fragnormal, f_albedo, 0.0, 0.2, shadow_tone);
+	vec3 albedo = canopy_albedo(f_albedo);
+	vec3 fragcolor = apply_lights(ambient, fragnormal, albedo, 0.0, 0.2, shadow_tone);
+	fragcolor += canopy_light(fragnormal, albedo);
 
 	vec4 color = vec4(apply_fog(fragcolor), 1.0);
 	if (POSTFX_ENABLED)
