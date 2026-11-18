@@ -16,6 +16,7 @@ http://mozilla.org/MPL/2.0/.
 #include "vehicle/DynObj.h"
 
 #include "simulation/simulation.h"
+#include "simulation/simulationenvironment.h"
 #include "rendering/lightarray.h"
 #include "vehicle/Camera.h"
 #include "vehicle/Train.h"
@@ -1525,6 +1526,26 @@ void TDynamicObject::ABuBogies()
 // ABu 06.05.04 koniec wyliczania obrotow wozkow ************************
 
 // ABu 16.03.03 sledzenie toru przed obiektem: **************************
+void TDynamicObject::snow_on_track( TTrackParam &Track ) {
+
+    Track.snow = 0.0;
+    Track.snow_density = 0.0;
+    if( false == Global.physics_snow ) { return; }
+    auto const moving { std::abs( MoverParameters->V ) > 0.05 };
+    for( auto *axle : { &Axle0, &Axle1 } ) {
+        auto *track { axle->GetTrack() };
+        // the tracks of the trains; the roads keep their snow as they are
+        if( ( track == nullptr ) || ( ( track->iCategoryFlag & 1 ) == 0 ) ) { continue; }
+        Track.snow = std::max( Track.snow, track->snow_at( axle->GetTranslation() ) );
+        if( moving ) {
+            track->snow_cleared( axle->GetTranslation() );
+        }
+    }
+    if( Track.snow > 0.0 ) {
+        Track.snow_density = simulation::Environment.weather().snow().density();
+    }
+}
+
 void TDynamicObject::ABuCheckMyTrack()
 { // Funkcja przypisujaca obiekt
     // prawidlowej tablicy Dynamics,
@@ -3176,6 +3197,7 @@ bool TDynamicObject::Update(double dt, double dt1)
     tp.CategoryFlag = MyTrack->iCategoryFlag & 15;
     tp.DamageFlag = MyTrack->iDamageFlag;
     tp.QualityFlag = MyTrack->iQualityFlag;
+    snow_on_track( tp );
 
     // couplers
     if( MoverParameters->Couplers[0].CouplingFlag != coupling::faux

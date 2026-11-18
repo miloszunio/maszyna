@@ -616,6 +616,12 @@ bool global_settings::ConfigParseSimulation(cParser& Parser, const std::string& 
         return true;
     }
 
+    if (token == "physics.snow")
+    {
+        ParseOne(Parser, physics_snow);
+        return true;
+    }
+
     if (token == "physics.roadlod")
     {
         ParseOne(Parser, physics_roadlod);
@@ -2339,6 +2345,7 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "physicslog", WriteLogFlag );
     export_as_text( Output, "fullphysics", FullPhysics );
     export_as_text( Output, "physics.sleepheld", physics_sleepheld );
+    export_as_text( Output, "physics.snow", physics_snow );
     export_as_text( Output, "physics.roadlod", physics_roadlod );
     export_as_text( Output, "physics.pipewake", physics_pipewake );
     export_as_text( Output, "performance.multithreading", performance_multithreading );
