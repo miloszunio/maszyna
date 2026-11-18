@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/utilities.h"
 #include "simulation/simulation.h"
 #include "simulation/simulationsounds.h"
+#include "simulation/blackboxrecorder.h"
 #include "vehicle/Train.h"
 #include "utilities/dictionary.h"
 #include "scene/sceneeditor.h"
@@ -30,9 +31,11 @@ http://mozilla.org/MPL/2.0/.
 #include "vehicle/Train.h"
 #include "utilities/Timer.h"
 #include "utilities/memorystats.h"
+#include "utilities/framepacer.h"
 #include "utilities/dictionary.h"
 #include "version_info.h"
 #include "simulation/simulationtest.h"
+#include "utilities/physicslog.h"
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -419,7 +422,7 @@ int eu07_application::init(int Argc, char *Argv[])
 		ErrorLog("Failed to init UI!");
 		return result;
 	}
-	if (crashreport_is_pending())
+	if (crashreport_is_pending() && false == Global.test.enabled)
 	{ // run crashgui as early as possible: it's drawn by the renderer
 		if ((result = run_crashgui()) != 0)
 		{
@@ -441,6 +444,16 @@ int eu07_application::init(int Argc, char *Argv[])
 	if (Global.python_enabled)
 	{
 		m_taskqueue.init();
+	}
+	crashreport_add_info("luascreens_enabled", Global.luascreens_enabled ? "yes" : "no");
+	crashreport_add_info("wasm_enabled", Global.wasm_enabled ? "yes" : "no");
+	if (Global.luascreens_enabled || Global.wasm_enabled)
+	{
+		m_screenqueue.init();
+		if (Global.screens_gpupost)
+		{
+			m_screenqueue.set_post_processor(GfxRenderer->Screen_post_processor());
+		}
 	}
 	if ((result = init_modes()) != 0)
 	{
@@ -506,9 +519,14 @@ bool eu07_application::is_client() const
 int eu07_application::run()
 {
 	auto frame{0};
+	frame_pacer framepacer;
+	Timer::subsystem.mainloop_period.start();
 	// main application loop
 	while (!glfwWindowShouldClose(m_windows.front()) && !m_modestack.empty())
 	{
+		// the time from one frame's start to the next, the wait for fpslimit included
+		Timer::subsystem.mainloop_period.stop();
+		Timer::subsystem.mainloop_period.start();
 		Timer::subsystem.mainloop_total.start();
 		GfxRenderer->Frame_Start();
 		Timer::subsystem.loop_input.start();
@@ -655,6 +673,7 @@ int eu07_application::run()
 
 		Timer::subsystem.loop_tasks.start();
 		m_taskqueue.update();
+		m_screenqueue.update();
 		Timer::subsystem.loop_tasks.stop();
 
 		if (!GfxRenderer->Render())
@@ -676,10 +695,11 @@ int eu07_application::run()
 		if (m_network)
 			m_network->update();
 
-		auto const frametime{Timer::subsystem.mainloop_total.stop()};
-		if (Global.minframetime.count() != 0.0f && (Global.minframetime - frametime).count() > 0.0f)
+		Timer::subsystem.mainloop_total.stop();
+		// fpslimit: wait for the next frame's slot (eu07/maszyna#416)
+		if (auto const nextframe{framepacer.next_frame(frame_pacer::clock::now(), Global.minframetime)})
 		{
-			std::this_thread::sleep_for(Global.minframetime - frametime);
+			std::this_thread::sleep_until(*nextframe);
 		}
 	}
 	// Handled by application.exit
@@ -749,15 +769,24 @@ void eu07_application::exit()
 	step("the sleepers laid in the background");
 	// the sleepers laid in the background read the scenery, which goes below
 	track_sleepers::stop_background();
+	step("the black box");
+	simulation::Blackbox.close();
+	step("the physics logs");
+	// what is kept of them, the black box's written last
+	PhysicsLogs.stop();
 	step("the modes");
 	for (auto &mode : m_modes)
 		mode.reset();
 
 	step("the renderer");
+	// the screens' post-processing goes with the renderer
+	m_screenqueue.set_post_processor(nullptr);
 	GfxRenderer->Shutdown();
 	m_network.reset();
 
 	//    SafeDelete( simulation::Train );
+	step("the odometers");
+	simulation::Vehicles.save_odometers();
 	step("the scenery");
 	SafeDelete(simulation::Region);
 
@@ -766,6 +795,7 @@ void eu07_application::exit()
 
 	// the python workers detach their GL context on the way out, so they have to be done before the windows they use are destroyed
 	m_taskqueue.exit();
+	m_screenqueue.exit();
 	step("the windows");
 	for (auto *window : m_windows)
 	{
@@ -1404,6 +1434,11 @@ void eu07_application::select_gfx_backend()
 			Global.GfxRenderer = "default";
 		}
 	}
+	else if (Global.GfxRenderer == "null")
+	{
+		// draws nothing and loads no textures (test mode)
+		m_gfxbackend = factory->backend("null");
+	}
 
 	if (m_gfxbackend == nullptr)
 	{
@@ -1441,8 +1476,9 @@ int eu07_application::create_main_window()
 		Global.bFullScreen = true;
 	}
 
-	// a selftest of the editor run while the computer is in use for something else draws into a window never shown nor focused
-	bool const shown{selftest_script("EU07_EDITOR_SELFTEST_HIDDEN") == nullptr};
+	// test mode keeps its window hidden: glfw, the ui and the input still need one, but nothing is shown in it.
+	// so does a selftest of the editor run while the computer is in use for something else: never shown nor focused
+	bool const shown{false == Global.test.enabled && selftest_script("EU07_EDITOR_SELFTEST_HIDDEN") == nullptr};
 	auto *mainwindow = window(-1, shown, Global.window_size.x, Global.window_size.y, Global.bFullScreen && shown ? monitor : nullptr, true, false);
 
 	if (mainwindow == nullptr)

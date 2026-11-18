@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <array>
 #include <utility>
+#include <span>
 
 #define UBS_PAD(x) uint8_t PAD[x]
 
@@ -30,6 +31,8 @@ namespace gl
         void bind_uniform();
 
         void update(const uint8_t *data, int offset, GLsizeiptr size);
+        // the bytes given, put from the offset on
+        void update(std::span<std::byte const> Data, int Offset);
         template <typename T> void update(const T &data, size_t offset = 0)
         {
             update(reinterpret_cast<const uint8_t*>(&data), static_cast<int>(offset), sizeof(data));
@@ -146,7 +149,8 @@ namespace gl
         // the reflection of the surroundings the screen space reflections and the ray tracing don't find, for every pass: x: albedo
         // of the ground below the horizon of the environment map (gfx.ambient.groundalbedo), y used by the vulkan renderer (the
         // foliage traced), z: the share of the light of the sun the low poly interiors (and the cab without its probe) get as the light
-        // which comes in through their windows and bounces around them (gfx.interior.bounce), w unused
+        // which comes in through their windows and bounces around them (gfx.interior.bounce), w: 1 when the water of the scenery is drawn
+        // as realistic (gfx.water.realistic, water_surface.glsl), 0 as before
         glm::vec4 env_params;
         // the water on the windscreens (mat_rain_windscreen): xyz the velocity of the air against the vehicle of the camera (the
         // share of the wind the particles of the rain drift with, less the velocity of the vehicle), world space, m/s; w unused

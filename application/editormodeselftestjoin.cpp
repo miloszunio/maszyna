@@ -185,8 +185,8 @@ editor_mode::selftest_result editor_mode::selftest_join(std::string const &comma
 				};
 				ends.push_back({track, index, curve.point(0.0), grade_at(0.0, 1.0)});
 				ends.push_back({track, index, curve.point(1.0), grade_at(1.0, -1.0)});
-				for (double t = 0.05; t < 1.0; t += 0.1)
-					clearance(curve.point(t), isswitch ? switch_low : track_low, isswitch ? switch_high : track_high);
+				for (int tenth = 0; tenth < 10; ++tenth)
+					clearance(curve.point(0.05 + 0.1 * tenth), isswitch ? switch_low : track_low, isswitch ? switch_high : track_high);
 			}
 			if (isswitch && track->m_paths.size() >= 2)
 			{
@@ -710,14 +710,9 @@ editor_mode::selftest_result editor_mode::selftest_join(std::string const &comma
 		};
 		lay_point(truth.start);
 		lay_switch_mode();
-		int count{0};
-		auto chainage{std::max(0.0, from - 30.0)};
-		while (chainage <= to)
-		{
-			lay_point(along(chainage, noise * (count % 3 == 0 ? 1.0 : count % 3 == 1 ? -0.6 : 0.2)));
-			chainage += spacing;
-			++count;
-		}
+		auto const first{std::max(0.0, from - 30.0)};
+		for (int count = 0; first + count * spacing <= to; ++count)
+			lay_point(along(first + count * spacing, noise * (count % 3 == 0 ? 1.0 : count % 3 == 1 ? -0.6 : 0.2)));
 		lay_point(along(to + 30.0, noise * 0.5));
 		lay_point(along(to + 60.0, -noise * 0.5));
 		lay_switch_mode();
@@ -877,9 +872,14 @@ editor_mode::selftest_result editor_mode::selftest_join(std::string const &comma
 	{
 		std::string key;
 		words >> key;
+		// by its key, or by its name with _ for the spaces: the tools without a key
 		for (auto const &mode : track_modes())
-			if (key == mode.key)
+		{
+			std::string name{mode.label};
+			std::replace(name.begin(), name.end(), ' ', '_');
+			if ((mode.key != nullptr && key == mode.key) || key == name)
 				show_track_tab(mode.tab);
+		}
 		WriteLog(format("SELFTEST tracktab %s: %s", key.c_str(), track_mode_name().c_str()));
 		return selftest_result::handled;
 	}
@@ -941,7 +941,7 @@ editor_mode::selftest_result editor_mode::selftest_join(std::string const &comma
 		int count{200};
 		int only{-1};
 		words >> seed >> count >> only;
-		std::mt19937 random{seed};
+		std::mt19937 random{seed}; // NOSONAR: seeded on purpose, so that a run of the test can be repeated; nothing secret is drawn
 		auto const uniform = [&](double const Low, double const High) { return std::uniform_real_distribution<double>{Low, High}(random); };
 		auto const pick = [&](int const Count) { return std::uniform_int_distribution<int>{0, std::max(0, Count - 1)}(random); };
 		auto const turned = [](glm::dvec2 const &Direction, double const Angle) { return glm::dvec2{Direction.x * std::cos(Angle) - Direction.y * std::sin(Angle), Direction.x * std::sin(Angle) + Direction.y * std::cos(Angle)}; };

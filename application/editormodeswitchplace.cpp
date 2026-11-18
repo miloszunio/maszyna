@@ -561,6 +561,7 @@ void editor_mode::switch_placed(std::vector<TTrack *> const &Created)
 		return;
 	auto const slip{std::count_if(Created.begin(), Created.end(), [](TTrack const *Track) { return Track != nullptr && Track->eType == tt_Switch; }) > 1};
 	m_switch.placing = false;
+	first_step_done(first_step::turnout);
 	m_track_point = {};
 	m_node = *found;
 	ui()->set_node(m_node);
@@ -2422,12 +2423,8 @@ bool editor_mode::plan_curved_slip(editor_track::switch_template const &Shape, i
 		Plan.snapped.clear();
 	// bent with a curve as sharp as its slip curves, the outer one would turn the other way
 	double sharpest{0.0};
-	auto s{middle - half};
-	while (s <= middle + half + 1e-9)
-	{
-		sharpest = std::max(sharpest, std::abs(switch_curve::curvature_at(points, s)));
-		s += 0.5;
-	}
+	for (int k = 0; middle - half + k * 0.5 <= middle + half + 1e-9; ++k)
+		sharpest = std::max(sharpest, std::abs(switch_curve::curvature_at(points, middle - half + k * 0.5)));
 	if (sharpest * curve.radius > 1.0 - 1e-6)
 	{
 		Plan.problem = format(STR_C("The curve of R %.0f m is as sharp as the slip curves of R %.0f m or sharper, the slip isn't bent into it"), 1.0 / sharpest, curve.radius);

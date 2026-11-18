@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "gl/ubo.h"
@@ -30,7 +31,8 @@ class TSubModel;
 namespace scene
 {
 class basic_region;
-}
+class basic_cell;
+} // namespace scene
 
 namespace gfx
 {
@@ -228,6 +230,8 @@ class sky_occlusion
 	void stamp_tracks(raster_job const &Job);
 	// what the scenery over a tile is made of, cheap to work out: a change of it means the tile is gathered again
 	std::uint64_t signature(scene::basic_region *Region, glm::ivec2 const &Tile);
+	// the part of the signature made of the opaque instances of a cell: their places and whether they're shown
+	std::uint64_t instances_signature(scene::basic_cell const &Cell);
 	// the values of a tile nothing is known of yet, in the textures and in the copy of the cpu
 	void neutral(int const Slot);
 	void apply(tile_result &Result);
@@ -265,6 +269,16 @@ class sky_occlusion
 	double m_tracksnowtime{0.0};
 	void update_track_snow();
 	std::size_t m_checkslot{0}; // the slot whose signature is checked next
+	// the part of the signatures made of the instances of a cell, worked out for a scene::node_state_version and a count of its
+	// instances. outside the editor an instance is shown or hidden only with the version changing, and isn't moved; reading every
+	// instance of the cells around for each check took a large part of the frame in the forests
+	struct cell_signature
+	{
+		unsigned int version{0};
+		std::size_t count{0};
+		std::uint64_t hash{0};
+	};
+	std::unordered_map<scene::basic_cell const *, cell_signature> m_cellsignatures;
 	scene::basic_region const *m_region{nullptr};
 
 	// shared with the thread, under m_mutex

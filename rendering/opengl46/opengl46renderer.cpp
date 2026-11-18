@@ -1670,8 +1670,8 @@ void opengl46_renderer::Render_pass(viewport_config &vp, rendermode const Mode)
 			}
 		}
 		// the reflections: the ground below the horizon of the environment map, and the screen space ones set up for the colour
-		// pass of the main view only
-		scene_ubs.env_params = glm::vec4{Global.gfx_ambient_groundalbedo, 0.f, Global.gfx_interior_bounce, 0.f};
+		// pass of the main view only. and how the water of the scenery is drawn (gfx.water.realistic, water_surface.glsl)
+		scene_ubs.env_params = glm::vec4{Global.gfx_ambient_groundalbedo, 0.f, Global.gfx_interior_bounce, (Global.gfx_water_realistic ? 1.f : 0.f)};
 		gfx::screen_reflections::clear(scene_ubs);
 		// the occlusion of the sky by the scenery, seen from the camera of the view
 		m_skyocclusion.setup_scene(scene_ubs, m_colorpass.pass_camera.position());
@@ -3539,6 +3539,11 @@ ITexture const &opengl46_renderer::Texture(texture_handle const Texture) const
 	return m_textures.texture(Texture);
 }
 
+void opengl46_renderer::Unload_Texture(texture_handle const Texture)
+{
+	m_textures.unload(Texture);
+}
+
 void opengl46_renderer::Update_AnimModel(TAnimModel *model)
 {
 	model->RaAnimate(m_framestamp);
@@ -5055,6 +5060,29 @@ void opengl46_renderer::walk_cull_face(bool const Enabled)
 		glDisable(GL_CULL_FACE);
 }
 
+void opengl46_renderer::walk_decal(bool const Enabled)
+{
+	// the depth is reversed (GL_GEQUAL): a positive offset comes nearer the camera. the depth pass of the scene draws everything a
+	// little farther (glPolygonOffset(-1, -1), Render_Scene_Depth()), the decal goes as much nearer from there
+	if (m_scenedepthpass)
+	{
+		if (Enabled)
+			::glPolygonOffset(-1.f + 2.f, -1.f + 8.f);
+		else
+			::glPolygonOffset(-1.f, -1.f);
+		return;
+	}
+	if (Enabled)
+	{
+		::glEnable(GL_POLYGON_OFFSET_FILL);
+		::glPolygonOffset(2.f, 8.f);
+	}
+	else
+	{
+		::glDisable(GL_POLYGON_OFFSET_FILL);
+	}
+}
+
 void opengl46_renderer::walk_glare(bool const Enabled)
 {
 	if (Enabled)
@@ -5643,12 +5671,15 @@ void opengl46_renderer::Update(double const Deltatime)
 	}
 
 	m_updateaccumulator = 0.0;
-    m_framerate = 1000.f / ( Timer::subsystem.mainloop_total.average() );
+	// the frames actually shown, the wait for fpslimit included (eu07/maszyna#416)
+	m_framerate = 1000.f / ( Timer::subsystem.mainloop_period.average() );
+	// the frames the work alone would allow, so a frame rate held down by fpslimit doesn't cut the draw ranges
+	auto const workframerate{1000.f / Timer::subsystem.mainloop_total.average()};
 
 	// adjust draw ranges etc, based on recent performance
 
 	if (Global.targetfps != 0.0f) {
-		float fps_diff = Global.targetfps - m_framerate;
+		float fps_diff = Global.targetfps - workframerate;
 		if (fps_diff > 0.0f)
 			Global.fDistanceFactor = std::max(0.5f, Global.fDistanceFactor - 0.05f);
 		else
@@ -5656,7 +5687,7 @@ void opengl46_renderer::Update(double const Deltatime)
 	}
 	// legacy framerate parameters
 	else if (Global.fFpsAverage != 0.f) {
-		auto const fps_diff = m_framerate - Global.fFpsAverage;
+		auto const fps_diff = workframerate - Global.fFpsAverage;
 		if (fps_diff < -Global.fFpsDeviation) {
 			Global.fDistanceFactor = std::min(std::max(1.0f, Global.fDistanceFactor - 0.05f), Global.gfx_distance_factor_max);
 		}

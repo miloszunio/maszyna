@@ -17,6 +17,8 @@ http://mozilla.org/MPL/2.0/.
 #include "input/editorkeyboardinput.h"
 #include "vehicle/Camera.h"
 #include "application/editormodegauge.h"
+#include "application/editormoderide.h"
+#include "application/editormodeminimap.h"
 #include "application/editormodejoints.h"
 #include "application/editormodelineside.h"
 #include "application/editormodeparallel.h"
@@ -33,6 +35,7 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorNmt.hpp"
 #include "editor/editorGeoMap.hpp"
 #include "editor/editorTrack.hpp"
+#include "editor/editorTrackTrace.hpp"
 #include "editor/editorConnections.hpp"
 #include "editor/editorAlignment.hpp"
 #include "editor/editorAlignmentStore.hpp"
@@ -46,6 +49,7 @@ http://mozilla.org/MPL/2.0/.
 #include "editor/editorGroundFollow.hpp"
 #include "editor/editorInfra.hpp"
 #include "editor/editorGauge.hpp"
+#include "editor/editorClips.hpp"
 #include "editor/editorIcons.hpp"
 #include "editor/editorZielsko.hpp"
 #include "editor/editorRailData.hpp"
@@ -65,6 +69,7 @@ http://mozilla.org/MPL/2.0/.
 #include <limits>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class TAnimModel;
@@ -177,6 +182,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::vector<stored_profile> profile_library;
 		std::optional<std::vector<alignment_store::record>> alignments; // the kept horizontal alignments changed too, these were the ones before
 		std::optional<std::vector<switch_store::record>> switch_records; // the kept switches changed too, these were the ones before
+		std::optional<srk_hand_joints> hand_joints; // the joints of a station put by hand changed too, these were the ones before
 		std::optional<kilometrage::state> kilometrage; // the kilometrage before the change (Action::Kilometrage)
 		std::vector<array_copy> copies; // models an array added to the one it was made of
 		bool joined{false}; // undone and redone together with the change before it
@@ -195,6 +201,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	int m_track_edits{0};
 	// methods
 	void update_camera(double const Deltatime);
+	// the camera onto the track under the cursor, or the nearest one, to ride along it
+	void ride_enter();
+	// the way the camera looks, in the plan
+	glm::dvec3 camera_look() const;
 
 	editor_ui *ui() const;
 	void redo_last();
@@ -298,6 +308,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	double m_ortho_pitch{0.0};
 	bool m_ortho_pan{false};
 	glm::dvec2 m_ortho_pan_cursor{0.0};
+	double m_pan_metres{0.0}; // of the ground to a pixel, held by the panning in the perspective view
 	void ortho_pan_to(double const Horizontal, double const Vertical);
 	void ortho_pan_stop();
 	// camera fly-mode (right mouse button held); used to flush motion when it's released
@@ -310,6 +321,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	glm::dvec3 clamp_mouse_offset_to_max(const glm::dvec3 &offset);
 	// the ground under a point the cursor landed on, for things which are to stand on the ground
 	glm::dvec3 placement_on_ground(glm::dvec3 Location) override;
+	// the ground under a point, the point itself with none there
+	glm::dvec3 ground_at(glm::dvec3 Location) const;
 	// puts every instance of the model the selected node shows on the ground under it
 	void drop_model_instances();
 	void render_object_menu();
@@ -319,6 +332,34 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void render_help_menu();
 	void render_shortcuts_window();
 	bool m_shortcuts_open{false};
+	using first_step = editor_first_step;
+	// the tutorial: a window of lessons, each with a clip or a sketch, the mouse and the keys it teaches and the steps to try
+	struct tutorial_lesson;
+	static std::vector<tutorial_lesson> const &tutorial_lessons();
+	// a lesson is done once all its steps are
+	bool tutorial_done(tutorial_lesson const &Lesson) const;
+	void render_first_steps();
+	// the steps reached by what the editor is doing now
+	void note_first_steps();
+	// the lesson of the tool in use: the first of its lessons not done yet, or none
+	char const *tutorial_of_tool();
+	// the lesson the tool in use or a button of a panel asks for opened, and the clip of the lesson open loaded
+	void follow_tutorial();
+	void render_tutorial_media(tutorial_lesson const &Lesson, float const Width);
+	void render_tutorial_goals(tutorial_lesson const &Lesson);
+	// the button under a lesson, opening the tool it's about or switching the view
+	void render_tutorial_trial(tutorial_lesson const &Lesson);
+	// the buttons to the lesson before and after, and a dot for each lesson, green when it's done
+	void render_tutorial_pages();
+	void first_step_done(first_step const Step) override;
+	void open_kilometrage() override;
+	bool m_first_steps_open{false};
+	std::array<bool, static_cast<std::size_t>(first_step::count)> m_first_steps_done{};
+	int m_tutorial_page{0};
+	char const *m_tutorial_goto{nullptr}; // the lesson of this title opened by a button of a panel
+	std::string m_tutorial_followed; // the lesson the tool in use asked for last: it's opened when that changes
+	double m_tutorial_since{0.0};
+	editor_clips::clip m_tutorial_clip;
 	// deletes what's selected: a road piece or point, a signal, an include of a scenery template, a model, tracks (Del)
 	void delete_selected();
 	void delete_model(TAnimModel *Model, bool const Joined);
@@ -553,6 +594,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::optional<double> nmt_terrain_offset(std::vector<glm::dvec2> const &Points, bool &Foreign) const;
 	// the same along the edges the chunk shares with the chunks beside it in memory
 	std::optional<double> nmt_seam_offset(heightmap::chunk_key const &Key, bool &Foreign) const;
+	// the offset a chunk made from the model where there's no terrain gets: of the terrain made from the model beside it, empty
+	// (the offset of the scenery) beside terrain made by hand or none
+	std::optional<double> nmt_chunk_offset(heightmap::chunk_key const &Key) const;
 	// the terrain beside the formation of the track is the one made from the model; Waiting: its squares of the model aren't in yet
 	// the tracks changed by hand are told to the terrain: their formations laid anew, of the tracks removed taken away, a
 	// track laid onto the terrain of the model given its own, once the mouse lets go; in the step of the history of the change
@@ -570,6 +614,9 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// of the modifiers laid
 	std::size_t nmt_shape_tracks(std::vector<TTrack *> const *Only = nullptr);
 	void nmt_update();
+	// the terrain of the scenery made from the model around the camera within the download area, a chunk at a time while nothing
+	// else is done with the model and the frames are quick: edited chunks wait in memory to be saved, so not the whole area at once
+	void nmt_area_terrain();
 	void nmt_grow();
 	void render_nmt_ui();
 	// where the scenery lies: the map to click on, the place typed; true once it's placed
@@ -605,6 +652,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	glm::dvec3 area_point(glm::dvec2 const &Point) const;
 	void draw_download_area() const;
 	void render_download_area_ui(editor_orthophoto::statistics const &Stats);
+	// the download area a square of the side, km, around the camera
+	void area_square(int const Side);
 	// the chunk of the terrain (x, z) touches the area, or there's none
 	bool in_download_area(glm::dvec2 const &Low, glm::dvec2 const &High) const;
 	// over the 3d view while the terrain panel isn't seen
@@ -638,6 +687,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void render_nmt_buried();
 	// what to do first, in the middle of the view of a scenery with no tracks nor terrain
 	void render_empty_scenery_hint();
+	// the camera outside the download area: no photos there, told at the bottom of the view with the way to the area
+	void render_outside_area_hint();
 	// the 3d camera under the ground, as after the view from above or the terrain model made under it, lifted over it
 	void camera_above_ground();
 	bool nmt_busy() const;
@@ -770,13 +821,23 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		char filter[64]{};
 		float size{96.f}; // of the images, pixels
 		std::string selected;
-		std::map<std::string, int> thumbnails; // texture shown for the item of the name, 0: none
+		struct thumbnail
+		{
+			int texture{0}; // 0: none
+			int material{0}; // the material the texture is the first of, 0: a texture alone
+			double shown{0.0}; // when it was last asked for, ImGui time
+		};
+		std::map<std::string, thumbnail> thumbnails; // texture shown for the item of the name
+		bool refresh{false}; // all the images to be let go of and read again
 		int loads{0}; // textures read in the frame, a few at most so the browser doesn't stall the editor
 		int loadsframe{-1};
 	} m_textures;
 	void render_texture_browser();
 	// texture of the image of the item of the browser, 0 while there's none
 	std::uint64_t texture_thumbnail(texture_browser::item const &Item);
+	// the textures of the images out of sight for a while taken out of the memory: a picker of thousands of them scrolled
+	// through would keep them all, full size, until the memory ran out
+	void thumbnails_trim();
 	// takes a material dragged from the texture browser onto the item drawn last. returns: true if one was dropped, its name in Name
 	static bool material_drop(std::string &Name);
 	// the same, for a text field
@@ -977,7 +1038,6 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// the camera speed and the panning with the wheel held, from the View menu
 	void render_camera_settings();
 	void apply_camera_settings();
-	double m_pan_metres{0.0}; // of the ground to a pixel, the panning in the perspective view holds it
 	// the ground the imagery is fitted onto, the same for the orthophoto and the WMS layers
 	void ground_sources(editor_orthophoto &Layer);
 	std::size_t m_ortho_resident{0}; // chunks of the terrain in memory, as the imagery last heard of them
@@ -994,6 +1054,28 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	} m_area_drawing;
 	std::vector<glm::dvec2> m_nmt_prefetched; // the download area the terrain model was given
 	bool m_area_paused{false}; // the download of the area held by the button; out of the editor it's held anyway
+	// the terrain made around the camera within the area: the chunks there, nearest first, the next one looked at, when the next one
+	// may be made, those made (or left: the model has no data there, or the chunk is outside the region) since the scenery opened
+	struct area_terrain
+	{
+		std::vector<heightmap::chunk_key> keys;
+		std::size_t next{0};
+		heightmap::chunk_key centre{0, 0};
+		bool listed{false};
+		double resume{0.0};
+		std::size_t made{0};
+		std::size_t square_made{0}; // of them, in the square around the camera now
+		bool refit{false};     // chunks made since the photos were last laid onto the ground
+		double waiting{-1.0};  // since when the next chunk waits for its model; -1: it doesn't
+		std::string held{"-"}; // what held it last, as logged; empty: nothing
+		double took{0.0};      // s the chunks of the square around the camera took, all and the longest
+		double took_most{0.0};
+		std::set<heightmap::chunk_key> empty;
+		std::optional<bool> run_only; // the selftest turned it on or off for its run, the setting left as it is
+	} m_area_terrain;
+	int m_area_square{0};      // km, the side of the square around the camera waiting for its yes in place of the area there is
+	bool m_outside_area_closed{false}; // the note of the camera outside the area closed; open again once it's back inside
+	int m_empty_hint_frame{-10};       // the frame the panel of the empty scenery was last drawn in
 	glm::dvec2 m_orthophoto_origin_edit{0.0};    // origin being typed in (northing, easting); applied when editing ends
 
 	// hierarchy management
@@ -2294,8 +2376,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		editor_icons::icon picture;
 		int family; // 0 builds the track, 1 equips it, 2 checks it
 	};
-	static std::array<track_mode, 13> const &track_modes();
+	static std::array<track_mode, 16> const &track_modes();
 	bool track_plan_tab() const { return m_track_tab == track_tab::straights || m_track_tab == track_tab::route; }
+	// a tool of the station: they share its schematic
+	bool srk_tab() const { return m_track_tab == track_tab::station || m_track_tab == track_tab::station_signals || m_track_tab == track_tab::line_block; }
 	track_tab plan_tab_for(TTrack const *Track) const;
 	// the objects along the track: a tab for each tool
 	int m_lineside_tab{0};
@@ -2390,7 +2474,6 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	// a scenery with no tracks yet: in the middle of the view, how the first one is laid
 	void draw_empty_scenery_hint();
 	// path under the cursor, outlined before a click so it's known which one the click takes
-	using track_hover = ::track_hover;
 	track_hover m_hover;
 	track_hover track_under_cursor(TTrack const *Only = nullptr, float const Pixels = 0.0f) const;
 	track_hover split_spot() const;
@@ -2406,7 +2489,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void draw_track_hover() const;
 	struct track_intent
 	{
-		enum class kind { none, gizmo, select, point, box, straight_set, straight_break, detour, straight_tool, straight_handle, route_vertex, route_grip, switch_at, switch_free, lay, lay_end, sweep, turntable_place, turntable_exit, turntable_fit, spread, extend_end, signal_place, signal_move, switch_slide, pick_style, grade_line_pick, fouling, measure, route_trace, kilometrage, srk_boundary, catenary };
+		enum class kind { none, gizmo, select, point, box, straight_set, straight_break, detour, straight_tool, straight_handle, route_vertex, route_grip, switch_at, switch_free, lay, lay_end, sweep, turntable_place, turntable_exit, turntable_fit, spread, extend_end, signal_place, signal_move, signal_read, switch_slide, pick_style, grade_line_pick, fouling, measure, route_trace, kilometrage, srk_boundary, srk_joint, catenary };
 		kind what{kind::none};
 		TTrack *track{nullptr};
 		int path{0};
@@ -2705,7 +2788,6 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		// sound, frogs, sleeper placement, texture blending
 		track_groups groups{false, false, false, false, true, true, true, true, false, true, true, true};
 		std::map<std::string, bool> ticks; // changed by hand, by the keys of the properties
-		bool open{false};
 		bool picking{false}; // the next click on a track in the view takes its properties
 		bool reveal{false};  // its section of the inspector opens, a track having been taken
 	};
@@ -2776,7 +2858,7 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	std::string signal_mount(std::string const &Kind, std::string const &File) override;
 	std::size_t signal_reattach(std::vector<scene::instance_handle> const &Instances) override;
 	void select_signal(scene::instance_handle const Instance) override;
-	void render_signal_templates() override;
+	void render_signal_templates(std::vector<std::string> const &Kinds) override;
 
 	struct signal_template
 	{
@@ -2794,12 +2876,26 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::vector<int> speeds;
 		int aspects{0}; // of a block signal, 3 or 4
 		int arms{0}; // of a semaphore, 1 or 2, from its description
+		// m, of the zero of its model over the rail heads, from its description: where it stands by default
+		double height{0.0};
+		// m, how deep its model reaches under its zero, from its description: none, it isn't put on the ground
+		std::optional<double> depth;
 		// the aspects its description lists, by name (Sr1, Od2...) with the event giving each; empty for a template not described so
 		std::vector<std::pair<std::string, std::string>> aspect_events;
 		// of a warning disc: its event for each speed class of the signal after it, stop, vmax, 100, 60, 40
 		std::vector<std::pair<std::string, std::string>> repeats;
 		// of a block signal: for an event of its own, the event the block signal before it is to get then, from its description
 		std::vector<std::pair<std::string, std::string>> chain;
+	};
+	// an indicator to put on a signal, a template described as one
+	struct indicator_template
+	{
+		std::string file;
+		std::string name;
+		std::string description;
+		std::string sign;
+		std::string place; // "head": under the lights of the signal, one under another; "foot": by its foot, the place in its model
+		std::vector<std::pair<std::string, std::string>> events;
 	};
 	struct signal_spot
 	{
@@ -2812,6 +2908,10 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		double offset{0.0};
 		glm::dvec3 position{0.0};
 		double yaw{0.0};
+		// the path and its list that read the signal: the track it stands by, or past the frog of a switch the track joined to the end
+		// of its path, which only the trains of that path run on
+		TTrack *reader{nullptr};
+		int reader_list{2};
 	};
 	struct signal_standing
 	{
@@ -2821,26 +2921,33 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		std::string read;
 		TTrack *track{nullptr};
 		int list{0};
+		// every path and list having the read, the first of them in track and list
+		std::vector<std::pair<TTrack *, int>> reads;
+		// the indicators put on it: named after it, at its foot, the highest first
+		std::vector<standing_template> indicators;
 	};
 	struct signal_tool
 	{
 		std::vector<signal_template> templates;
+		std::vector<indicator_template> indicators;
 		int revision{-1};
 		int kind{0};
-		std::array<int, 7> chosen{-1, -1, -1, -1, -1, -1, -1};
+		std::array<int, 8> chosen{-1, -1, -1, -1, -1, -1, -1, -1};
 		bool armed{false}; // a click by a track places the chosen template
 		char filter[64]{};
 		char name[64]{"A"};
 		char plate[64]{};
+		std::array<char, 3> plate_index{}; // the speed index of the drawn plate, "4" or "12" for 1/2
+		bool plate_m{false}; // the drawn plate gets the "m" of a signal giving shunting signals too
 		char linked[64]{"none"};
 		float height{0.0f};
 		bool placing{false};
 		signal_spot press;
+		signal_spot press_raw; // where the press was, before it went to a round distance to the switch ahead
 		glm::vec2 pressed{0.f};
 		int facing{0};
 		std::vector<signal_standing> standing;
 		std::size_t standing_history{static_cast<std::size_t>(-1)};
-		std::size_t standing_redo{static_cast<std::size_t>(-1)};
 		double standing_time{-1.0};
 		int hover{-1};
 		scene::instance_handle selected{0};
@@ -2850,9 +2957,46 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool home_valid{false};
 		signal_spot moved;
 		bool moved_valid{false};
+		// a click on a track gives the read of the signal selected to it
+		bool picking_read{false};
+		// the entry of the selected signal into the gauge of the paths around it, measured again as the history or the selection changes
+		struct
+		{
+			scene::instance_handle instance{0};
+			std::size_t history{static_cast<std::size_t>(-1)};
+			glm::dvec3 location{0.0}; // of the signal, which follows a dragged track without a new step of the history
+			gauge_tool::gauge_hit hit;
+		} gauge;
+		// the signal the gizmo has taken: as it stood then, the frame of its models, the size of the history before the step of the
+		// gizmo and the directives of its indicators
+		struct
+		{
+			scene::instance_handle instance{0};
+			signal_standing from;
+			glm::dmat3 frame{1.0};
+			std::size_t history{0};
+			std::vector<std::pair<scene::instance_handle, std::string>> directives;
+		} gizmo;
 		std::string status;
 	};
 	signal_tool m_signal;
+	// the way from the spot of a signal along its track to the switch the trains it faces come to first
+	track_trace::danger signal_danger(signal_spot const &Spot) const;
+	// the spot moved along its track to a round distance to the switch ahead, 50 m, 100 m..., when it's that near one; Alt leaves it
+	void signal_snap(signal_spot &Spot, signal_template const &Template) const;
+	// of the selected signal: the spot it stands at and the way to the switch ahead of it, kept until it or the history changes
+	struct signal_metre
+	{
+		scene::instance_handle instance{0};
+		std::size_t history{static_cast<std::size_t>(-1)};
+		glm::dvec3 location{0.0};
+		double yaw{0.0};
+		bool valid{false};
+		signal_spot spot;
+		track_trace::danger danger;
+	};
+	mutable signal_metre m_signal_metre;
+	signal_metre const &signal_metre_of(signal_standing const &Standing) const;
 	bool signal_scan(bool Wait = true);
 	signal_template const *signal_current() const;
 	signal_template const *signal_armed() const;
@@ -2868,9 +3012,53 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void signal_release();
 	bool signal_place(signal_spot const &Spot, signal_template const &Template);
 	void signal_move_update();
-	bool signal_standing_spot(signal_standing const &Standing, signal_spot &Spot) const;
+	// Moved: the signal moved from its track, the nearest track takes it if that's nearer by more than a little
+	bool signal_standing_spot(signal_standing const &Standing, signal_spot &Spot, bool const Moved = false) const;
 	bool signal_drop_at(signal_standing const &Standing, TTrack &Track, int const Path, glm::dvec3 const &Point, int const Side, signal_spot &Spot) const;
 	bool signal_move_to(signal_standing const &Standing, signal_spot const &Spot, char const *Read, char const *Unread);
+	indicator_template const *indicator_template_of(std::string const &File) const;
+	// the indicator put on the signal, named after it: under its lights below the ones there, or at its foot. returns: false if it can't be
+	bool signal_indicator_add(signal_standing const &Standing, indicator_template const &Indicator);
+	bool signal_indicator_remove(scene::instance_handle const Indicator);
+	// the indicators under the lights of the signal at Upper and Lower in its list, the highest first, swapped: each takes the place of the other
+	bool signal_indicators_swap(signal_standing const &Standing, std::size_t const Upper, std::size_t const Lower);
+	// the signal set the distance from the axis of its track in the plan and its height, raised over where it stands by default (over the rail heads, on a gantry), unless none
+	bool signal_set_across(signal_standing const &Standing, std::optional<double> const Offset, std::optional<double> const Height);
+	// the distance from the axis and the height over where it stands by default From has, carried to To, a spot of the same signal
+	// along its track: a signal set across or raised by hand keeps it as it is dragged or snapped
+	void signal_carry(signal_spot const &From, signal_spot &To, signal_template const &Template) const;
+	// the height of the zero of the model of a signal at Position by the track of the axis at Axis, as it stands by default: as far over
+	// the rail heads as its description gives, lower only where its bottom would hang over the ground; a gantry as high over the rails
+	// as chosen
+	double signal_default_height(signal_template const &Template, glm::dvec3 const &Axis, glm::dvec3 const &Position) const;
+	// how much higher the default height of To is than of From at Position by the track of the axis at Axis: what a signal given the
+	// template To in place of From goes up by, to stand as raised as it was
+	double signal_default_change(signal_template const &From, signal_template const &To, glm::dvec3 const &Axis, glm::dvec3 const &Position) const;
+	// the indicators of the signal moved after it to the place and the frame it has now, at the same place by it as they were, the
+	// directives they had going to Directives
+	void signal_indicators_follow(signal_standing const &Standing, glm::dmat3 const &Before, std::vector<std::pair<scene::instance_handle, std::string>> &Directives);
+	bool render_signal_indicators(signal_standing const &Found);
+	// the indicators put on the signal named Name standing at Location, as the scenery has them now, the highest first: the list of
+	// the tool is kept up only while the tool is open
+	std::vector<standing_template> signal_indicators_of(std::string const &Name, glm::dvec3 const &Location) const;
+	// the indicators of the signal named Before at Location named After it, the directives they had going to Directives once each
+	void signal_indicators_renamed(std::string const &Before, std::string const &After, glm::dvec3 const &Location, std::vector<std::pair<scene::instance_handle, std::string>> &Directives);
+	// the directives of more includes taken back by the step: one of a single include is made one of them
+	void history_add_directives(EditorSnapshot &Step, std::vector<std::pair<scene::instance_handle, std::string>> const &Directives);
+	// the signal of the selected include taken by the gizmo: its indicators go with it, and once it's let go it is moved as a drag of
+	// the signal tool moves it, read by the path it stands by then, out of the gauge, as one step of the history
+	void signal_gizmo_begin();
+	void signal_gizmo_step();
+	void signal_gizmo_end();
+	// the height of the lowest lamp of the signal in the world, from the geometry of its lamps; 0 when it has none
+	double signal_lowest_lamp(scene::instance_handle const Instance) const;
+	// the deepest entry of the models of the signal into the gauge of the paths around it
+	gauge_tool::gauge_hit signal_gauge(scene::instance_handle const Instance);
+	// the signal just placed or moved, at Local in its file, taken across away from the axis of each path whose gauge it enters, a few
+	// times at most, its directive changed with it. returns: the way it went, metres, and in Hit the entry it still makes
+	double signal_off_gauge(scene::instance_handle const Instance, std::string const &File, std::vector<std::string> &Values, glm::dvec3 Local, gauge_tool::gauge_hit &Hit);
+	// a sentence more to the status about it, none when the signal kept out of the gauge where it was put
+	void signal_gauge_note(std::string &Status, double const Shift, gauge_tool::gauge_hit const &Hit, bool const Gantry) const;
 	bool signal_flip(scene::instance_handle const Instance);
 	bool signal_turn(scene::instance_handle const Instance);
 	bool signal_swap(scene::instance_handle const Instance, std::string const &File);
@@ -2879,12 +3067,38 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	signal_standing const *signal_standing_of(scene::instance_handle const Instance) const;
 	bool signal_delete(scene::instance_handle const Instance);
 	void signal_detach_events(std::string const &Read, std::vector<std::pair<TTrack *, editor_track::state>> &States);
+	// a track split in two: the reads of the signals placed since the scenery was opened, not bound yet, go to the piece by the signal
+	void signal_split(TTrack &Original, TTrack &Created);
+	// the list of a path the trains the signal faces read it from, as they run by the point of the path nearest to it
+	int signal_read_list(signal_standing const &Standing, TTrack const &Track, int const Path) const;
+	// the read of the signal in exactly these lists of these paths, as one step taken back by Ctrl+Z
+	bool signal_read_set(signal_standing const &Standing, std::vector<std::pair<TTrack *, int>> const &Reads);
+	// a click on a track while picking the path that reads the selected signal: its read goes there, or one more there with Add,
+	// or off it with Add when it's there already
+	bool signal_read_pick(TTrack &Track, int const Path, bool const Add);
+	std::string signal_read_label(TTrack const &Track, int const Path, bool const Add) const;
 	void signal_renamed(std::string const &Before, std::string const &After, EditorSnapshot &Snapshot);
+	// the plate a signal of this name gets when none is picked: one drawn by python/local/signal_plate.py with the given style
+	// ("look=toned", with "&index=12" and "&m=1" when it has them), or none for a name it can't carry
+	static std::string signal_plate(std::string const &Name, std::string const &Style);
+	// true for a plate signal_plate() gives, of any name and look
+	static bool signal_plate_drawn(std::string_view Plate);
+	static bool signal_plate_blank(std::string const &Name, std::string const &Plate);
+	static std::string signal_plate_text(std::string const &Name);
+	// what a drawn plate is drawn with but its name, kept through a rename; for one not drawn the look set in the editor
+	static std::string signal_plate_style(std::string const &Plate);
 	void signal_select(scene::instance_handle const Instance);
 	std::string signal_next_name(std::string const &Name) const;
 	void render_signal_ui();
 	void render_signal_palette();
 	void render_signal_selected();
+	// the paths reading the signal, each turned the other way or removed, a path picked or the one the editor gives. returns: true when they changed
+	bool render_signal_reads(signal_standing const &Found);
+	// of the signal selected: its template and another one for it, the aspects it can be set to; true when it got another one
+	bool render_signal_template(signal_standing const &Found, signal_template const &Item);
+	// the list of the templates the signal can take instead, Across those of another mount too: the file picked, empty for none
+	std::string signal_swap_combo(signal_template const &Item, bool const Across) const;
+	void render_signal_aspects(signal_standing const &Found, signal_template const &Item);
 	void draw_signal_overlay() const;
 	std::string signal_intent_label(signal_template const &Template, signal_spot const &Spot) const;
 	std::string signal_variant(signal_template const &Template, signal_spot const &Spot) const;
@@ -3041,13 +3255,17 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		bool marker_valid{false};
 		glm::dvec3 marker{0.0};
 		std::string status;
-		int dragging{0};
+		int dragging{0}; // 1: the cross along and aside, 2: up, 3: only along, 4: the start of the model, 5: its end
 		sweep_node::state drag_state;
+		std::shared_ptr<sweep_node> drag_line; // the line as it was when the drag began
+		double drag_first{0.0}; // m along it, where the model began and ended then
+		double drag_last{0.0};
 		glm::dvec3 drag_anchor{0.0};
 		double drag_station{0.0};
 		std::string drag_label;
 		sweep_node *hover{nullptr};
 		bool over_marker{false};
+		int over_end{0}; // the handle under the cursor: 1 at the start of the model, 2 at its end
 		std::string label;
 		std::string details;
 	};
@@ -3065,6 +3283,16 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	void bend_reanchor(sweep_node::state &State, int const Side, int const Height, glm::dvec3 const &Point) const;
 	double bend_fixed(sweep_node const &Sweep, glm::dvec3 const &Point) const;
 	void bend_stretch(sweep_node const &Sweep, double const Fixed, double const Length, glm::dvec3 const &Point, sweep_node::state &State) const;
+	// the model laid along another track: it stays where it stands, with its length
+	void bend_retrack(sweep_node const &Sweep, TTrack const &Track, sweep_node::state &State) const;
+	// the handles at the ends of the model, at the height and the side of its reference point
+	std::array<glm::dvec3, 2> bend_ends(sweep_node const &Sweep) const;
+	// a drag of the model begun: 1 the cross along and aside, 2 up, 3 only along, 4 the start, 5 the end
+	void bend_drag_begin(int const Kind);
+	// the end of the model taken to the point, the line lengthened through the tracks joined there; the length it has then
+	double bend_end_to(bool const Atend, glm::dvec3 const &Point, sweep_node::state &State) const;
+	std::string bend_selftest(std::string const &Command, std::istringstream &Words);
+	void sweep_relink(sweep_node const &Sweep);
 	void bend_pick(glm::dvec3 const &Point);
 	glm::dvec3 bend_marker(sweep_node const &Sweep) const;
 	void restore_bend(EditorSnapshot &Snapshot, bool const Undo);
@@ -3371,13 +3599,15 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 	gauge_tool m_gauge{*this, *this, *this, *this};
 	speed_tool m_speed{*this, *this, *this, *this};
 	joints_tool m_joints{*this, *this, *this, *this};
-	vehicle_tool m_vehicle{*this};
-	hekto_tool m_hekto{*this, *this, *this, *this, *this};
+	vehicle_tool m_vehicle{*this, *this};
+	hekto_tool m_hekto{*this, *this, *this, *this, *this, *this};
 	fouling_tool m_fouling{*this, *this, *this, *this, *this};
 	parallel_tool m_parallel{*this, *this, *this, *this};
-	srk_tool m_srk{*this, *this, *this, *this, *this};
+	srk_tool m_srk{*this, *this, *this, *this, *this, *this};
 	km_tool m_km{*this, *this, *this, *this};
-	std::vector<editor_tool *> m_tools{&m_gauge, &m_speed, &m_joints, &m_vehicle, &m_hekto, &m_fouling, &m_parallel, &m_srk, &m_km};
+	track_ride m_ride;
+	minimap_tool m_minimap{*this, *this, m_ride};
+	std::vector<editor_tool *> m_tools{&m_gauge, &m_speed, &m_joints, &m_vehicle, &m_hekto, &m_fouling, &m_parallel, &m_srk, &m_km, &m_ride, &m_minimap};
 
 	void infra_rebase();
 	void render_infra_search();

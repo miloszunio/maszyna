@@ -991,7 +991,7 @@ std::size_t editor_mode::track_property_apply(int const Property, std::vector<TT
 		ui()->set_status(format("%s: %s", STR_C(property.label), Outcome.c_str()), Refused);
 	};
 	// only the speed takes an empty field, for no limit
-	if (double number; property.kind == field::number && false == parse_number(Text, number) && (property.empty == nullptr || false == words_of(Text).empty()))
+	if (double number; (property.kind == field::number || property.kind == field::slider) && false == parse_number(Text, number) && (property.empty == nullptr || false == words_of(Text).empty()))
 	{
 		tell(format(STR_C("\"%s\" isn't a number"), Text.c_str()), true);
 		return 0;
@@ -1090,8 +1090,10 @@ void editor_mode::textures_index()
 		{
 			if (entry->is_directory(ignored))
 			{
-				// the normal maps go with their textures, not on a track by themselves
-				if (lowered(entry->path().filename().string()) == "normals")
+				// the normal maps go with their textures, not on a track by themselves; the previews of the node bank, thousands of
+				// them, are images of models and not textures of anything
+				auto const folder{lowered(entry->path().filename().string())};
+				if (folder == "normals" || (folder == "previews" && entry.depth() == 0))
 					entry.disable_recursion_pending();
 				continue;
 			}
@@ -2228,7 +2230,7 @@ editor_mode::selftest_result editor_mode::selftest_props(std::string const &Comm
 		}
 		else if (action == "groups")
 		{
-			// the groups pasted, as their numbers: 0 speed ... 9 frogs, 10 sleeper placement, 11 texture blending
+			// the groups ticked, as their numbers: 0 speed ... 9 frogs, 10 sleeper placement, 11 texture blending
 			m_track_style.groups.fill(false);
 			m_track_style.ticks.clear();
 			for (int group; Words >> group;)

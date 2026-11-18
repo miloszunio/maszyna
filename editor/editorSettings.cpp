@@ -135,12 +135,16 @@ bool editorSettings::load()
 			parse(value, m_platform_edge);
 		else if (key == "signal_offset")
 			parse(value, m_signal_offset);
+		else if (key == "signal_plate_look")
+			parse(value, m_signal_plate_look);
 		else if (key == "nodebank_previews")
 			m_nodebank_previews = (value == "1");
 		else if (key == "nodebank_card")
 			parse(value, m_nodebank_card);
 		else if (key == "colours")
 			parse(value, m_palette);
+		else if (key == "first_steps")
+			m_first_steps = (value == "1");
 		else if (key == "terrain_offer")
 			m_terrain_offer = (value == "1");
 		else if (key == "terrain_buried_ask")
@@ -157,6 +161,8 @@ bool editorSettings::load()
 			m_terrain_model.shape = (value == "1");
 		else if (key == "nmt_follow")
 			m_terrain_model.follow = (value == "1");
+		else if (key == "nmt_area")
+			m_terrain_model.area = (value == "1");
 		else if (key == "top_ballast")
 			m_top_tracks = value == "1" ? 0 : 1;
 		else if (key == "top_tracks")
@@ -262,9 +268,11 @@ bool editorSettings::save()
 		stream << "ortho_on " << (*m_orthophoto.on ? 1 : 0) << "\n";
 	stream << "platform_edge " << m_platform_edge << "\n";
 	stream << "signal_offset " << m_signal_offset << "\n";
+	stream << "signal_plate_look " << m_signal_plate_look << "\n";
 	stream << "nodebank_previews " << (m_nodebank_previews ? 1 : 0) << "\n";
 	stream << "nodebank_card " << m_nodebank_card << "\n";
 	stream << "colours " << m_palette << "\n";
+	stream << "first_steps " << (m_first_steps ? 1 : 0) << "\n";
 	stream << "terrain_offer " << (m_terrain_offer ? 1 : 0) << "\n";
 	stream << "terrain_buried_ask " << (m_terrain_buried_ask ? 1 : 0) << "\n";
 	stream << "track_tools_all " << (m_track_tools_more ? 1 : 0) << "\n";
@@ -273,6 +281,7 @@ bool editorSettings::save()
 	stream << "nmt_around " << m_terrain_model.around << "\n";
 	stream << "nmt_shape " << (m_terrain_model.shape ? 1 : 0) << "\n";
 	stream << "nmt_follow " << (m_terrain_model.follow ? 1 : 0) << "\n";
+	stream << "nmt_area " << (m_terrain_model.area ? 1 : 0) << "\n";
 	stream << "top_tracks " << m_top_tracks << "\n";
 	stream << "camera_speed " << m_camera.speed << "\n";
 	stream << "camera_fast " << m_camera.fast << "\n";

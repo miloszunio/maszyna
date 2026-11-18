@@ -45,6 +45,8 @@ class editor_map
 	void pick(glm::dvec2 const &Point);
 	// the map goes there, at most Scale m a pixel
 	void show(glm::dvec2 const &Point, double const Scale = 4.0);
+	// the map moves and zooms in or out to show the rectangle whole, with a margin around it
+	void fit(glm::dvec2 const &Low, glm::dvec2 const &High);
 	bool picked() const { return m_picked; }
 	// a mark drawn on the map in the next render, as an arrow turned by Heading (the yaw of the camera of the scenery)
 	void mark(glm::dvec2 const &Point, double const Heading)
@@ -55,8 +57,20 @@ class editor_map
 	}
 	// the map moves after the point when it gets near the edge of the view
 	void follow(glm::dvec2 const &Point);
-	double scale() const { return m_scale; }
 	glm::dvec2 const &point() const { return m_point; }
+	// where the last click was; with picking off a click leaves the place picked as it is, the caller takes the point
+	glm::dvec2 const &clicked() const { return m_clicked; }
+	void picking(bool const Picking) { m_picking = Picking; }
+	// m a pixel, the zoom of the map
+	double scale() const { return m_scale; }
+	// an area drawn over the map, of PUWG points: closed, it's filled; open, its points are shown, being drawn
+	void outline(std::vector<glm::dvec2> Points, bool const Closed)
+	{
+		m_outline = std::move(Points);
+		m_outline_closed = Closed;
+	}
+	// a line written at the bottom of the map, a word of what a click does there; empty: none
+	void hint(std::string Text) { m_hint = std::move(Text); }
 
   private:
 	struct image
@@ -89,6 +103,11 @@ class editor_map
 	bool m_marked{false};
 	glm::dvec2 m_mark{0.0};
 	double m_heading{0.0};
-	glm::vec2 m_size{0.f};
 	glm::dvec2 m_point{0.0};
+	bool m_picking{true};
+	glm::dvec2 m_clicked{0.0};
+	glm::vec2 m_size{0.f}; // of the last render
+	std::vector<glm::dvec2> m_outline;
+	bool m_outline_closed{false};
+	std::string m_hint;
 };

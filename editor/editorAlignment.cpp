@@ -2034,16 +2034,15 @@ std::optional<lay_result> lay_on(lay_request const &Request)
 		auto const step{std::max(0.5, radius * glm::radians(2.0))};
 		double low{0.0};
 		double high{-1.0};
-		auto tried{step};
-		while (tried < 2.0 * kPi * radius)
+		for (int k = 1; k * step < 2.0 * kPi * radius; ++k)
 		{
-			if (miss(tried)[0] <= 0.0)
+			auto const arc{k * step};
+			if (miss(arc)[0] <= 0.0)
 			{
-				high = tried;
+				high = arc;
 				break;
 			}
-			low = tried;
-			tried += step;
+			low = arc;
 		}
 		if (high < 0.0)
 			return std::nullopt;

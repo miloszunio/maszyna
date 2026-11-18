@@ -115,6 +115,9 @@ struct global_settings {
     int iWriteLogEnabled{ 3 }; // maska bitowa: 1-zapis do pliku, 2-okienko, 4-nazwy torów
     bool MultipleLogs{ false };
     bool crashdump_full{ false }; // crash dump with the whole memory of the process instead of the small one
+    // the black box of the session (blackbox_doc.md): "blackbox yes" writes it whatever the physics logs, "blackbox no"
+    // never, and with no entry it is written along with the physics logs
+    std::optional<bool> BlackBox;
     bool ShowSystemConsole{ false }; // toggle visibility of the OS console window with log output
     unsigned int DisabledLogTypes{ 0 };
     bool ParserLogIncludes{ true };
@@ -163,6 +166,7 @@ struct global_settings {
     bool bJoinEvents{ false }; // czy grupować eventy o tych samych nazwach
     int iHiddenEvents{ 1 }; // czy łączyć eventy z torami poprzez nazwę toru
     bool AITrainman{ true }; // virtual assistant performing consist coupling/decoupling and other maintenance tasks
+    bool AIBrakeSettingCw1{ true }; // ai.brakesetting.cw1: the AI wagon inspector sets the brakes (G/P/R/Mg) by the instruction Cw-1, no: as before eu07/maszyna#350
     // ui
     int PythonScreenUpdateRate{ 200 }; // delay between python-based screen updates, in milliseconds
     int iTextMode{ 0 }; // tryb pracy wyświetlacza tekstowego
@@ -340,6 +344,13 @@ struct global_settings {
     bool captureonstart = true;
 	bool render_cab = true;
 	bool crash_damage = true;
+	// the physical model of the couplings (McZapkie/couplerphysics.h): progressive buffers and draw gear with hysteresis,
+	// the play of the coupling, its yield and breaking; the legacy model of TMoverParameters::CouplerForce() without it.
+	// it covers the player's train and the trains it closes in on (vehicle_table::update_coupler_physics()), or every
+	// train with coupler_physics_all
+	bool coupler_physics = false;
+	bool coupler_physics_all = false;
+	bool control_coupling_engine_check = true; // no multiple-unit control between electric and diesel traction vehicles (eu07/maszyna#520)
 	bool gui_defaultwindows = true;
 	bool gui_showtranscripts = true;
     bool gui_trainingdefault = false;
@@ -360,6 +371,11 @@ struct global_settings {
 	bool python_sharectx = true;
 	bool python_uploadmain = true;
 	std::chrono::duration<float> python_minframetime {0.01f};
+	bool luascreens_enabled{true}; // screens drawn by Lua scripts (luascreen:, luadestinationsign: in the .mmd)
+	bool wasm_enabled{true}; // screens drawn by WebAssembly modules (wasmscreen:, wasmdestinationsign: in the .mmd)
+	int screens_cabframes{4}; // the script screens in the cab are refreshed every so many rendered frames
+	int screens_externalframes{30}; // the script screens outside the cab (destination signs) are refreshed every so many rendered frames
+	bool screens_gpupost{true}; // the post-processing of the script screens (image:led_post, image:resize) on the gpu, when the renderer can
 
     bool gfx_skiprendering = false;
     // the size of the image the scene of the main window is drawn to: -1 until the renderer works it out from the window and
@@ -561,6 +577,10 @@ struct global_settings {
     // the light of the sun coming in through the windows of the low poly interiors of the vehicles and of the cab without its probe,
     // bounced around them, as a share of the light of the sun on a surface facing it; 0 for none
     float gfx_interior_bounce { 0.1f };
+    // the water of the scenery (the materials of the water shader, opengl 4.6 and vulkan, shaders/*/water_surface.glsl): rippled by
+    // layers of its normal map, reflecting the scene and the sky with the fresnel of water, seen through as deep as it is and fading
+    // out at the shore. off: the water drawn as before
+    bool gfx_water_realistic { false };
     // the occlusion of the sky and of the sun by the scenery around the camera (opengl 4.6 and vulkan, gfx::sky_occlusion, the track T):
     // tunnels, the ground under bridges and roofs, cuttings and the foot of slopes are dark by their geometry, worked out in the
     // background from the scenery seen from above. 0 off (nothing is occluded), 1 low (256 m around the camera, texels of 1 m),
@@ -636,6 +656,10 @@ struct global_settings {
     bool gfx_clouds_shadows { true };
     int gfx_clouds_shadows_size { 512 };
     float gfx_clouds_shadows_range { 16000.f };
+    // the clouds and the cells of the fog volume the scenery hid in the last frame aren't worked out anew (the vulkan renderer)
+    bool gfx_weather_occlusion { true };
+    // a quarter of the pixels of the clouds of the main view is marched a frame, the image made of the last ones (the vulkan renderer)
+    bool gfx_clouds_interleave { true };
     // stars from the catalogue, and their brightness
     bool gfx_stars { true };
     float gfx_stars_brightness { 1.f };
@@ -716,6 +740,7 @@ struct global_settings {
 	bool ConfigParseSimulation(cParser& Parser, const std::string& token);
 	bool ConfigParseUI(cParser& Parser, const std::string& token);
 	bool ConfigParsePython(cParser& Parser, const std::string& token);
+	bool ConfigParseScriptScreens(cParser& Parser, std::string_view token);
 	bool ConfigParseNetwork(cParser& Parser, const std::string& token);
 	bool ConfigParseHardware(cParser& Parser, const std::string& token);
 	bool ConfigParseDebug(cParser& Parser, const std::string& token);

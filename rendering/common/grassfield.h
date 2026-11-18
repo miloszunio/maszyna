@@ -69,6 +69,7 @@ class grass_field
 		glm::vec4 share{0.f};
 		std::size_t first{0}; // tiles drawn, in tile_draws()
 		std::size_t count{0};
+		float nearest{0.f}; // distance to the nearest of its tiles; the chunks are drawn from the nearest one
 	};
 	// a tile drawn: Count instances of a strip of Vertices vertices, the plant with the most of them of the kinds of the tile (see
 	// plant_vertices()); the plants of the others repeat their last vertex
@@ -79,6 +80,7 @@ class grass_field
 		int count{0};
 		int segments{0};
 		int vertices{0};
+		float distance{0.f}; // to the box of the tile; the tiles of a chunk are drawn from the nearest one
 	};
 	// the vertices of the strip of a plant of the archetype (heightmap::grass_archetype) made of Segments segments of its stalk; the
 	// same as plant_vertices() of grass.vert

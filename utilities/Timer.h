@@ -247,6 +247,7 @@ struct subsystem_stopwatches {
     stopwatch loop_renderer_update; // gfx_renderer::Update()
     stopwatch loop_terrain; // terrain streaming
     stopwatch loop_tasks; // task queue
+    stopwatch mainloop_period; // start to start, the wait for fpslimit included
 };
 
 extern subsystem_stopwatches subsystem;

@@ -72,6 +72,9 @@ public:
 	void platform_edge(double Distance) { m_platform_edge = Distance; }
 	double signal_offset() const { return m_signal_offset; }
 	void signal_offset(double Distance) { m_signal_offset = Distance; }
+	// look of the plates drawn for the signals: 0 plain, 1 toned, 2 aged
+	int signal_plate_look() const { return m_signal_plate_look; }
+	void signal_plate_look(int Look) { m_signal_plate_look = Look; }
 
 	// node bank: cards with the previews of the models or a list, and the size of the cards in pixels
 	bool nodebank_previews() const { return m_nodebank_previews; }
@@ -83,6 +86,9 @@ public:
 	int palette() const { return m_palette; }
 	void palette(int Palette) { m_palette = Palette; }
 
+	// the tutorial (Help > Tutorial) opens by itself when an editor session starts
+	bool first_steps() const { return m_first_steps; }
+	void first_steps(bool Show) { m_first_steps = Show; }
 	// a scenery begun with no terrain is offered the terrain model as the first track is laid
 	bool terrain_offer() const { return m_terrain_offer; }
 	void terrain_offer(bool Offer) { m_terrain_offer = Offer; }
@@ -93,13 +99,15 @@ public:
 	bool terrain_while_laying() const { return m_terrain_while_laying; }
 	void terrain_while_laying(bool const Make) { m_terrain_while_laying = Make; }
 	// the terrain model in the terrain panel: the band along the tracks it's loaded in, m; the chunks along a side of the square
-	// made around the camera; the formation and the slopes made along the tracks; the terrain following the tracks edited
+	// made around the camera; the formation and the slopes made along the tracks; the terrain following the tracks edited; the
+	// terrain made from the model around the camera within the download area, in the background
 	struct terrain_model_settings
 	{
 		double band{300.0};
 		int around{4};
 		bool shape{true};
 		bool follow{true};
+		bool area{true};
 	};
 	terrain_model_settings &terrain_model() { return m_terrain_model; }
 	// the height offset of the terrain model to the tracks of the scenery, and whether it was fitted to them; false when none was stored
@@ -131,9 +139,11 @@ private:
 	camera_settings m_camera;
 	double m_platform_edge{1.725};
 	double m_signal_offset{2.25};
+	int m_signal_plate_look{1};
 	bool m_nodebank_previews{true};
 	int m_nodebank_card{96};
 	int m_palette{0};
+	bool m_first_steps{true};
 	bool m_terrain_offer{true};
 	bool m_terrain_buried_ask{true};
 	bool m_track_tools_more{false};

@@ -180,7 +180,8 @@ bool editor_mode::cursor_on_ground(glm::dvec3 &World)
     if (m_streamer.active() && terrain_cursor(World))
         return true;
     glm::dvec3 const offset = GfxRenderer->Mouse_Position();
-    auto const depth{glm::length(offset) > 1e-3};
+    // the depth read back under the cursor only where it hit anything (Mouse_Hit), not where its offset isn't zero
+    auto const depth{GfxRenderer->Mouse_Hit()};
     // over a hole in the terrain (before a structure under a track) the point seen is on the model there, the floor of it: the
     // ground under the hole isn't seen, the depth read back is where the cursor is
     if (depth && m_streamer.active() && m_streamer.cut_at(Camera.Pos.x + offset.x, Camera.Pos.z + offset.z))

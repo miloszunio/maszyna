@@ -76,6 +76,7 @@ option(WITH_DLSS "Compile the Vulkan renderer with NVIDIA DLSS (gfx.antialiasing
 option(WITH_PYTHON "Python 3.14 embedded scripting" ON)
 option(WITH_UART "Compile with libserialport" ON)
 option(WITH_LUA "Compile with lua scripting support" ON)
+option(WITH_WASM "WebAssembly script screens (wasmscreen:, wasmdestinationsign:), run by the WAMR interpreter in ref/wamr" ON)
 option(WITH_OPENVR "Compile with OpenVR" OFF)
 option(WITH_ZMQ "Compile with cppzmq" OFF)
 option(WITH_CRASHPAD "Compile with crashpad" OFF)
@@ -194,6 +195,7 @@ set(SOURCES
 "scene/scene.cpp"
 "scene/scenenode.cpp"
 "simulation/simulation.cpp"
+"simulation/blackboxrecorder.cpp"
 "model/vertex.cpp"
 "audio/audio.cpp"
 "audio/audiorenderer.cpp"
@@ -218,6 +220,8 @@ set(SOURCES
 "editor/editorIncludeInfo.cpp"
 "editor/editorTerrain.cpp"
 "editor/editorTrack.cpp"
+"editor/editorTrackTrace.cpp"
+"editor/editorFouling.cpp"
 "editor/editorRoad.cpp"
 "editor/editorRoadLayout.cpp"
 "editor/editorAlignment.cpp"
@@ -255,6 +259,7 @@ set(SOURCES
 "editor/editorGeoMap.cpp"
 "editor/editorPreviews.cpp"
 "editor/editorIcons.cpp"
+"editor/editorClips.cpp"
 "application/editormode.cpp"
 "application/editormodeficzery.cpp"
 "application/editormodetrack.cpp"
@@ -283,6 +288,8 @@ set(SOURCES
 "application/editormodeprofile.cpp"
 "application/editormodetextures.cpp"
 "application/editormodegauge.cpp"
+"application/editormoderide.cpp"
+"application/editormodeminimap.cpp"
 "application/editormodeinfra.cpp"
 "application/editormodespeed.cpp"
 "application/editormodesrk.cpp"
@@ -371,6 +378,7 @@ set(SOURCES
 "rendering/common/localshadows.cpp"
 "rendering/common/cabprobe.cpp"
 "rendering/common/skyocclusion.cpp"
+"rendering/common/texturealpha.cpp"
 "rendering/common/terrainmaterials.cpp"
 "rendering/common/grassfield.cpp"
 "rendering/common/gpuparticles.cpp"
@@ -451,6 +459,16 @@ endif()
 if (WITH_LUA)
 	set(DEFINITIONS ${DEFINITIONS} "WITH_LUA")
 	set(SOURCES ${SOURCES} "scripting/lua.cpp")
+endif()
+
+# the script screens (scripting/scriptscreens.cpp), with the Lua and the WebAssembly runtime when they're built
+set(SOURCES ${SOURCES} "scripting/scriptscreens.cpp")
+if (WITH_LUA)
+	set(SOURCES ${SOURCES} "scripting/luaprogram.cpp")
+endif()
+if (WITH_WASM)
+	set(DEFINITIONS ${DEFINITIONS} "WITH_WASM")
+	set(SOURCES ${SOURCES} "scripting/wasmprogram.cpp")
 endif()
 
 if (WITHDUMPGEN)
@@ -682,6 +700,11 @@ if (ADD_VERSION_SUFFIX)
 	set (SUFFIX "_${SRC_SHORT_DATE}_${GIT_HASH}")
 endif()
 
+# a build without AVX2 says so in its name, so a starter can pick it on a CPU without AVX2
+if (NOT ENABLE_AVX2)
+	set (SUFFIX "${SUFFIX}_noavx2")
+endif()
+
 set(OPENVR_LIBRARY "openvr_api")
 set(OPENVR_INCLUDE_DIR "")
 
@@ -743,15 +766,24 @@ set(CORE_SOURCES
 "McZapkie/friction.cpp"
 "McZapkie/hamulce.cpp"
 "McZapkie/Mover.cpp"
+"McZapkie/couplerphysics.cpp"
 "McZapkie/Oerlikon_ESt.cpp"
 "utilities/parser.cpp"
 "utilities/utilities.cpp"
 "scripting/ladderlogic.cpp"
+"scripting/scriptscreenrules.cpp"
+"scripting/scriptscreenkernels.cpp"
+"scripting/scriptscreendrawing.cpp"
 "simulation/simulationtestrules.cpp"
+"vehicle/blackbox.cpp"
+"utilities/physicslog.cpp"
+"vehicle/enginestart.cpp"
+"vehicle/brakesetting.cpp"
 "vehicle/handover.cpp"
 "vehicle/horn.cpp"
 "vehicle/linebreaker.cpp"
 "vehicle/smoke.cpp"
+"vehicle/odometer.cpp"
 )
 add_library(eu07_core STATIC ${CORE_SOURCES})
 target_link_libraries(eu07_core PUBLIC eu07_settings)
@@ -985,6 +1017,41 @@ if (WIN32)
 	)
 endif ()
 
+# Linux: the game loads its shared libraries from its own folder first ($ORIGIN), and the build copies them there,
+# so the folder runs on a system that doesn't have them, or has other versions. the RPATH is a DT_RPATH rather
+# than a DT_RUNPATH, because only that one is also used for the libraries the copied ones load (libsndfile's codecs)
+if (UNIX AND NOT APPLE)
+	option(BUNDLE_RUNTIME_LIBS "Linux: copy the shared libraries the game needs next to it and load them from there" ON)
+endif()
+if (UNIX AND NOT APPLE AND BUNDLE_RUNTIME_LIBS)
+	set_target_properties(${PROJECT_NAME} PROPERTIES
+		BUILD_WITH_INSTALL_RPATH TRUE
+		INSTALL_RPATH "$ORIGIN")
+	target_link_options(${PROJECT_NAME} PRIVATE "LINKER:--disable-new-dtags")
+
+	# the RPATH no longer leads to libraries outside the system folders (Python from setup-python, an OpenAL Soft
+	# in /usr/local), so their folders are given to the script as well
+	set(EU07_BUNDLE_SEARCH_DIRS "")
+	foreach(library IN LISTS Python3_LIBRARIES OPENAL_LIBRARY LUAJIT_LIBRARIES libserialport_LIBRARY)
+		if (IS_ABSOLUTE "${library}")
+			get_filename_component(library_dir "${library}" DIRECTORY)
+			list(APPEND EU07_BUNDLE_SEARCH_DIRS "${library_dir}")
+		endif()
+	endforeach()
+	list(APPEND EU07_BUNDLE_SEARCH_DIRS ${Python3_LIBRARY_DIRS})
+	list(REMOVE_DUPLICATES EU07_BUNDLE_SEARCH_DIRS)
+	string(REPLACE ";" "|" EU07_BUNDLE_SEARCH_DIRS "${EU07_BUNDLE_SEARCH_DIRS}")
+
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND ${CMAKE_COMMAND}
+			-DGAME=$<TARGET_FILE:${PROJECT_NAME}>
+			-DSEARCH_DIRS=${EU07_BUNDLE_SEARCH_DIRS}
+			-DCMAKE_OBJDUMP=${CMAKE_OBJDUMP}
+			-P "${CMAKE_CURRENT_SOURCE_DIR}/CMake_modules/bundle_runtime_libs.cmake"
+		COMMENT "Copying the shared libraries next to the game"
+		VERBATIM)
+endif()
+
 if(WIN32 AND WITH_PYTHON)
 	add_custom_command(
 		TARGET ${PROJECT_NAME} POST_BUILD
@@ -1021,6 +1088,11 @@ if (MSVC AND BUNDLE_VC_RUNTIME)
 		message(WARNING "BUNDLE_VC_RUNTIME: the Visual C++ runtime libraries were not found, they are not copied")
 	endif()
 endif()
+
+if (WITH_WASM)
+	add_subdirectory("CMake_modules/wamr" "${CMAKE_CURRENT_BINARY_DIR}/wamr")
+	target_link_libraries(${PROJECT_NAME} eu07_wamr)
+endif ()
 
 # yaml-cpp, for the descriptions of scenery templates edited in the scenery editor and for the heightmap terrain
 add_subdirectory("ref/yaml-cpp" "${CMAKE_CURRENT_BINARY_DIR}/yaml-cpp" EXCLUDE_FROM_ALL)

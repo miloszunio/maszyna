@@ -132,7 +132,7 @@ char const *track_type_name(TTrack const &Track)
 	}
 }
 
-editor_mode::track_hover editor_mode::track_under_cursor(TTrack const *Only, float const Pixels) const
+track_hover editor_mode::track_under_cursor(TTrack const *Only, float const Pixels) const
 {
 	track_hover result;
 	auto const &io{ImGui::GetIO()};
@@ -479,19 +479,15 @@ void editor_mode::draw_track_labels() const
 	std::vector<std::pair<ImVec2, ImVec2>> taken;
 	auto const tracks_under = [&](ImVec2 const &From, ImVec2 const &To) {
 		int count{0};
-		auto y = From.y;
-		while (y <= To.y + cell * 0.5f)
-		{
-			auto x = From.x;
-			while (x <= To.x + cell * 0.5f)
+		for (int down = 0; From.y + cell * static_cast<float>(down) <= To.y + cell * 0.5f; ++down)
+			for (int across = 0; From.x + cell * static_cast<float>(across) <= To.x + cell * 0.5f; ++across)
 			{
+				auto const y{From.y + cell * static_cast<float>(down)};
+				auto const x{From.x + cell * static_cast<float>(across)};
 				int column, row;
 				if (cell_of(std::min(x, To.x), std::min(y, To.y), column, row))
 					count += covered[static_cast<std::size_t>(row) * columns + column];
-				x += cell;
 			}
-			y += cell;
-		}
 		return count;
 	};
 	float constexpr kRings[]{0.0f, 26.0f, 42.0f, 62.0f, 86.0f, 116.0f, 150.0f};
@@ -668,7 +664,7 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 		catenary_intent(intent);
 		return intent;
 	}
-	if (m_track_tab == track_tab::srk && m_srk.drawing())
+	if (m_track_tab == track_tab::line_block && m_srk.drawing())
 	{
 		bool valid{false};
 		intent.track = m_hover.track;
@@ -678,8 +674,44 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 		intent.what = kind::srk_boundary;
 		return intent;
 	}
-	if (m_track_tab == track_tab::srk)
+	if (m_track_tab == track_tab::station && m_srk.editing_joints())
 	{
+		bool valid{false};
+		intent.track = m_hover.track;
+		intent.path = m_hover.path;
+		intent.position = m_hover.track != nullptr ? m_hover.point : ground;
+		intent.action = m_srk.joint_hover(intent.position, valid);
+		intent.what = kind::srk_joint;
+		return intent;
+	}
+	// a tool of the station: a track selected opens its station
+	if (srk_tab() && m_hover.track != nullptr)
+	{
+		intent.track = m_hover.track;
+		intent.path = m_hover.path;
+		intent.position = m_hover.point;
+		return make(kind::select, m_hover.track->eType != tt_Normal ? "Click: the station of this switch" : "Click: the station of the switch nearest along this track");
+	}
+	if (m_track_tab == track_tab::signals)
+	{
+		// the path to read the selected signal picked
+		if (m_signal.picking_read)
+		{
+			if (signal_standing_of(m_signal.selected) == nullptr)
+				m_signal.picking_read = false;
+			else
+			{
+				intent.track = m_hover.track;
+				intent.path = m_hover.path;
+				intent.index = shift ? 1 : 0;
+				if (m_hover.track == nullptr)
+					return make(kind::signal_read, "Click a track to read the signal, Esc: done");
+				intent.position = m_hover.point;
+				intent.action = signal_read_label(*m_hover.track, m_hover.path, shift);
+				intent.what = kind::signal_read;
+				return intent;
+			}
+		}
 		if (auto const hit{signal_hit()}; hit >= 0)
 		{
 			auto const &standing{m_signal.standing[hit]};
@@ -694,6 +726,7 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 			signal_spot spot;
 			if (m_hover.track != nullptr && signal_spot_at(*m_hover.track, m_hover.path, m_hover.point, cursor_level(m_hover.point.y), 0, 0, *armed, spot))
 			{
+				signal_snap(spot, *armed);
 				intent.track = m_hover.track;
 				intent.path = m_hover.path;
 				intent.position = spot.position;
@@ -707,7 +740,7 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 			intent.track = m_hover.track;
 			intent.path = m_hover.path;
 			intent.position = m_hover.point;
-			return make(kind::select, m_hover.track->eType != tt_Normal ? "Click: the station of this switch" : "Click: the station of the switch nearest along this track");
+			return make(kind::select, "Click: select");
 		}
 		return intent;
 	}
@@ -920,7 +953,7 @@ editor_mode::track_intent editor_mode::track_intent_at(int const Mods)
 		case track_tab::route: return make(kind::select, m_hover.track->eType != tt_Switch && editor_track::is_straight(*m_hover.track, m_straights.tolerance) ? "Click: the whole straight through this track" : "Click: the curve of this track with its straights");
 		case track_tab::turnout: return make(kind::select, m_hover.track->eType == tt_Switch ? "Click: edit this switch" : m_switch.armed < 0 ? "Click: choose this track, then the type of the switch" : "Click: choose this track, then press and drag on it for the switch");
 		case track_tab::profile: return make(kind::select, "Click: the grade line of the whole line through this track; Shift: the route between the tracks");
-		case track_tab::lineside: return make(kind::select, "Click: the line the objects go along");
+		case track_tab::lineside: return make(kind::select, "Click: the line the posts go along");
 		case track_tab::parallel: return make(kind::select, "Click: the straight the new track goes beside");
 		default: return make(kind::select, "Click: select");
 		}
@@ -1126,6 +1159,7 @@ void editor_mode::track_press(track_intent const &Intent)
 			m_km.pick(*Intent.track, Intent.position);
 		return;
 	case kind::srk_boundary: m_srk.boundary_click(); return;
+	case kind::srk_joint: m_srk.joint_click(); return;
 	case kind::fouling:
 		if (Intent.path == 1)
 			m_fouling.fix(Intent.index);
@@ -1142,6 +1176,10 @@ void editor_mode::track_press(track_intent const &Intent)
 	case kind::signal_place:
 	case kind::signal_move: signal_press(Intent); return;
 	case kind::catenary: catenary_press(Intent); return;
+	case kind::signal_read:
+		if (Intent.track != nullptr)
+			signal_read_pick(*Intent.track, Intent.path, Intent.index == 1);
+		return;
 	case kind::switch_slide:
 		if (Intent.track != nullptr)
 		{
@@ -1417,6 +1455,8 @@ void editor_mode::render_track_context()
 		track_set_toggle(*track);
 	if (ImGui::MenuItem(STR_C("Look at it")))
 		focus_track(*track, context.target.path, point);
+	if (ImGui::MenuItem(STR_C("Ride along it"), "Y"))
+		m_ride.enter(track, context.target.path, point, camera_look(), true);
 	if (ImGui::MenuItem(STR_C("Copy the name"), nullptr, false, false == track->name().empty()))
 		ImGui::SetClipboardText(track->name().c_str());
 	ImGui::Separator();
@@ -2085,7 +2125,7 @@ void editor_mode::render_lineside_ui()
 	    {"Trainset", &m_vehicle.tab().open, &m_vehicle.tab().expand, [this]() { m_vehicle.render_options(); }},
 	}};
 	if (selected_track() == nullptr)
-		ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "%s", STR_C("LMB on a track: the line the objects go along"));
+		ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), "%s", STR_C("LMB on a track: the line the posts go along"));
 	if (false == ImGui::BeginTabBar("##lineside"))
 		return;
 	for (int i = 0; i < static_cast<int>(tabs.size()); ++i)

@@ -15,6 +15,8 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/Globals.h"
 #include "utilities/Timer.h"
 
+#include <algorithm>
+
 namespace gfx
 {
 
@@ -317,6 +319,13 @@ bool grass_field::prepare(glm::dvec3 const &Camera, std::function<bool(scene::bo
 
 	for (auto &entry : m_chunks)
 		prepare_chunk(entry.first, entry.second, camera, Visible);
+	// from the nearest: the blades in front are drawn first, and those they hide fail the depth test before they're shaded
+	for (auto const &chunk : m_chunkdraws)
+	{
+		auto const first{m_tiledraws.begin() + static_cast<std::ptrdiff_t>(chunk.first)};
+		std::ranges::sort(first, first + static_cast<std::ptrdiff_t>(chunk.count), {}, &tile_draw::distance);
+	}
+	std::ranges::sort(m_chunkdraws, {}, &chunk_draw::nearest);
 	return true;
 }
 
@@ -355,6 +364,7 @@ void grass_field::prepare_chunk(std::uint64_t const Id, chunk const &Chunk, glm:
 				set = true;
 				glm::vec4 const info{Chunk.size, static_cast<float>(Chunk.cells), static_cast<float>(Chunk.samples), 0.f};
 				m_chunkdraws.push_back(make_chunk_draw(Id, Chunk.corner, info, Camera, kinds, m_tiledraws.size()));
+				m_chunkdraws.back().nearest = distance;
 			}
 			// the number of the tile in the world, the seed of its blades
 			auto const seedx{static_cast<float>(std::floor(Chunk.corner.x / tilesize + 0.5) + tx)};
@@ -365,8 +375,10 @@ void grass_field::prepare_chunk(std::uint64_t const Id, chunk const &Chunk, glm:
 			draw.count = count;
 			draw.segments = plan.segments;
 			draw.vertices = plan.vertices;
+			draw.distance = distance;
 			m_tiledraws.push_back(draw);
 			++m_chunkdraws.back().count;
+			m_chunkdraws.back().nearest = std::min(m_chunkdraws.back().nearest, distance);
 			m_triangles += static_cast<std::size_t>(count) * static_cast<std::size_t>(std::max(0, plan.vertices - 2));
 		}
 }

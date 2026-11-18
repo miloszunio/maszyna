@@ -25,7 +25,6 @@ http:
 #include "utilities/Timer.h"
 #include "rendering/renderer.h"
 #include "world/Track.h"
-#include "world/TrackFeatures.h"
 #include "scene/scene.h"
 #include "scene/scenelayers.h"
 #include "simulation/simulation.h"
@@ -71,7 +70,7 @@ glm::dvec3 editor_mode::camera_position() const
 	return Camera.Pos;
 }
 
-editor_mode::track_hover const &editor_mode::hovered_track() const
+track_hover const &editor_mode::hovered_track() const
 {
 	return m_hover;
 }
@@ -325,6 +324,7 @@ void editor_mode::push_track_snapshot(std::vector<std::pair<TTrack *, editor_tra
 	infra_attach(snap);
 	snap.alignments = alignment_store::take_changes();
 	snap.switch_records = switch_store::take_changes();
+	snap.hand_joints = m_srk.take_joint_change();
 	snap.directives.insert(snap.directives.end(), m_drive_buffer.begin(), m_drive_buffer.end());
 	m_drive_buffer.clear();
 	m_history.push_back(std::move(snap));
@@ -412,6 +412,8 @@ void editor_mode::restore_track_snapshot(EditorSnapshot const &Snapshot, std::ve
 		current.switch_records = switch_store::records();
 		switch_store::restore(*Snapshot.switch_records);
 	}
+	if (Snapshot.hand_joints.has_value())
+		current.hand_joints = m_srk.restore_joints(*Snapshot.hand_joints);
 	Opposite.push_back(std::move(current));
 
 	if (Undo)
@@ -479,19 +481,22 @@ void editor_mode::restore_track_snapshot(EditorSnapshot const &Snapshot, std::ve
 		profile_restore();
 }
 
-std::array<editor_mode::track_mode, 13> const &editor_mode::track_modes()
+std::array<editor_mode::track_mode, 16> const &editor_mode::track_modes()
 {
-	static std::array<track_mode, 13> const modes{{
+	static std::array<track_mode, 16> const modes{{
 	    {"Select", "Esc", track_tab::path, "LMB on a path selects it: its points, control vectors and parameters", editor_icons::icon::select, 0},
 	    {"Lay track", "L", track_tab::lay, "Lays new track through the clicked points, on the ground or from a free end of a track", editor_icons::icon::lay_track, 0},
 	    {"Plan", "G", track_tab::straights, "The plan of the line laid: LMB on a straight drags its ends or the middle, on a curve its vertex and radius. C works too", editor_icons::icon::curve, 0},
 	    {"Switch", "T", track_tab::turnout, "Puts switches into a straight or a curve: press on it and drag along the way the switch goes. Edits the geometry of the selected switch", editor_icons::icon::turnout, 0},
 	    {"Parallel", "N", track_tab::parallel, "A second track beside a track: LMB on it, then the side and the spacing", editor_icons::icon::parallel, 0},
 	    {"Turntable", "U", track_tab::turntable, "Places a turntable, leads tracks out of it and fits the tracks around to it", editor_icons::icon::turntable, 1},
-	    {"Signalling", "I", track_tab::srk, "The signals and the signalling of the stations: LMB on a switch lays its station out as a schematic, the signals placed by hand from the templates in the panel", editor_icons::icon::signal, 1},
+	    {"Signals", "I", track_tab::signals, "Signals placed by hand from the templates in the panel: LMB by a track places the one chosen, a signal dragged slides along its track, LMB on one selects it", editor_icons::icon::signal, 1},
+	    {"Station", nullptr, track_tab::station, "A station of the scenery: LMB on a switch lays it out as a schematic. Its name and code, the numbers of its switches and tracks, its track circuits", editor_icons::icon::station, 1},
+	    {"Station signals", nullptr, track_tab::station_signals, "The signals of a whole station placed at once, named after its code, and what its signalling lacks: LMB on a switch opens the station", editor_icons::icon::station_signals, 1},
+	    {"Line block", nullptr, track_tab::line_block, "The block of the lines out of a station: its block signals, warning discs and block sections", editor_icons::icon::line_block, 1},
 	    {"Kilometrage", "X", track_tab::kilometrage, "The km of the railway lines: LMB on a track puts a point of the km there, a jump of the km too", editor_icons::icon::kilometrage, 1},
 	    {"Catenary", "F6", track_tab::catenary, "Poles with cantilevers by the track, the card chosen from the catalogue by the distance of the pole; the spans checked against the catalogue", editor_icons::icon::catenary, 1},
-	    {"Objects", "B", track_tab::lineside, "Along the track: hectometre posts, fouling point markers, trainsets", editor_icons::icon::objects, 1},
+	    {"Posts", "B", track_tab::lineside, "Along the track: the hectometre posts every 100 m, the W17 fouling point markers, trainsets", editor_icons::icon::objects, 1},
 	    {"Profile", "P", track_tab::profile, "Vertical profile (grade line) along the line", editor_icons::icon::profile, 2},
 	    {"Speed", "V", track_tab::speed, "Speed limits of the paths against the speed their geometry allows", editor_icons::icon::speed, 2},
 	    {"Joints", "J", track_tab::joints, "Ends of the paths which almost meet, steps, kinks, jumps of the cant and of the grade at the joints", editor_icons::icon::joints, 2},
@@ -548,7 +553,7 @@ void editor_mode::show_track_tab(track_tab const Wanted)
 		scan_turntables(false);
 		turntable_read(track);
 		break;
-	case track_tab::srk:
+	case track_tab::signals:
 		signal_refresh(true);
 		break;
 	case track_tab::catenary:
@@ -594,11 +599,15 @@ bool editor_mode::track_shortcut(int const Key)
 	auto const key{Key == GLFW_KEY_C ? GLFW_KEY_G : Key};
 	for (auto const &mode : track_modes())
 	{
-		if (mode.key[1] != '\0' || key != GLFW_KEY_A + (mode.key[0] - 'A'))
+		if (mode.key == nullptr || mode.key[1] != '\0' || key != GLFW_KEY_A + (mode.key[0] - 'A'))
 			continue;
 		// the key of the mode on leaves it
 		auto const on{m_track_tab == mode.tab || (mode.tab == track_tab::straights && track_plan_tab())};
-		show_track_tab(m_track_window_open && on ? track_tab::path : mode.tab);
+		auto const leaving{m_track_window_open && on && false == (mode.tab == track_tab::lineside && m_vehicle.tab().open)};
+		show_track_tab(leaving ? track_tab::path : mode.tab);
+		// B opens on the posts, as the button of Posts does, also from the trainset
+		if (mode.tab == track_tab::lineside && false == leaving)
+			m_hekto.tab().expand = true;
 		return true;
 	}
 	return false;
@@ -639,10 +648,13 @@ std::string editor_mode::track_mode_name() const
 	case track_tab::profile: return STR_C("Vertical profile");
 	case track_tab::speed: return STR_C("Speed check");
 	case track_tab::joints: return STR_C("Joints");
-	case track_tab::lineside: return STR_C("Objects along the track");
+	case track_tab::lineside: return STR_C("Posts along the track");
 	case track_tab::infra: return STR_C("Infrastructure");
 	case track_tab::parallel: return STR_C("Parallel track");
-	case track_tab::srk: return STR_C("Signalling");
+	case track_tab::signals: return STR_C("Signals");
+	case track_tab::station: return STR_C("Station");
+	case track_tab::station_signals: return STR_C("Station signals");
+	case track_tab::line_block: return STR_C("Line block");
 	case track_tab::kilometrage: return STR_C("Kilometrage");
 	case track_tab::turntable: return STR_C("Turntable");
 	case track_tab::catenary: return catenary_mode_name();
@@ -657,7 +669,7 @@ void editor_mode::render_track_inspector()
 	m_speed.set_open(m_track_window_open && m_track_tab == track_tab::speed);
 	m_infra.open = m_track_window_open && m_track_tab == track_tab::infra;
 	m_joints.set_open(m_track_window_open && m_track_tab == track_tab::joints);
-	m_srk.set_open(m_track_window_open && m_track_tab == track_tab::srk);
+	m_srk.set_open(m_track_window_open && srk_tab(), m_track_tab == track_tab::station_signals ? srk_tool::part::signals : m_track_tab == track_tab::line_block ? srk_tool::part::lines : srk_tool::part::station);
 	m_km.set_open(m_track_window_open && m_track_tab == track_tab::kilometrage);
 	if (false == m_track_window_open || m_track_tab != track_tab::lineside)
 	{
@@ -746,8 +758,17 @@ void editor_mode::render_track_tool_options()
 		ImGui::TextDisabled("%s", STR_C("What the check finds is listed in its window"));
 		break;
 	case track_tab::lineside: render_lineside_ui(); break;
-	case track_tab::srk:
+	case track_tab::signals:
 		render_signal_selected();
+		render_signal_ui();
+		break;
+	case track_tab::station_signals:
+		// a signal picked from the lists of the check: its card, to set what it lacks right there
+		render_signal_selected();
+		m_srk.render_options();
+		break;
+	case track_tab::station:
+	case track_tab::line_block:
 		m_srk.render_options();
 		break;
 	case track_tab::kilometrage: m_km.render_options(); break;
@@ -759,6 +780,15 @@ void editor_mode::render_track_tool_options()
 		break;
 	}
 	ImGui::PopTextWrapPos();
+	// what a button of the station tools came to, by the mouse which clicked it: the panel keeps it at its foot, often scrolled away
+	std::string told;
+	if (bool refused{false}; m_srk.told(told, refused))
+	{
+		if (refused)
+			ui()->set_status(told, true);
+		else
+			ui()->set_notice(told);
+	}
 }
 
 void editor_mode::render_track_selection()
@@ -1848,19 +1878,19 @@ std::vector<editor_mode::key_hint> editor_mode::track_key_hints(bool const All) 
 	else if (m_track_window_open && m_track_tab == track_tab::speed)
 		hints = {{"LMB on a row", "show the path"}};
 	else if (m_track_window_open && m_track_tab == track_tab::lineside)
-		hints = {{"LMB on a track", "the line the objects go along"}};
+		hints = {{"LMB on a track", "the line the posts go along"}};
 	else if (m_track_window_open && m_track_tab == track_tab::parallel)
 		hints = {{"LMB on a track", "the new track goes beside it"}, {"Click on a side in the panel", "the side of the new track"}};
-	else if (m_track_window_open && m_track_tab == track_tab::srk && m_signal.moving)
+	else if (m_track_window_open && m_track_tab == track_tab::signals && m_signal.moving)
 		hints = {{"Drag along", "moves the signal along the track"}, {"Drag over the track", "to the other side"}, {"Release", "done"}, {"Esc", "cancel"}};
-	else if (m_track_window_open && m_track_tab == track_tab::srk && m_signal.placing)
+	else if (m_track_window_open && m_track_tab == track_tab::signals && m_signal.placing)
 		hints = {{"Drag along", "the trains it faces run that way"}, {"Release", "done"}, {"Esc", "cancel"}};
-	else if (m_track_window_open && m_track_tab == track_tab::srk && false == m_srk.drawing())
+	else if (m_track_window_open && m_track_tab == track_tab::signals)
 	{
 		if (signal_armed() != nullptr)
 			hints = {{"LMB by a track", "places the signal on that side"}, {"Press+drag along", "the trains it faces run that way"}, {"Esc", "stops placing"}};
 		else
-			hints = {{"LMB on a switch", "opens its station"}, {"List in the panel", "the type of the signal"}, {"Drag a signal", "moves it along the track"}, {"LMB on a signal", "selects it"}};
+			hints = {{"Pick in the panel", "a signal from the list, then LMB beside a track"}, {"Drag a signal", "moves it along the track"}, {"LMB on a signal", "selects it"}};
 		if (m_signal.selected != 0 && m_signal.selected == m_instance)
 			hints.push_back({"Del", "removes the selected signal with its event"});
 	}
@@ -1874,8 +1904,12 @@ std::vector<editor_mode::key_hint> editor_mode::track_key_hints(bool const All) 
 	{
 		catenary_key_hints(hints);
 	}
-	else if (m_track_window_open && m_track_tab == track_tab::srk)
+	else if (m_track_window_open && m_track_tab == track_tab::station && m_srk.editing_joints())
+		hints = {{"LMB on a track", "a joint of the track circuits there"}, {"LMB on a joint", "takes it: then on a track moves it, on it again away"}};
+	else if (m_track_window_open && srk_tab() && false == m_srk.drawing())
 		hints = {{"LMB on a switch", "opens its station"}};
+	else if (m_track_window_open && m_track_tab == track_tab::line_block)
+		hints = {{"LMB on a track of a line", "a block boundary there, or on one: away"}};
 	else if (m_track_window_open && m_track_tab == track_tab::kilometrage)
 		hints = {{"LMB on a track", "a point of the km there"}, {"Mouse over a track", "its km by the cursor"}};
 	else if (m_track_window_open && m_track_tab == track_tab::joints)
@@ -1964,11 +1998,10 @@ std::vector<editor_mode::key_hint> editor_mode::track_key_hints(bool const All) 
 		hints.push_back({"K", "split the path under the cursor, a break of the grade at the height of the ground"});
 		hints.push_back({"O", "top view"});
 		hints.push_back({"Esc", "back to Select"});
-		if (Global.EditorOrtho)
-			hints.push_back({"Hold the wheel", "pans the view"});
+		hints.push_back({"Hold the wheel", "pans the view"});
 		hints.push_back({"Ctrl+Z", "undo"});
 		hints.push_back({"Ctrl+Y", "redo"});
-		hints.push_back({"L T G N I B P V J", "tools: lay, switch, plan, parallel, signalling, objects, profile, speed, joints"});
+		hints.push_back({"L T G N U I X B P V J", "tools: lay, switch, plan, parallel, turntable, signals, kilometrage, posts, profile, speed, joints"});
 	}
 	for (auto &hint : hints)
 	{
@@ -2238,6 +2271,8 @@ void editor_mode::draw_empty_scenery_hint()
 	auto const &paths{simulation::Paths.sequence()};
 	if (std::any_of(paths.begin(), paths.end(), [](TTrack const *Track) { return Track != nullptr && false == Track->m_editorremoved; }))
 		return;
+	// the line of the empty scenery in the middle of the view says the same: it gives way to this one
+	m_empty_hint_frame = ImGui::GetFrameCount();
 	auto *list{ImGui::GetBackgroundDrawList(ImGui::GetMainViewport())};
 	auto const low{editor_ui::view_min()};
 	auto const high{editor_ui::view_max()};

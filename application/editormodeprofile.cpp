@@ -857,6 +857,7 @@ void editor_mode::profile_edited()
 {
 	m_profile.changed = true;
 	profile_check();
+	first_step_done(first_step::profile_point);
 }
 
 void editor_mode::profile_remove_point(int const Index)
@@ -961,6 +962,7 @@ void editor_mode::profile_take(editor_track::route Route, TTrack *From, TTrack *
 	state.route = std::move(Route);
 	state.selected = -1;
 	state.edits = m_track_edits;
+	first_step_done(first_step::profile);
 	profile_resample();
 	if (false == profile_restore())
 	{
@@ -1681,6 +1683,7 @@ void editor_mode::profile_frame_view()
 		Global.EditorOrthoExtent = std::clamp(static_cast<float>(extent), 5.0f, 50000.0f);
 		auto const scale{2.0 * static_cast<double>(Global.EditorOrthoExtent) / screen.y};
 		auto const offset{RotateY(glm::dvec3{shift.x * scale, 0.0, shift.y * scale}, yaw)};
+		m_ride.leave();
 		Camera.Pos.x = centre.x - offset.x;
 		Camera.Pos.z = centre.z - offset.z;
 		Camera.Velocity = {};
@@ -1797,6 +1800,7 @@ void editor_mode::profile_apply(bool const Terrain, std::vector<profile::departu
 	bool const pushed{false == states.empty() || false == created.empty()};
 	push_track_snapshot(std::move(states), std::move(created));
 	state.edits = m_track_edits;
+	first_step_done(first_step::profile_apply);
 	if (pushed)
 	{
 		m_history.back().profiles = true;
@@ -2881,11 +2885,10 @@ void editor_mode::draw_profile_canvas(profile_view const &View, ImDrawList &Draw
 			// breaks the grade over them
 			Draw.PushClipRect(ImVec2(left, plottop), ImVec2(right, plotbottom), true);
 			auto const height{plotbottom - plottop};
-			auto x = left - height;
-			while (x < right)
+			for (int k = 0; left - height + 8.0f * static_cast<float>(k) < right; ++k)
 			{
+				auto const x{left - height + 8.0f * static_cast<float>(k)};
 				Draw.AddLine(ImVec2(x, plotbottom), ImVec2(x + height, plottop), kShared, 1.5f);
-				x += 8.0f;
 			}
 			Draw.PopClipRect();
 			Draw.AddLine(ImVec2(left, plottop), ImVec2(left, plotbottom), kSharedEdge, 1.0f);
