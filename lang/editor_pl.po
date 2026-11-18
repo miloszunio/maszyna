@@ -15818,3 +15818,6 @@ msgstr "nie jest w pliku scenerii, który edytor może przepisać (szablon inclu
 
 msgid "The catenary in \"%s\" couldn't be saved: %s"
 msgstr "Nie udało się zapisać sieci trakcyjnej w \"%s\": %s"
+
+msgid "Preparing the graphics (takes longer at the first start of a new version)"
+msgstr "Przygotowanie grafiki (przy pierwszym uruchomieniu nowej wersji trwa dłużej)"
