@@ -41,9 +41,13 @@ bool scenarioloader_mode::update() {
 		return true;
 
 	if (m_closing > 0) {
-		// two frames with the note on the screen, then on to the simulation
-		if (++m_closing <= 3)
+		// the programs of the materials made ready a few at a frame, the loading screen with its bar kept on the screen and the
+		// window answering meanwhile; then on to the simulation
+		auto const [done, total] { GfxRenderer->Prewarm_Shaders( 50.0 ) };
+		if( done < total ) {
+			m_userinterface->set_progress( static_cast<float>( done ) * 100.f / static_cast<float>( total ), 0.f );
 			return true;
+		}
 		m_closing = 0;
 		Application.pop_mode();
 		Application.push_mode( eu07_application::mode::driver );
