@@ -999,10 +999,13 @@ endif()
 # built straight into a game folder (see EU07_RUNTIME_DIR): the shaders and the translations of these sources go with the simulator,
 # as the packaging of the workflow puts them next to it
 if (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
-	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/shaders" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/shaders"
-		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/lang" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/lang"
-	)
+	# a target of its own run by every build, not a step after the linking: a change of the shaders alone links nothing
+	add_custom_target(eu07_game_data ALL
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/shaders" "${EU07_RUNTIME_DIR}/shaders"
+		COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${CMAKE_CURRENT_SOURCE_DIR}/lang" "${EU07_RUNTIME_DIR}/lang"
+		COMMENT "Copying the shaders and the translations to ${EU07_RUNTIME_DIR}"
+		VERBATIM)
+	set_target_properties(eu07_game_data PROPERTIES FOLDER "tools")
 endif()
 
 # the Visual C++ runtime the simulator is built with, next to it: older runtimes installed in the system crash the programs of newer
