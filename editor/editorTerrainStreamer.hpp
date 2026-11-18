@@ -16,6 +16,7 @@ http://mozilla.org/MPL/2.0/.
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -91,6 +92,9 @@ class terrain_streamer
 	// known not to be there: removed, in no pack file, or in none read so far though its pack was read. A chunk whose pack
 	// isn't read yet is neither there nor absent
 	bool absent(chunk_key const &Key) const;
+	// the chunks over an XZ rectangle (Low/High are x,z): true where some are and all of them are in memory, false where none is
+	// nor will be, empty while one is still to come (in memory not yet, or its pack not read yet)
+	std::optional<bool> ground_under(glm::dvec2 const &Low, glm::dvec2 const &High) const;
 	// the chunks of all the pack files in the folder of the terrain, each with the cells along its side (0: unknown), ordered
 	// by key, as the files are on the disk: the chunks added or removed since the last save are as they were. reads the
 	// headers of the files, so it's for a list made now and then, not for every frame

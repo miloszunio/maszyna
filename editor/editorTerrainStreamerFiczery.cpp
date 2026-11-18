@@ -211,6 +211,23 @@ bool terrain_streamer::height_at(double X, double Z, double &Height) const
 	return true;
 }
 
+std::optional<bool> terrain_streamer::ground_under(glm::dvec2 const &Low, glm::dvec2 const &High) const
+{
+	auto const first{heightmap::chunk_at(Low.x, Low.y)};
+	auto const last{heightmap::chunk_at(High.x, High.y)};
+	bool any{false};
+	for (auto z{std::min(first.second, last.second)}; z <= std::max(first.second, last.second); ++z)
+		for (auto x{std::min(first.first, last.first)}; x <= std::max(first.first, last.first); ++x)
+		{
+			chunk_key const key{x, z};
+			if (m_chunks.contains(key))
+				any = true;
+			else if (false == absent(key))
+				return std::nullopt;
+		}
+	return any;
+}
+
 bool terrain_streamer::cut_at(double X, double Z) const
 {
 	auto const *chunk{terrain_at(X, Z)};
