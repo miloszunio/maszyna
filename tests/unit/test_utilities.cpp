@@ -365,9 +365,17 @@ TEST_CASE("utilities: a text for the timetable loses its marks, control characte
 }
 
 TEST_CASE("utilities: the polish letters from 0xB2 on lose their marks in every build") {
-	// the table of Bezogonkow() is plain ASCII, so every compiler makes one byte of each of its entries
-	CHECK(Bezogonkow("\xB1") == "+");
+	// the table of Bezogonkow() has the plus-minus sign for 0xB1. it used to be written as the character in the source,
+	// a utf-8 file: GCC and Clang put the two bytes of utf-8 into the table, which moved the entries after it by one
+	// (the polish letters came out as "ALELDNSZZ,le,dnszl"). now it's the byte, and the table is the same everywhere
+	CHECK(Bezogonkow("\xB1") == "\xB1");
+	CHECK(Bezogonkow("\xB1\xB2") == "\xB1,");
 	CHECK(Bezogonkow(kWin1250) == "ACELNOSZZacelnoszz");
+	// the last entry of the table, and the first: none is left out and none added
+	CHECK(Bezogonkow("\xFF") == "?");
+	CHECK(Bezogonkow("\x80") == "E");
+	// the letters of other languages the table knows (c-caron, e-caron, s-caron, u-ring, a-acute)
+	CHECK(Bezogonkow("\xE8\xEC\x9A\xF9\xE1") == "cesua");
 }
 
 TEST_CASE("utilities: utf-8 is decoded into code points of one to four bytes") {
