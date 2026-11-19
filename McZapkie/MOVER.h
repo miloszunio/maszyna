@@ -18,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include "couplerphysics.h"
 #include "derailment.h"
 #include "collision.h"
+#include "weatherphysics.h"
 #include "scripting/ladderlogic.h"
 #include "vehicle/odometerreading.h"
 
@@ -712,6 +713,8 @@ struct TTrackParam
 	double Width = 0.0;
 	/// <summary>Static friction coefficient on this segment.</summary>
 	double friction = 0.0;
+	/// <summary>The friction of the segment with a dry clean rail, what the weather took friction down from (the sand gives back a share of it); 0 where not known.</summary>
+	double friction_dry = 0.0;
 	/// <summary>Track category bit flags.</summary>
 	int CategoryFlag = 0;
 	/// <summary>Track-quality bit flags.</summary>
@@ -725,6 +728,22 @@ struct TTrackParam
 	double snow_density = 0.0;
 	/// <summary>Name of the track, for the log; nullptr where there is none.</summary>
 	std::string const *Name = nullptr;
+};
+
+/// <summary>The weather the vehicle runs in (McZapkie/weatherphysics.h), set by its TDynamicObject every step; calm, dry and 15 degrees by default.</summary>
+struct TWeatherParam
+{
+	/// <summary>The rain falling on the vehicle, 0..1 (none in a tunnel).</summary>
+	double rain = 0.0;
+	/// <summary>The snow around the running gear: falling, blown along the ground or thrown up from the track, 0..1.</summary>
+	double snow = 0.0;
+	/// <summary>Air temperature [degrees C].</summary>
+	double temperature = 15.0;
+	/// <summary>The wind towards the front of the vehicle, and across it [m/s].</summary>
+	double wind_along = 0.0;
+	double wind_across = 0.0;
+	/// <summary>Density of the air, a share of the one at 15 degrees C.</summary>
+	double air_density = 1.0;
 };
 
 /// <summary>Traction-supply parameters at the vehicle's current location.</summary>
@@ -2265,6 +2284,8 @@ class TMoverParameters
 
 	TTrackShape RunningShape; /*geometria toru po ktorym jedzie pojazd*/
 	TTrackParam RunningTrack; /*parametry toru po ktorym jedzie pojazd*/
+	TWeatherParam RunningWeather; // the weather the vehicle runs in (McZapkie/weatherphysics.h)
+	weather_physics::brake_state BrakeWeather; // the water and the ice on its brakes
 	double OffsetTrackH = 0.0;
 	double OffsetTrackV = 0.0; /*przesuniecie poz. i pion. w/m osi toru*/
 
@@ -2465,6 +2486,7 @@ class TMoverParameters
 	double FrictConst1 = 0.0;
 	double FrictConst2s = 0.0;
 	double FrictConst2d = 0.0;
+	double DragConst = 0.0; // the coefficient of V^2 of the drag in calm air (Cx times the area, a part of FrictConst1)
 	double TotalMassxg = 0.0; /*TotalMass*g*/
 
 	double fBrakeCtrlPos = -2.0; // płynna nastawa hamulca zespolonego
@@ -2827,6 +2849,11 @@ class TMoverParameters
 	// the force the snow lying on the track holds the vehicle back with [N]: the snow over the heads of the rails pushed aside, the
 	// snow between them cut by the flanges
 	double SnowForce() const;
+	// the force the wind and the density of the air add to the drag of the calm air at 15 degrees FrictionForce() has [N], towards
+	// the front of the vehicle (RunningWeather, physics.weather.wind and physics.weather.airdensity); 0 in calm air at 15 degrees
+	double WeatherDragForce() const;
+	// a step of the water and the ice on the brakes, and the friction of the brakes they leave (physics.weather.brakes)
+	void UpdateBrakeWeather(double dt);
 	double BrakeForceR(double ratio, double velocity) const;
 	double BrakeForceP(double press, double velocity) const;
 	double BrakeForce(const TTrackParam &Track);

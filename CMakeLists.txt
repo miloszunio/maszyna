@@ -175,6 +175,7 @@ set(SOURCES
 "environment/starcatalog.cpp"
 "environment/weather.cpp"
 "environment/snowcover.cpp"
+"environment/railsurface.cpp"
 "environment/climate.cpp"
 "environment/climatestations.cpp"
 "rendering/lightarray.cpp"
@@ -354,6 +355,7 @@ set(SOURCES
 "widgets/map_objects.cpp"
 "widgets/popup.cpp"
 "widgets/time.cpp"
+"widgets/weatherphysics.cpp"
 "widgets/weatherpanel.cpp"
 "widgets/vehicleparams.cpp"
 "widgets/trainingcard.cpp"
@@ -767,6 +769,7 @@ add_library(eu07_settings INTERFACE)
 # definition parser, the helpers they use and the rules of the test mode. built once, and tested as the game uses them
 set(CORE_SOURCES
 "McZapkie/friction.cpp"
+"McZapkie/weatherphysics.cpp"
 "McZapkie/hamulce.cpp"
 "McZapkie/Mover.cpp"
 "McZapkie/couplerphysics.cpp"
