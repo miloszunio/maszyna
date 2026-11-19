@@ -751,7 +751,7 @@ class Audit:
                 continue
             straight = sum(e[1] for e in between)
             need = buffer_straight_min(1.0 / abs(a[0]), 1.0 / abs(b[0]))
-            if need != 0.0 and (need < 0.0 or straight < need - 0.05):
+            if abs(need) > 1e-9 and (need < 0.0 or straight < need - 0.05):
                 self.add("zderzaki", "P2", b[2][2], straight, max(need, 0.0), "m", b[2][0].point(0.0),
                          f"luki odwrotne R {1 / abs(a[0]):.0f} / {1 / abs(b[0]):.0f} m" + (" - za ciasne na kazda prosta" if need < 0 else ""))
         for index in range(1, len(elements) - 1):

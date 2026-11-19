@@ -415,7 +415,7 @@ def build(grid, runs, origin, out_dir, name="irt", corridor=230.0, fine_dist=40.
         pk = (ck[0] // PACK_SIDE, ck[1] // PACK_SIDE)
         chunks_by_pack.setdefault(pk, {})[ck] = ch
         stats["chunks"] += 1
-        stats["fine"] += spacing == 2.0
+        stats["fine"] += abs(spacing - 2.0) < 1e-9
         if stats["chunks"] % 1000 == 0:
             log(f"teren: {stats['chunks']} chunkow")
     for pk, chunks in chunks_by_pack.items():
