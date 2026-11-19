@@ -2622,6 +2622,14 @@ class TMoverParameters
 	// standing still, its acceleration is the pull of the slope and of the couplers, as the brakes and the resistance count only
 	// against a speed (FTotal); with Global.physics_sleepheld one held by them, the way ComputeMovement() keeps it standing, doesn't
 	bool accelerating() const;
+	// whether the brakes changed since the forces were last worked out (the pressure of the brake cylinders or of the spring brake,
+	// the hand brake, the pullee mode): a vehicle asleep held by them wakes to work out what they hold now
+	bool brakes_changed() const;
+	// the brakes the forces were last worked out with
+	double ForcesBrakePress{0.0};
+	double ForcesSpringPress{0.0};
+	double ForcesManualBrake{0.0};
+	bool ForcesPullee{false};
 	double LocalBrakeRatio(void) const;
 	double ManualBrakeRatio(void) const;
 	double PipeRatio(void) const; /*ile napelniac*/

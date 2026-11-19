@@ -6200,7 +6200,7 @@ void TMoverParameters::ComputeTotalForce(double dt)
 	// McZapkie-031103: sprawdzanie czy warto liczyc fizyke i inne updaty
 	// ABu 300105: cos tu mieszalem , dziala teraz troche lepiej, wiec zostawiam
 	{
-		auto const vehicleisactive{CabActive != 0 || Vel > 0.0001 || accelerating() || LastSwitchingTime < 5 || TrainType == dt_EZT || TrainType == dt_DMU};
+		auto const vehicleisactive{CabActive != 0 || Vel > 0.0001 || accelerating() || brakes_changed() || LastSwitchingTime < 5 || TrainType == dt_EZT || TrainType == dt_DMU};
 
 		auto const movingvehicleahead{Neighbours[end::front].vehicle != nullptr &&
 		                              (Neighbours[end::front].vehicle->MoverParameters->Vel > 0.0001 || Neighbours[end::front].vehicle->MoverParameters->accelerating())};
@@ -6221,6 +6221,11 @@ void TMoverParameters::ComputeTotalForce(double dt)
 		return;
 	}
 
+	// the brakes the forces go by now, for a vehicle about to sleep to tell when they change (brakes_changed())
+	ForcesBrakePress = BrakePress;
+	ForcesSpringPress = (SpringBrake.IsReady && SpringBrake.Cylinder) ? SpringBrake.Cylinder->P() : 0.0;
+	ForcesManualBrake = ManualBrakeRatio();
+	ForcesPullee = PulleeMode;
 	// juz zoptymalizowane:
 	FStand = FrictionForce(); // siła oporów ruchu
 	FStand += SnowForce();
@@ -11117,6 +11122,15 @@ double TMoverParameters::GetTrainsetHighVoltage() const
 // *************************************************************************************************
 // whether the vehicle accelerates, for the test which turns the physics off in vehicles standing still
 // *************************************************************************************************
+bool TMoverParameters::brakes_changed() const
+{
+	if (std::abs(BrakePress - ForcesBrakePress) > 0.05)
+		return true;
+	if (SpringBrake.IsReady && SpringBrake.Cylinder && (std::abs(SpringBrake.Cylinder->P() - ForcesSpringPress) > 0.05))
+		return true;
+	return (std::abs(ManualBrakeRatio() - ForcesManualBrake) > 1e-6) || (PulleeMode != ForcesPullee);
+}
+
 bool TMoverParameters::accelerating() const
 {
 	if (std::abs(AccS) <= 0.0001)
