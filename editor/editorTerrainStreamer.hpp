@@ -16,7 +16,6 @@ http://mozilla.org/MPL/2.0/.
 #include <map>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <set>
 #include <string>
 #include <thread>
@@ -89,6 +88,10 @@ class terrain_streamer
 	std::string stats() const;
 	// chunks in the pack files and in memory, less the removed ones; the files known so far
 	bool exists(chunk_key const &Key) const;
+	// true while a chunk over an XZ rectangle (Low/High are x,z) is still to come at this distance of the camera: being loaded, or
+	// within the walk around the camera and in its pack or with its pack not read yet. False where all of them are in memory, where
+	// none is nor will be, and where the walk doesn't reach
+	bool ground_coming(glm::dvec2 const &Low, glm::dvec2 const &High) const;
 	// known not to be there: removed, in no pack file, or in none read so far though its pack was read. A chunk whose pack
 	// isn't read yet is neither there nor absent
 	bool absent(chunk_key const &Key) const;
@@ -339,6 +342,11 @@ class terrain_streamer
 		scene::basic_section *section{nullptr};
 		scene::basic_cell *cell{nullptr};
 	};
+
+	// within the circle of chunks the last walk of update() asked for
+	bool in_walk(chunk_key const &Key) const;
+	// the chunk is still to come at this distance of the camera (see ground_coming)
+	bool chunk_coming(chunk_key const &Key) const;
 
 	void start_workers();
 	void stop_workers();
