@@ -26,7 +26,7 @@ i mgła pogody.
 
 `gl::weather_ubs::surface_state` (oba `weather_common.glsl`): x woda, y lód, z liście, w lód na drutach w mm.
 
-- gl46, `light_common.glsl: apply_wet()`: nawierzchnie pod gołym niebem są ciemniejsze i błyszczące, gdy mokre, i szkliste, gdy
+- gl46 i vk14, `light_common.glsl: apply_wet()`: nawierzchnie pod gołym niebem są ciemniejsze i błyszczące, gdy mokre, i szkliste, gdy
   oblodzone. Pod dachem, mostem i w tunelu suche (`sky_occlusion_cover()`, ta sama funkcja, co opad), pod śniegiem nie.
 - `traction.frag` (gl46 i vk14): kolor drutu od rodzaju osadu (`model_ubs.param[2]`, mm każdego rodzaju): gołoledź szklista i szara,
   szadź twarda biała, szadź miękka bielsza, mokry śnieg szarobiały. Z bliska bryły drutów (i ich cienie) grubieją o grubość
@@ -36,7 +36,8 @@ i mgła pogody.
   dzielone na odcinki nie dłuższe niż 1/8 przęsła (`TTraction::sway_vertices()`). Wzór jest w jednym miejscu, `wire_sway.glsl`.
   Cienie drutów kołyszą się razem z nimi (`physics.weather.wireshadows`): własne programy cieni, `wireshadow.vert` dla kaskad
   słońca i `wireshadowcube.vert` dla map lamp (`walk_shader::line_shadow`). Stary renderer (gl33) nie rysuje odchylenia.
-- vk14 nie rysuje (tak jak śniegu) mokrej nawierzchni, ma tylko pole w bloku i lód na drutach.
+- vk14 rysuje mokrą nawierzchnię i śnieg tak jak gl46 (`vk14::snow_drifts`); tylko odbicia śledzone promieniami (`gfx.raytracing`)
+  pokazują scenerię bez nich.
 
 ## Ustawienia (eu07.ini)
 

@@ -622,6 +622,7 @@ bool vulkan14_renderer::Render()
 	scene.lamps.begin_frame(m_commands, value);
 	scene.cabprobe.begin_frame(value);
 	scene.skyocclusion.begin_frame(value);
+	scene.snow.begin_frame(value);
 	if (scene.terrain)
 	{
 		// textures of new heightmap terrain layers go to the arrays the terrain shader reads them from
@@ -814,6 +815,7 @@ bool vulkan14_renderer::Render()
 		// a scenery is being loaded: the cells, instances and models the lights were taken from may be gone
 		m_locallights.reset();
 		scene.skyocclusion.clear();
+		scene.snow.rest();
 		scene.lamps.reset_lamps();
 		scene.lamps.reset_headlights();
 		// and so may the tracks the sleeper records were made for, and the models drawn on their own
@@ -833,6 +835,11 @@ bool vulkan14_renderer::Render()
 	}
 	// what the maps of the occlusion of the sky were given, copied to them
 	scene.skyocclusion.flush(m_commands);
+	// the drifts of the snow, from the maps as they are now and the weather block of the frame (opengl46_snow::update())
+	if (simulation::is_ready && (false == Global.gfx_skiprendering))
+	{
+		update_snow();
+	}
 	// the sleeper records of tracks out of sight for a while, and the records of the models drawn on their own
 	Expire_Indirect_Records();
 	// scenery lamps which get shadows in this frame. their maps hold the scenery as of the version of the instance records
@@ -1726,6 +1733,8 @@ void vulkan14_renderer::render_viewport(std::size_t const Index)
 	{
 		ctx.passes.begin_pass("grass");
 		render_grass(future);
+		// the surface of the drifts of the snow, over the ground and the grass
+		render_snow(future);
 	}
 
 	// ...translucent parts
@@ -2868,6 +2877,99 @@ void vulkan14_renderer::render_grass(glm::mat4 const &Future)
 	m_renderpass.draw_stats.triangles += static_cast<int>(grass.triangles());
 	// the textures of the next material go in place of the ones of the grass
 	draw.textures_dirty = true;
+	draw.cullface = cullface;
+	apply_draw_state();
+}
+
+// the drifts of the snow worked out for the frame (opengl46_snow::update()), outside a rendering; the pass sets take the cells, or
+// give them back for the stand-in, before the passes of the frame bind them
+void vulkan14_renderer::update_snow()
+{
+	auto &ctx{*m_context};
+	auto &scene{ctx.scene};
+	if (scene.snow.wanted(scene.skyocclusion))
+	{
+		ctx.passes.begin_pass("snow drifts");
+		scene.snow.update(m_commands, scene.skyocclusion, Global.pCamera.Pos);
+		ctx.passes.end_pass();
+	}
+	else
+	{
+		scene.snow.rest();
+	}
+	update_pass_sets();
+}
+
+// the surface of the drifts of the snow (opengl46_renderer::Render_snow(), opengl46_snow::render()): a grid over the maps around the
+// camera, made of the numbers of its vertices, which read the cells of the pass set
+void vulkan14_renderer::render_snow(glm::mat4 const &Future)
+{
+	auto &ctx{*m_context};
+	auto &scene{ctx.scene};
+	auto &draw{*m_draw};
+	if (false == scene.snow.drawn())
+	{
+		return;
+	}
+	if ((scene.snow_program == nullptr) && (false == scene.snow_tried))
+	{
+		scene.snow_tried = true;
+		try
+		{
+			auto program{std::make_shared<vk14::scene_program>()};
+			program->vertex = ctx.shaders.get("snow_surface.vert");
+			program->fragment = ctx.shaders.get("snow_surface.frag");
+			program->fragment_name = "snow_surface.frag";
+			program->vertex_name = "snow_surface.vert";
+			program->vertices = vk14::vertex_kind::none;
+			program->name = "snow_surface.vert + snow_surface.frag";
+			scene.snow_program = program;
+		}
+		catch (gfx::shader_exception const &e)
+		{
+			ErrorLog("snow: can't use the shader of the surface of the drifts: " + std::string(e.what()));
+		}
+	}
+	if (scene.snow_program == nullptr)
+	{
+		return;
+	}
+	// the snow brings its colour, the lights do the rest
+	model_ubs.future = Future;
+	model_ubs.param[0] = glm::vec4(1.f);
+	model_ubs.param[1] = glm::vec4(1.f, 1.f, 0.f, 1.f); // diffuse, specular, reflection, glossiness
+	model_ubs.param[2] = glm::vec4(0.f);
+	model_ubs.emission = 0.f;
+	model_ubs.alpha_mult = 1.f;
+	model_ubs.opacity = 0.5f;
+	model_ubs.cab_interior = 0.f;
+	if (false == bind_scene_pipeline(*scene.snow_program, *draw.targets, vk14::blend_mode::none, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST))
+	{
+		return;
+	}
+	auto const cullface{draw.cullface};
+	draw.cullface = false;
+	apply_draw_state();
+	// drawn with the camera of the pass at the origin
+	model_ubs.set_modelview(glm::mat4{OpenGLMatrices.data(GL_MODELVIEW)});
+	if (auto const block{push_draw_block()}; block != ~0u)
+	{
+		// the block may have opened a new window of the blocks, which the pass set is bound with
+		if (draw.set_dirty)
+		{
+			bind_pass_set();
+		}
+		auto const across{scene.snow.across()};
+		auto const quads{static_cast<std::uint32_t>(across - 1) * static_cast<std::uint32_t>(across - 1)};
+		vk14::draw_constants constants;
+		constants.draw = block;
+		// x: the texels across the grid, y: the texels skipped between two vertices
+		constants.data[0] = glm::vec4{static_cast<float>(across), 1.f, 0.f, 0.f};
+		push_constants(&constants);
+		draw.commands->draw(quads * 6, 1, 0, 0);
+		++draw.draws;
+		m_renderpass.draw_stats.triangles += static_cast<int>(quads * 2);
+	}
 	draw.cullface = cullface;
 	apply_draw_state();
 }

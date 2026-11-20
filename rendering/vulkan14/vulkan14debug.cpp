@@ -172,6 +172,10 @@ std::string vulkan14_renderer::scene_info()
 	{
 		text += " " + scene.skyocclusion.info() + "\n";
 	}
+	if (Global.gfx_snow > 0)
+	{
+		text += " " + scene.snow.info() + "\n";
+	}
 	text += cascades + line(" submodels:", colour.submodels, shadowstats.submodels) + line(" paths:    ", colour.paths, shadowstats.paths) +
 	        line(" shapes:   ", colour.shapes, shadowstats.shapes) + " traction: " + to_string(colour.traction, 7) + "\n" + " lines:    " + to_string(colour.lines, 7) + "\n" +
 	        "particles: " + to_string(colour.particles, 7) + "\nlights:    " + to_string(static_cast<int>(m_lights_lit), 7) + " (" + std::to_string(m_lights_dropped) + " over capacity), " +

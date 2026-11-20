@@ -528,6 +528,7 @@ if (WITH_VULKAN)
 		"rendering/vulkan14/vulkan14grass.cpp"
 		"rendering/vulkan14/vulkan14particles.cpp"
 		"rendering/vulkan14/vulkan14water.cpp"
+		"rendering/vulkan14/vulkan14snow.cpp"
 		"rendering/vulkan14/vulkan14debug.cpp"
 		"rendering/vulkan14/vulkan14commands.cpp"
 		"rendering/vulkan14/vulkan14raytracing.cpp"
