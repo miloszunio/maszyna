@@ -1209,6 +1209,8 @@ class editor_mode : public application_mode, private editor_track::observer, pri
 		features // ours: surfaces cut out of the terrain, the track bed and the slopes cut into pieces
 	};
 	work_area current_work_area() const;
+	// colour of a work mode as 0xRRGGBB, for the accents of the light or the dark palette
+	static int work_area_colour(work_area const Area, bool const Dark);
 	void choose_work_area(work_area const Area);
 	void render_workspaces();
 	bool m_gizmo_enabled{true};                                  // master switch for the in-viewport gizmo
