@@ -22,6 +22,7 @@ http://mozilla.org/MPL/2.0/.
 #include "imgui/imgui_internal.h"
 #include "editor/editorSettings.hpp"
 #include "editor/editorIcons.hpp"
+#include "application/uidescription.h"
 
 #include <cstdio>
 #include <format>
@@ -1362,10 +1363,12 @@ void editor_ui::render_menu_contents()
 			m_newscenery();
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("%s", STR_C("The editor starts again with the wizard of a new scenery: its name and its centre on the map"));
+		ui::rest_description(STR_C("Closes this scenery and starts the editor again with the wizard of a new scenery, where you give its name and its place on the map. Save first with Ctrl+S what you want to keep."));
 		if (ImGui::MenuItem(STR_C("Open scenery...")) && m_openscenery)
 			m_openscenery();
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("%s", STR_C("The editor starts again with another scenery of the scenery folder"));
+		ui::rest_description(STR_C("Starts the editor again with another scenery, chosen from the scenery folder. Save first with Ctrl+S what you want to keep here."));
 		// changes go to the scenery files only if the scenery was loaded with its sources tracked
 		auto const editsession{false == scene::Layers.empty()};
 		if (ImGui::MenuItem(STR_C("Save"), STR_C("Ctrl+S"), false, editsession) && m_save)
@@ -1376,6 +1379,7 @@ void editor_ui::render_menu_contents()
 		{
 			ImGui::SetTooltip("%s", STR_C("Start the simulator with -edit <scenery file> to save changes to the scenery files"));
 		}
+		ui::rest_description(STR_C("Writes the changes into the scenery files they came from. The definitions you didn't change stay in the files byte for byte, an edited object is written anew. It works when the scenery was loaded with -edit."));
 		if (ImGui::MenuItem(STR_C("Export scenery dump"), STR_C("Ctrl+Shift+F11")) && m_export)
 		{
 			m_export();
@@ -1384,12 +1388,14 @@ void editor_ui::render_menu_contents()
 		{
 			ImGui::SetTooltip("%s", STR_C("Writes the whole scene to _export files next to the scenario, the scenery files are left as they are"));
 		}
+		ui::rest_description(STR_C("Writes the whole scene as the editor holds it to files with _export in their names, next to the scenario. The scenery files aren't changed. Useful to see what the editor has loaded, or as a start for another scenery."));
 		ImGui::Separator();
 		// at once, with no window asking first (it could open behind the docked panels); the downloads under way are left
 		if (ImGui::MenuItem(STR_C("Close the editor"), "Alt+F4"))
 			Application.queue_quit(true);
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("%s", STR_C("Closes the editor now; what isn't saved (Ctrl+S) is lost, the downloads of the orthophoto and the terrain model are dropped"));
+		ui::rest_description(STR_C("Closes the editor at once, without asking. What isn't saved with Ctrl+S is lost, and the downloads of the orthophoto and the terrain model still under way are dropped."));
 		ImGui::EndMenu();
 	}
 	if (m_editmenu)
@@ -1402,6 +1408,7 @@ void editor_ui::render_menu_contents()
 		ImGui::MenuItem(STR_C("Memory cells"), nullptr, &m_memcellspanel.is_open);
 		if (ImGui::IsItemHovered())
 			ImGui::SetTooltip("%s", STR_C("Looks up the memory cells of the scenery, shows what's in them and sets it by hand"));
+		ui::rest_description(STR_C("Finds the memory cells of the scenery by name, shows their text and values and lets you set them by hand while the editor runs, for example to try the events that read them."));
 		ImGui::EndMenu();
 	}
 
@@ -1423,20 +1430,29 @@ void editor_ui::render_windows_menu()
 {
 	ImGui::Separator();
 	ImGui::MenuItem(STR_C("Tool options"), nullptr, &m_tooloptionsopen);
+	ui::rest_description(STR_C("The settings of the tool in use, such as the radius and the type of a track, the profile of a road or the brush of the terrain. What it shows changes with the tool."));
 	ImGui::MenuItem(STR_C("Inspector"), nullptr, &m_inspectoropen);
+	ui::rest_description(STR_C("The properties of what is selected: its position and turn, the model and its textures, the parameters of a track and more. A change made here goes into the scene at once and Ctrl+Z takes it back."));
 	ImGui::MenuItem(STR_C("Scene"), nullptr, &m_sceneopen);
+	ui::rest_description(STR_C("What the scene holds, by its kind and name, with a search. From here you select an object without looking for it in the view."));
 	ImGui::MenuItem(STR_C("Node bank"), nullptr, &m_nodebankpanel.is_open);
+	ui::rest_description(STR_C("The bank of what can be placed: models, tracks and scenery templates, in groups with previews. Choose one, then click in the view to put it there."));
 	if (ImGui::MenuItem(STR_C("Model sets")))
 		m_nodebankpanel.open_sets_window();
+	ui::rest_description(STR_C("Sets of models put down at random, such as several kinds of trees or houses: at each click one model of the set is picked, so the place doesn't look copied."));
 	ImGui::MenuItem(STR_C("Layers"), nullptr, &m_layerspanel.is_open);
+	ui::rest_description(STR_C("The files the scenery is made of (the scenery and its includes) and the base layers of the map. Here you choose which file new objects go to, hide a layer and save."));
 	ImGui::MenuItem(STR_C("Include database"), nullptr, &m_includespanel.is_open);
+	ui::rest_description(STR_C("The descriptions of the scenery templates (includes): what parameters they take and what the parameters mean, so the editor shows them as named fields. Only the descriptions are kept, the templates aren't changed."));
 	ImGui::Separator();
 	if (ImGui::MenuItem(STR_C("Reset window layout")))
 		m_layoutreset = true;
+	ui::rest_description(STR_C("Puts all the windows and docks of the editor back where they are at the first start."));
 	std::vector<ImGuiDockNode *> pinned;
 	autohide_leaves(ImGui::DockBuilderGetNode(m_dockspace), pinned);
 	if (ImGui::MenuItem(pinned.empty() ? STR_C("Pin the docks back") : STR_C("Unpin all docks"), "Ctrl+Space", false, false == pinned.empty() || false == m_autohide.empty()))
 		toggle_docks();
+	ui::rest_description(STR_C("Unpinned, the docks hide at the edges of the screen and slide out when the cursor comes to them, leaving more room for the view. Pinned, they stay open. Ctrl+Space switches between the two."));
 }
 
 int editor_ui::palette() const
