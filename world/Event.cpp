@@ -1978,8 +1978,8 @@ switch_event::run_() {
     for( auto &target : m_targets ) {
         auto *targettrack { static_cast<TTrack *>( std::get<scene::basic_node *>( target ) ) };
         if( targettrack == nullptr ) { continue; }
-        // event effect code
-        targettrack->Switch(
+        // event effect code: the scenery asks for the throw, which the snow or the ice at the blades may hold
+        targettrack->SwitchCommand(
             m_switchstate,
             m_switchmoverate,
             m_switchmovedelay );

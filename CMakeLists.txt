@@ -177,6 +177,7 @@ set(SOURCES
 "environment/weather.cpp"
 "environment/snowcover.cpp"
 "environment/railsurface.cpp"
+"environment/switchheating.cpp"
 "environment/georeference.cpp"
 "environment/liveweather.cpp"
 "environment/liveweatherreport.cpp"

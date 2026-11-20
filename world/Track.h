@@ -27,6 +27,7 @@ http://mozilla.org/MPL/2.0/.
 #include "model/material.h"
 #include "scene/scenenode.h"
 #include "utilities/Names.h"
+#include "environment/switchheating.h"
 
 namespace scene {
 class basic_cell;
@@ -108,6 +109,16 @@ class TSwitchExtension
     TTrack *pNextAnim = nullptr; // następny tor do animowania
     basic_event *evPlus = nullptr,
            *evMinus = nullptr; // zdarzenia sygnalizacji rozprucia
+    // the events of a throw the scenery asked for (TTrack::SwitchCommand()), [0] to the first path and [1] to the second: the
+    // blades held by the snow or the ice, so the switch wasn't thrown; the switch thrown
+    std::array<basic_event *, 2> evStuck {};
+    std::array<basic_event *, 2> evSet {};
+    // the cell of the scenery the heating of the blades is switched with (switch_heating): on with its first value above 0, the
+    // second one its power, W a metre of a rail (0: the usual). none: heated, and never held
+    TMemCell *heating { nullptr };
+    // the snow at the blades, as it was when last asked for (TTrack::switch_snow())
+    mutable switch_heating::state heat;
+    mutable double m_heatedreach { -1.0 }; // TTrack::switch_blades(), -1: not worked out yet
     float fVelocity = -1.0; // maksymalne ograniczenie prędkości (ustawianej eventem)
 	glm::dvec3 vTrans; // docelowa translacja przesuwnicy
     material_handle m_material3 = 0; // texture of auto generated switch trackbed
@@ -335,6 +346,18 @@ public:
     // leave out: a switch right after another one, at the end of either path of it, two facing at their starts or meeting at their ends
     std::vector<TTrack const *> join_switches(); // the switches the free ends were joined to, one for each joint
     bool Switch(int i, float const t = -1.f, float const d = -1.f);
+    // a throw the scenery asks for (the switch event): not done while the snow or the ice holds the blades (switch_held()), with
+    // the events of the switch told of either; other tracks are switched as by Switch()
+    bool SwitchCommand( int i, float const t = -1.f, float const d = -1.f );
+    // the heating of the blades of a switch (physics.weather.switches): whether it's on, m of snow lying at the blades now, and
+    // whether the snow or the ice holds them. only a switch whose heating the scenery switches (heating) is ever held
+    bool switch_heated() const;
+    // the scenery switches the heating of this switch
+    bool switch_controlled() const;
+    double switch_snow() const;
+    bool switch_held() const;
+    // m from the start of a switch its heated blades reach
+    double switch_blades() const;
     bool SwitchForced(int i, TDynamicObject *o);
     int CrossSegment(int from, int into);
     inline int GetSwitchState() {
@@ -363,6 +386,8 @@ public:
     void update_location();
     bool AssignEvents();
     bool AssignForcedEvents(basic_event *NewEventPlus, basic_event *NewEventMinus);
+    // the cell and the events of the heating of the blades, as the scenery names them after the switch
+    void AssignHeating( TMemCell *Heating, std::array<basic_event *, 2> const &Stuck, std::array<basic_event *, 2> const &Set );
     void QueueEvents( event_sequence const &Events, TDynamicObject const *Owner );
     void QueueEvents( event_sequence const &Events, TDynamicObject const *Owner, double const Delaylimit );
     bool CheckDynamicObject(TDynamicObject *Dynamic);

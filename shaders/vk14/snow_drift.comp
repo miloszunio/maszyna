@@ -32,6 +32,10 @@ layout(push_constant) uniform kernel_constants
 const float NONE = -5000.0;
 const float NO_CEILING = 5000.0;
 const float NO_CAP = 5000.0;
+// the snow on a track below it: the heated blades of a switch, with -10 less the snow their heaters leave, m
+// (gfx::sky_occlusion::update_track_snow())
+const float HEATED_BELOW = -5.0;
+const float HEATED_NONE = -10.0;
 const int UPWIND_SAMPLES = 20;
 const float UPWIND_FIRST = 1.0;
 const float UPWIND_REACH = 80.0;
@@ -200,9 +204,21 @@ void main()
 		// which the map doesn't hold (the top of a track there is the ground under it, the embankment): the cap is 3 cm under the heads
 		// (no more than lies around it, TTrack::snow_at() sees to that)
 		float kept = here.z - height;
-		depth = (here.w >= 0.0) ? max(clamp(kept, 0.0, depth), kept - 0.14 + here.w) : clamp(kept, 0.0, depth);
-		if (here.w <= 0.17)
-			exposure += 4.0;
+		if (here.w < HEATED_BELOW)
+		{
+			// the heated blades of a switch: what the heaters leave (TTrack::switch_snow()), lying from the bed, a little under
+			// the sleepers; the last 4 cm of it sink to nothing, the bare ground, as they melt. the kind tells the shading
+			// (snow.glsl, SNOW_HEATED)
+			float left = HEATED_NONE - here.w;
+			depth = clamp((kept - 0.17 + left) * smoothstep(0.0, 0.04, left), 0.0, depth);
+			exposure += 12.0;
+		}
+		else
+		{
+			depth = (here.w >= 0.0) ? max(clamp(kept, 0.0, depth), kept - 0.14 + here.w) : clamp(kept, 0.0, depth);
+			if (here.w <= 0.17)
+				exposure += 4.0;
+		}
 	}
 	imageStore(drifted, texel, vec4(max(depth, 0.0), exposure, 0.0, 0.0));
 }

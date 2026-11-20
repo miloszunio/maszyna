@@ -36,6 +36,9 @@ struct settings
 	bool wire_wind{true}; // the wind blowing the wires aside: drawn so, and the pantographs meet them so (and lose them)
 	bool wire_shadows{true}; // and their shadows blown aside with them (a program of the shadows of their own)
 	bool arcs{true}; // the breaks of the contact under a current strike an arc: its flash, its light and its crackle
+	// the heating of the switches (environment/switchheating.h): their heaters melt the snow at the blades, and the snow or the ice
+	// holds the blades of a switch whose heating the scenery switched off
+	bool switches{true};
 	// the kinds of what freezes on the wires (environment/snowcover.h): the glaze (gołoledź), the hard rime (szadź twarda), the soft
 	// rime and the hoarfrost (szadź miękka, sadź, szron), the sleeve of wet snow
 	bool glaze{true};
@@ -103,7 +106,7 @@ struct float_parameter
 	char const *format;
 };
 
-inline constexpr std::array<bool_parameter, 13> bool_parameters{{
+inline constexpr std::array<bool_parameter, 14> bool_parameters{{
     {"physics.weather", "Weather in the physics", &settings::enabled},
     {"physics.weather.adhesion", "Heads of the rails", &settings::adhesion},
     {"physics.weather.brakes", "Wet and iced brakes", &settings::brakes},
@@ -113,6 +116,7 @@ inline constexpr std::array<bool_parameter, 13> bool_parameters{{
     {"physics.weather.wirewind", "Wires blown aside by the wind, pantographs torn off", &settings::wire_wind},
     {"physics.weather.wireshadows", "Shadows of the wires blown aside with them", &settings::wire_shadows},
     {"physics.weather.arcs", "Arcs at the breaks of the contact", &settings::arcs},
+    {"physics.weather.switches", "Heating of the switches, blades held by snow and ice", &settings::switches},
     {"physics.weather.glaze", "Glaze on the wires (icing)", &settings::glaze},
     {"physics.weather.rimehard", "Hard rime on the wires", &settings::rime_hard},
     {"physics.weather.rimesoft", "Soft rime and hoarfrost on the wires", &settings::rime_soft},

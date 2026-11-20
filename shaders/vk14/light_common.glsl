@@ -912,8 +912,9 @@ float apply_snow(inout vec3 fragnormal, inout vec3 texturecolor, inout float ref
 // the water and the ice the weather left on the surfaces in the open (surface_state: the state of environment/railsurface.h the
 // adhesion of the rails comes from, so the rails look as wet or as iced as the wheels find them): darker and glossier where wet,
 // glassy where glazed. none under a roof, a bridge, in a tunnel (where the rain doesn't fall, sky_occlusion_cover()), none under
-// the snow lying (Snow: how much of it covers the surface)
-void apply_wet(vec3 fragnormal, float snow, inout vec3 texturecolor, inout float reflectivity, inout float specularity)
+// the snow lying (Snow: how much of it covers the surface). Melted: how much of the place is wet with the snow the heaters of a
+// switch melt there (snow_heated), where nothing freezes
+void apply_wet(vec3 fragnormal, float snow, float melted, inout vec3 texturecolor, inout float reflectivity, inout float specularity)
 {
     mat3 toworld = mat3(inv_view);
     vec3 worldnormal = normalize(toworld * fragnormal);
@@ -923,8 +924,8 @@ void apply_wet(vec3 fragnormal, float snow, inout vec3 texturecolor, inout float
         return;
     // the faces turned up hold the water, the walls let it run off
     float up = smoothstep(-0.2, 0.6, worldnormal.y);
-    float wet = clamp(surface_state.x, 0.0, 1.0) * open * mix(0.35, 1.0, up);
-    float ice = clamp(surface_state.y, 0.0, 1.0) * open * mix(0.5, 1.0, up);
+    float wet = max(clamp(surface_state.x, 0.0, 1.0), melted) * open * mix(0.35, 1.0, up);
+    float ice = clamp(surface_state.y, 0.0, 1.0) * (1.0 - melted) * open * mix(0.5, 1.0, up);
     float covered = max(wet, ice);
     if (covered <= 0.001)
         return;
@@ -1000,8 +1001,10 @@ vec3 shade_surface(vec3 fragcolor, vec3 fragnormal, vec3 texturecolor, float ref
     if (((false == sunless) || (snow_foliage > 0.0)) && snow_receiver && (cab_interior < 0.5) && snow_present())
         snowcover = apply_snow(fragnormal, texturecolor, reflectivity, specularity);
     // the water and the ice on the surfaces in the open: the ones the snow is laid on (not the water, the glass, the drifts)
-    if ((false == sunless) && snow_receiver && (cab_interior < 0.5) && (surface_state.x + surface_state.y > 0.01))
-        apply_wet(fragnormal, snowcover, texturecolor, reflectivity, specularity);
+    // with the meltwater of the heated blades of a switch, where there's snow or ice for them to melt
+    float melted = snow_heated * max(smoothstep(0.0, 0.02, snow_cover.x), clamp(surface_state.y, 0.0, 1.0));
+    if ((false == sunless) && snow_receiver && (cab_interior < 0.5) && (surface_state.x + surface_state.y + melted > 0.01))
+        apply_wet(fragnormal, snowcover, melted, texturecolor, reflectivity, specularity);
 #endif
     float polished = 0.0;
     if (sunless)
