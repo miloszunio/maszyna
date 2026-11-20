@@ -157,6 +157,7 @@ VkDescriptorType pass_binding_type(std::uint32_t const Binding)
 	case SKY_SSBO:
 	case WATER_SSBO:
 	case CAB_PROBE_SSBO:
+	case SNOW_SSBO:
 		return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	case ATMOSPHERE_UBO:
 	case WEATHER_HORIZON_UBO:
@@ -700,6 +701,14 @@ bool vulkan14_renderer::init_scene(std::string &Reason)
 			return false;
 		}
 		scene.skyocclusion.init(ctx.memory, ctx.deletions);
+		// the drifts of the snow, worked out from them
+		vk14::snow_drifts::host host;
+		host.bind = [this](vk14::compute_kernel const &Kernel) { bind_compute_set(Kernel); };
+		if (false == scene.snow.init(device, ctx.pipelines, ctx.shaders, scene.pass_layout, ctx.memory, ctx.deletions, ctx.sampling.repeat_nearest, std::move(host)))
+		{
+			Reason = "no stand-in of the cells of the snow";
+			return false;
+		}
 	}
 
 	scene.lamps.init(device, ctx.memory, ctx.deletions);
@@ -913,6 +922,10 @@ void vulkan14_renderer::destroy_scene()
 	destroy_weather();
 	destroy_ao();
 	destroy_cab_probe();
+	scene.snow.destroy();
+	scene.snow_cells = VK_NULL_HANDLE;
+	scene.snow_program.reset();
+	scene.snow_tried = false;
 	scene.skyocclusion.destroy();
 	scene.skyocclusion_heights_empty.reset();
 	scene.skyocclusion_empty.reset();
@@ -1023,6 +1036,12 @@ void vulkan14_renderer::update_pass_sets()
 	{
 		scene.pass_sets_stale = true;
 	}
+	// the cells of the snow, or their stand-in
+	auto const snowcells{scene.snow.cells()};
+	if (snowcells != scene.snow_cells)
+	{
+		scene.pass_sets_stale = true;
+	}
 	if (false == scene.pass_sets_stale)
 	{
 		return;
@@ -1032,6 +1051,7 @@ void vulkan14_renderer::update_pass_sets()
 	scene.pass_sets_stale = false;
 	scene.headlights_view = headlights;
 	scene.pass_images = pass_images;
+	scene.snow_cells = snowcells;
 	if (scene.pass_pool != VK_NULL_HANDLE)
 	{
 		ctx.deletions.push(ctx.uploads.current_value(), [device, pool = scene.pass_pool]() { vkDestroyDescriptorPool(device, pool, nullptr); });
@@ -1070,6 +1090,7 @@ void vulkan14_renderer::write_pass_sets(vk14::instance_cull *Cull)
 	VkDescriptorBufferInfo const horizonblock{scene.weather_horizon.handle(), 0, sizeof(glm::vec4) * gl::FOG_HORIZON_SAMPLES};
 	VkDescriptorBufferInfo const water{scene.water.storage(), 0, VK_WHOLE_SIZE};
 	VkDescriptorBufferInfo const cabprobe{scene.cabprobe_bounce.handle(), 0, sizeof(gl::cab_probe_data)};
+	VkDescriptorBufferInfo const snowcells{scene.snow_cells, 0, VK_WHOLE_SIZE};
 	VkDescriptorImageInfo const headlightsinfo{scene.headlights_sampler, scene.headlights_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 	std::vector<VkWriteDescriptorSet> writes;
 	std::vector<std::unique_ptr<VkDescriptorImageInfo>> images;
@@ -1126,6 +1147,7 @@ void vulkan14_renderer::write_pass_sets(vk14::instance_cull *Cull)
 		write(handle, CAB_PROBE_MASK_TEX, nullptr, image(ctx.sampling.clamp_linear, views[CAB_PROBE_MASK_TEX]));
 		write(handle, SKY_OCCLUSION_HEIGHT_TEX, nullptr, image(ctx.sampling.repeat_nearest, views[SKY_OCCLUSION_HEIGHT_TEX]));
 		write(handle, SKY_OCCLUSION_TEX, nullptr, image(ctx.sampling.repeat_nearest, views[SKY_OCCLUSION_TEX]));
+		write(handle, SNOW_SSBO, &snowcells, nullptr);
 	}
 	vkUpdateDescriptorSets(device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }

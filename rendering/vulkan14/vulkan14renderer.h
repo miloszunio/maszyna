@@ -507,6 +507,10 @@ class vulkan14_renderer : public gfx_renderer, public gfx::scene_walk
 	bool m_particlesoft{false};
 	// the grass of the heightmap terrain seen from the main view, over the opaque scene (opengl46_renderer::Render_grass())
 	void render_grass(glm::mat4 const &Future);
+	// the drifts of the snow worked out for the frame, before its passes (opengl46_snow::update())
+	void update_snow();
+	// the surface of the drifts of the snow seen from the main view, over the ground drawn (opengl46_renderer::Render_snow())
+	void render_snow(glm::mat4 const &Future);
 	// a pass of the post-processing: the fragment shader drawn over the whole of the target, reading the images (Pass: a pass of
 	// its own, for the gpu times). Repeated: a bit for each input read texel by texel and repeated (the noise of the ssao)
 	void post_pass(char const *Fragment, vk14::image &Target, std::vector<vk14::image *> const &Inputs, vk14::draw_constants const &Constants, char const *Pass = nullptr, unsigned const Repeated = 0);

@@ -148,7 +148,7 @@ The snow falls, lies, drifts and melts with the weather (`environment/snowcover.
 - the ice on the wires grows too: the glaze of freezing rain, the rime of a freezing fog or of saturated air in the wind and a sleeve of wet snow, with
   its thickness and density. Nothing reads it yet; it is there for the look of the catenary and the contact of the pantographs.
 
-The OpenGL 4.6 renderer draws the snow (`gfx.snow`, by default `drifts`):
+The OpenGL 4.6 and the Vulkan 1.4 renderers draw the snow (`gfx.snow`, by default `drifts`):
 
 - on every surface lit in the open, by how much it faces the sky and how deep the snow is: thin snow lies in patches on flat ground
   only, deeper snow on steeper slopes too. Nothing lies under a roof, a bridge or in a tunnel, inside the cabs and the interiors,
@@ -162,6 +162,9 @@ The OpenGL 4.6 renderer draws the snow (`gfx.snow`, by default `drifts`):
   sleepers, the grass, low fences);
 - the snow is whiter when new and dry, greyer when old and wet, soiled over the tracks and roads; its crystals glint in the sun up
   close, the wind leaves ripples on the drifts and blows streaks along it in a strong wind.
+
+The Vulkan renderer works the drifts out and draws them as the OpenGL one does (`vk14::snow_drifts`, the same shaders with its
+bindings); the reflections it traces with rays (`gfx.raytracing`) show the scenery without the snow.
 
 `gfx.snow surfaces` leaves out the surface of the drifts, `gfx.snow no` all of it. Without `gfx.skyvisibility` the snow lies evenly
 on the surfaces turned up, and there are no drifts. In the **Weather** window (and in the editor, **Weather and time**) the depth,

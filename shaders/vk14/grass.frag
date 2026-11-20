@@ -28,6 +28,8 @@ layout(location = 1) out vec4 out_motion;
 void main()
 {
 	vec3 fragnormal = normalize(f_normal);
+	// buried by the surface of the drifts, where the snow lies; the blades over it keep their colour
+	snow_receiver = false;
 	glossiness = phong_glossiness(6.0);
 	metalic = 0.0;
 	vec3 albedo = canopy_albedo(f_albedo);

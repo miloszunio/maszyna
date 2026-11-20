@@ -9,7 +9,8 @@ http://mozilla.org/MPL/2.0/.
 
 // the maps of the occlusion of the sky by the scenery in the vulkan renderer (the track T, opengl46_sky_occlusion): the images of
 // gfx::sky_occlusion, which works out what goes into them. the squares of the tiles it gives are gathered in a frame and copied at
-// once from one staging buffer, with the commands of the frame (flush())
+// once from one staging buffer, with the commands of the frame (flush()). with the snow drawn (Global.gfx_snow) it keeps the surface
+// of the scenery the drifts are worked out from as well
 
 #pragma once
 
@@ -49,11 +50,23 @@ class sky_occlusion_maps : public gfx::sky_occlusion
 	{
 		return m_ready ? m_occlusion.get() : nullptr;
 	}
+	// the surface of the scenery for the snow (four 32 bit floats per texel, gfx::sky_occlusion::gpu_upload_surface()) once it's
+	// filled, read texel by texel by the kernels of the drifts (vk14::snow_drifts); null without it (no snow drawn, no maps)
+	image *surface() const
+	{
+		return m_surfaceready ? m_surface.get() : nullptr;
+	}
+	// texels across the maps
+	int side() const
+	{
+		return m_side;
+	}
 
   protected:
 	bool gpu_allocate(int const Side) override;
 	void gpu_release() override;
 	void gpu_upload(int const X, int const Y, int const Size, float const *Heights, std::uint16_t const *Occlusion) override;
+	void gpu_upload_surface(int const X, int const Y, int const Size, float const *Surface) override;
 
   private:
 	void let_go();
@@ -63,7 +76,9 @@ class sky_occlusion_maps : public gfx::sky_occlusion
 	std::uint64_t m_value{0};
 	std::shared_ptr<image> m_heights;
 	std::shared_ptr<image> m_occlusion;
+	std::shared_ptr<image> m_surface;
 	bool m_ready{false};
+	bool m_surfaceready{false};
 	// the squares waiting for the copy: where, and their data one after another (the heights, then the occlusion of each)
 	struct square
 	{
@@ -73,6 +88,8 @@ class sky_occlusion_maps : public gfx::sky_occlusion
 		std::size_t offset; // of the heights in m_data
 	};
 	std::vector<square> m_squares;
+	// those of the surface for the snow, their data in m_data as well
+	std::vector<square> m_surfacesquares;
 	std::vector<std::uint8_t> m_data;
 };
 

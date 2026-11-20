@@ -86,7 +86,10 @@ constexpr std::uint32_t SKY_OCCLUSION_HEIGHT_TEX = 31;
 constexpr std::uint32_t SKY_OCCLUSION_TEX = 32;
 // the probe of the cab drawn last, a small level of its albedo, which the drawing of the probe reads to tell where the windows are
 constexpr std::uint32_t CAB_PROBE_MASK_TEX = 33;
-constexpr std::uint32_t PASS_BINDING_COUNT = 34;
+// the snow lying around the camera (vk14::snow_drifts, shaders/vk14/snow.glsl): a cell of four floats for every texel of the maps of
+// the occlusion of the sky, or a stand-in of one cell while there are none
+constexpr std::uint32_t SNOW_SSBO = 34;
+constexpr std::uint32_t PASS_BINDING_COUNT = 35;
 // the offsets of the bindings above with dynamic offsets, in the order of the bindings
 constexpr std::uint32_t PASS_DYNAMIC_OFFSETS = 6;
 // the textures of a material take the bindings of their units (#pragma texture(name, unit, ...)), 0 .. MAX_TEXTURES - 1
