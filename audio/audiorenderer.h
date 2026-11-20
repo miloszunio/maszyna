@@ -12,6 +12,7 @@ http://mozilla.org/MPL/2.0/.
 #include "audio/audio.h"
 #include "audio/fmradio.h"
 #include "audio/startsample.h"
+#include "audio/outputfollow.h"
 #include "model/ResourceManager.h"
 #include "application/uitranscripts.h"
 
@@ -157,6 +158,13 @@ private:
     int hrtf_index( std::string const &Name ) const;
     ALint resampler_index() const;
     void configure_source( ALuint const Source ) const;
+    // keeps the sound on an output that works, see audio::output_follower
+    void follow_output();
+    void reopen_output( output_follower::clock::time_point const Now );
+    void restore_preferred_output( output_follower::clock::time_point const Now );
+    bool reopen_output_on( ALCchar const *Devicename );
+    bool output_connected() const;
+    std::string output_name() const;
     audio::openal_source fetch_source();
 
     ALCdevice *m_device { nullptr };
@@ -194,16 +202,15 @@ private:
 
     bool m_candetectdisconnect { false };
     std::vector<ALCint> m_contextattributes; // cached for device reopen
-    double m_devicechecktime { 0.0 };
-    bool m_reopenfailed { false }; // a failed reopen is retried each second, but logged once
+    output_follower m_output; // decides when the device is opened again
 
-    // ALC_SOFT_system_events: event-driven following of output-device / default-output changes.
-    // Preferred over polling because it reliably catches both device removal and default changes
-    // (e.g. re-plugging headphones), which alcGetString(DEFAULT_ALL_DEVICES) does not report live.
+    // ALC_SOFT_system_events: the system reports output devices coming, going and the default one changing.
+    // Used next to the periodic check of the connection, not in place of it: the events catch a change of the
+    // default output at once (e.g. re-plugging headphones), the check catches the losses the system doesn't report.
     LPALCEVENTCONTROLSOFT m_alcEventControlSOFT { nullptr };
     LPALCEVENTCALLBACKSOFT m_alcEventCallbackSOFT { nullptr };
     bool m_usedeviceevents { false };
-    std::atomic<bool> m_outputchanged { false }; // set from the (possibly off-thread) event callback
+    std::atomic<unsigned> m_outputevents { 0u }; // bits of output_follower::event, set from the (possibly off-thread) event callback
     static void ALC_APIENTRY device_event_callback( ALCenum eventtype, ALCenum devicetype, ALCdevice *device, ALCsizei length, ALCchar const *message, void *userparam ) noexcept;
 };
 
