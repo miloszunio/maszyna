@@ -1,8 +1,10 @@
 #include "stdafx.h"
 
+#include <cerrno>
 #include <fstream>
 #include <sstream>
 #include <cstring>
+#include <system_error>
 #include "shader.h"
 #include "glsl_common.h"
 #include "utilities/Logs.h"
@@ -58,6 +60,12 @@ std::string gl::shader::read_file(const std::string &filename) const
     std::ifstream f;
 
     f.open(filename);
+    if (false == f.is_open())
+    {
+        // with the reason the system gives: a file which is there but can't be opened (too many files open) looks
+        // the same as a missing one otherwise
+        throw shader_exception("cannot open shader: " + filename + " (" + std::generic_category().message(errno) + ")");
+    }
     stream << f.rdbuf();
     f.close();
 
@@ -175,6 +183,8 @@ std::pair<GLuint, std::string> gl::shader::process_source(const std::string &fil
     str += "vec4 FBOUT(vec4 x) { return " + (Global.gfx_shadergamma ? std::string("vec4(pow(x.rgb, vec3(1.0 / 2.2)), x.a)") : std::string("x")) + "; }\n";
 
     str += read_file(basedir + filename);
+    // checked before the includes are expanded, since glsl_common defines the function
+    alpha_to_coverage = ( str.find( "alpha_test_fail(" ) != std::string::npos );
 
     expand_includes(str, basedir);
     parse_texture_entries(str);
@@ -381,6 +391,7 @@ void gl::program::attach(const gl::shader &s)
         texture_conf.try_emplace(texturename, std::move(textureentry));
     for (auto [paramname, paramentry] : s.param_conf)
         param_conf.try_emplace(paramname, std::move(paramentry));
+    alpha_to_coverage = alpha_to_coverage || s.alpha_to_coverage;
     glAttachShader(*this, *s);
 }
 

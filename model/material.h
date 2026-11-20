@@ -66,6 +66,13 @@ struct opengl_material : public IMaterial {
 	  {
 		  return textures[slot];
 	  }
+	  virtual std::vector<texture_handle> GetAllTextures() const override
+	  {
+		  std::vector<texture_handle> all(textures.begin(), textures.end());
+		  for (auto const &variant : texture_variants)
+			  all.insert(all.end(), variant.begin(), variant.end());
+		  return all;
+	  }
 	  // returns texture set to use for model instance identified by provided variant id
 	  texture_set const &GetTextures(std::uint32_t const Variant) const
 	  {
@@ -142,6 +149,13 @@ public:
     // material described by provided text (the content of a .mat file), not kept in a file. returns: handle to the material or null_handle
     material_handle
         create_from_text( std::string const &Name, std::string const &Definition );
+    // copy of provided material with its specular highlights and reflections damped. returns: handle to the copy, made once per material
+    material_handle
+        create_matte( material_handle const Material );
+    // copy of provided material with its texture tinted to the colour as far as the userdata of the vertices says. returns: handle to
+    // the copy, made once per material and colour; the material itself when its shader can't tint it
+    material_handle
+        create_tinted( material_handle const Material, glm::vec3 const &Colour );
     opengl_material const &
         material( material_handle const Material ) const { return m_materials[ Material ]; }
     opengl_material &
@@ -161,6 +175,9 @@ private:
     // checks whether specified texture is in the texture bank. returns texture id, or npos.
     material_handle
         find_in_databank( std::string const &Materialname ) const;
+    // the matte and tinted copies of the materials changed with the weather or the season made again from them, under their handles
+    void
+        update_variants( bool const Weather );
     public:
     // checks whether specified file exists. returns name of the located file, or empty string.
     static std::pair<std::string, std::string>
@@ -170,6 +187,8 @@ private:
 	  // members:
     material_sequence m_materials;
     index_map m_materialmappings;
+    std::unordered_map<material_handle, material_handle> m_mattes;
+    std::map<std::tuple<material_handle, float, float, float>, material_handle> m_tints;
 };
 
 //---------------------------------------------------------------------------

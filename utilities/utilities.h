@@ -28,6 +28,9 @@ template <typename T> constexpr T sq(T v)
 // returns the per-user config path for `filename` (platform-specific dir),
 // or an empty path if the home/appdata env var is unavailable
 std::filesystem::path user_config_path(const std::string &filename);
+// the per-user path for `filename` among the files kept only to be fetched again faster, which don't roam with the profile:
+// %LOCALAPPDATA%\MaSzyna\cache, ~/Library/Caches/MaSzyna, $XDG_CACHE_HOME/MaSzyna or ~/.cache/MaSzyna; empty as user_config_path
+std::filesystem::path user_cache_path(const std::string &filename);
 
 // TODO: Shouldn't this be in globals?
 namespace paths
@@ -166,6 +169,8 @@ void win1250_to_ascii(std::string &Input);
 std::string Bezogonkow(std::string Input, bool const Underscorestospaces = false);
 
 std::string win1250_to_utf8(const std::string &input);
+// counterpart of win1250_to_utf8(): the polish letters, the other characters outside of ascii as question marks
+std::string utf8_to_win1250(std::string const &Text);
 // decodes utf-8 encoded text into unicode code points. returns false if the text isn't valid utf-8
 bool utf8_to_utf32(std::string const &Text, std::u32string &Output);
 // decodes windows-1250 (ansi) encoded text into unicode code points
@@ -217,7 +222,17 @@ template <typename Type_> bool extract_value(Type_ &Variable, std::string const 
 template <> bool extract_value(bool &Variable, std::string const &Key, std::string const &Input, std::string const &Default);
 
 bool FileExists(std::string const &Filename);
+// the file as it's named on the disk when only the case of its name or of its folders differs, as in the sceneries made on Windows;
+// empty when there's none. on Windows, finding the names in any case itself, the file given or none
+std::string FileCased(std::filesystem::path const &Filename);
+// the file to open: as it's named on the disk, the name given when there's none
+std::string FileOnDisk(std::string const &Filename);
+// the name (relative to the folder, without extension) as it's named on the disk with the first of the extensions it has a file with,
+// found in any case; the name given when there's none
+std::string FileStemOnDisk(std::string const &Folder, std::string const &Name, std::vector<std::string> const &Extensions);
 
+// the first name with one of the extensions which has a file in any case, in the order given; given back as named here, the file
+// is opened by FileOnDisk()
 std::pair<std::string, std::string> FileExists(std::vector<std::string> const &Names, std::vector<std::string> const &Extensions);
 
 // returns time of last modification for specified file
@@ -267,17 +282,18 @@ template <typename T> bool is_equal(T const &Left, T const &Right, T const Epsil
 	return Left == Right;
 }
 
-// Tolerant clamp. Unlike std::clamp, this does NOT invoke undefined behaviour when
-// the bounds are inverted (Lo > Hi) - it normalizes them instead. This restores the
-// pre-refactor behaviour of the old custom clamp() for code paths where the bounds are
-// computed at runtime and can legitimately cross (e.g. AI acceleration/braking limits,
-// physics jolt calculations), where std::clamp's UB produced wrong results.
+// Tolerant clamp, the old custom clamp() of the project (up to 26.05.1). Unlike
+// std::clamp, this does NOT invoke undefined behaviour when the bounds are inverted
+// (Lo > Hi): the lower bound is applied first and the upper one last, so inverted
+// bounds give the upper bound, as the old clamp() did. Every call of the old clamp()
+// whose bounds can cross (they come from the .fiz, the .mmd or the window, or are
+// computed from such values) uses it, so it gives what it gave before the move to
+// std::clamp. Where the code keeps the bounds in order, std::clamp gives the same.
+// New code uses std::clamp.
 template <typename Type_>
 constexpr Type_ safe_clamp( Type_ const Value, Type_ const Lo, Type_ const Hi )
 {
-	return ( Hi < Lo )
-		? std::clamp( Value, Hi, Lo )
-		: std::clamp( Value, Lo, Hi );
+	return std::min( std::max( Value, Lo ), Hi );
 }
 
 // keeps the provided value in specified range 0-Range, as if the range was circular buffer
