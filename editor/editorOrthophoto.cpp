@@ -2123,7 +2123,7 @@ std::size_t editor_orthophoto::hurry(glm::dvec2 const &Min, glm::dvec2 const &Ma
 		{
 			tile_key const key{x, y};
 			auto const distance{std::max(std::abs(x - centre.first), std::abs(y - centre.second))};
-			if (distance <= radius && on_ground(key) && hurry_tile(key, distance))
+			if (distance <= radius && (false == waits_for_ground(key)) && hurry_tile(key, distance))
 				keys.push_back(key);
 		}
 	auto const count{keys.size()};
