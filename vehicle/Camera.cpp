@@ -62,7 +62,7 @@ TCamera::OnCommand( command_data const &Command ) {
 	// threshold position on stick between walk lerp and walk/run lerp
 	auto const stickthreshold = 2.0 / 3.0;
 
-    // the free camera of the editor as fast as its View menu sets it; Ctrl by the multiplier set there, in the top view by how far it reaches
+    // the free camera of the editor as fast as its View menu sets it, Ctrl by the multiplier set there, in the top view by how far it reaches
     auto editorscale { 1.0 };
     auto editorfast { -1.0 };
     if( Global.EditorCameraOn && m_owner == nullptr ) {
@@ -72,6 +72,19 @@ TCamera::OnCommand( command_data const &Command ) {
         }
         editorfast = Global.EditorCameraFast;
     }
+    // how many times faster the fast command of a move makes it: the editor's own, or the free fly's (Default) and the cab's (Cab)
+    auto const fastness = [&]( bool const Fast, double const Editor, double const Default, double const Cab ) {
+        if( false == Fast ) {
+            return 1.0;
+        }
+        if( editorfast > 0.0 ) {
+            return Editor;
+        }
+        if( false == FreeFlyModeFlag ) {
+            return 1.0;
+        }
+        return m_owner == nullptr ? Default : Cab;
+    };
 
     bool iscameracommand { true };
     switch( Command.command ) {
@@ -93,8 +106,7 @@ TCamera::OnCommand( command_data const &Command ) {
 
 //            if( movespeed == 0.0 ) { break; } // enable to fix external cameras in place
 
-            auto const speedmultiplier = editorscale * ( Command.command == user_command::movehorizontalfast && editorfast > 0.0 ? editorfast :
-                true == FreeFlyModeFlag && Command.command == user_command::movehorizontalfast ? m_owner == nullptr ? 30.0 : 5.0 : 1.0 );
+            auto const speedmultiplier = editorscale * fastness( Command.command == user_command::movehorizontalfast, editorfast, 30.0, 5.0 );
 
             // left-right
             m_moverate.x = ComputeAxisSpeed(Command.param1, walkspeed, movespeed, stickthreshold) * speedmultiplier;
@@ -113,8 +125,7 @@ TCamera::OnCommand( command_data const &Command ) {
 
 //            if( movespeed == 0.0 ) { break; } // enable to fix external cameras in place
 
-            auto const speedmultiplier = editorscale * ( Command.command == user_command::moveverticalfast && editorfast > 0.0 ? std::max( 1.0, editorfast / 3.0 ) :
-                true == FreeFlyModeFlag && Command.command == user_command::moveverticalfast ? m_owner == nullptr ? 10.0 : 3.0 : 1.0 );
+            auto const speedmultiplier = editorscale * fastness( Command.command == user_command::moveverticalfast, std::max( 1.0, editorfast / 3.0 ), 10.0, 3.0 );
             // up-down
             m_moverate.y = ComputeAxisSpeed(Command.param1, walkspeed, movespeed, stickthreshold) * speedmultiplier;
 
