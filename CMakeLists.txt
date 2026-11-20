@@ -778,6 +778,7 @@ set(CORE_SOURCES
 "utilities/parser.cpp"
 "utilities/utilities.cpp"
 "utilities/inionlysettings.cpp"
+"utilities/crashsignals.cpp"
 "scripting/ladderlogic.cpp"
 "scripting/scriptscreenrules.cpp"
 "scripting/scriptscreenkernels.cpp"
