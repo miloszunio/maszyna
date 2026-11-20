@@ -4513,6 +4513,7 @@ void editor_mode::render_view_menu()
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\n"
                                       "or a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"));
+    ui::rest_description(STR_C("The editor draws the mouse pointer into the picture itself, so it is seen by those who watch a stream or a recording of the window: Discord, OBS and the capture of the system leave the pointer of the system out."));
     if (ImGui::BeginMenu(STR_C("Camera speed and panning")))
     {
         render_camera_settings();
@@ -4541,14 +4542,6 @@ void editor_mode::render_view_menu()
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", STR_C("The lanes of the roads drawn as the paths the vehicles take"));
     ui::rest_description(STR_C("Draws on the roads the lanes the road vehicles drive along, so you can check where they go at junctions and roundabouts."));
-    if (ImGui::MenuItem(STR_C("Cursor drawn into the picture (streams)"), nullptr, m_draw_cursor))
-    {
-        m_draw_cursor = !m_draw_cursor;
-        ui_layer::draw_cursor(m_draw_cursor);
-    }
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("%s", STR_C("The pointer drawn by the editor into the frame instead of the one of the system: seen by those watching a stream\n"
-                                      "or a recording of the window (Discord, OBS, the capture of the system), which leave the system pointer out"));
     if (ImGui::MenuItem(STR_C("Structure gauge"), nullptr, m_gauge.is_open()))
         m_gauge.toggle();
     if (ImGui::IsItemHovered())
