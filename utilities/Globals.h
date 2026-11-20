@@ -443,6 +443,8 @@ struct global_settings {
 
 	// methods
 	void LoadIniFile( std::string asFileName );
+	// the keys of another file read over the settings, nothing reset first (as LoadIniFile resets the day of the year)
+	void LoadIniAdditions( std::string const &FileName );
 	void FinalizeConfig();
 	// the keys of eu07.ini. Source: where they come from, eu07.ini or a config block of a scenery, which doesn't change
 	// the settings only eu07.ini sets (utilities/inionlysettings.h)

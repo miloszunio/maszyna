@@ -37,6 +37,13 @@ void global_settings::LoadIniFile(std::string asFileName)
 	ConfigParse(parser);
 }
 
+void global_settings::LoadIniAdditions(std::string const &FileName)
+{
+	cParser parser(FileName, cParser::buffer_FILE);
+	ConfigParse(parser);
+	WriteLog("Settings added from " + FileName);
+}
+
 template <typename T>
 static void ParseOne(cParser& parser, T& out, int tokenCount = 1, bool convert = false)
 {
