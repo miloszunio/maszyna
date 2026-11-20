@@ -156,5 +156,7 @@ void main()
 	f_clip_future_pos = (projection * future) * f_pos;
 	gl_Position = f_clip_pos;
 	UserData = vec4(0.0);
-	f_snow = vec4(cell.y, cell.w, drawn, cell.x - sky_occlusion_origin.z);
+	// the heated blades of a switch are a track like the rest here: the snow their heaters leave
+	float kind = (cell.w > SNOW_TRACKED + SNOW_HEATED * 0.5) ? cell.w - SNOW_HEATED : cell.w;
+	f_snow = vec4(cell.y, kind, drawn, cell.x - sky_occlusion_origin.z);
 }

@@ -5,7 +5,8 @@
 // a cell for each texel of the maps of the occlusion of the sky, toroidal as they are: x the world height of the surface of the
 // snow (SNOW_NONE: nothing known there), y the depth of the snow, z the world height of the ceiling over it (SNOW_NO_CEILING:
 // none), w how much it is blown off (-1) or blown in (1), 4 more over a track or a road which keeps it down; z is then the height
-// it keeps the snow below (3 cm under the top of the rails, 3 cm over a road)
+// it keeps the snow below (3 cm under the top of the rails, 3 cm over a road). 8 more again at the heated blades of a switch
+// (environment/switchheating.h), where the snow is what the heaters leave and the ground is wet with what they melted
 // the passes read the cells from the pass set (SNOW_SSBO), where a stand-in of one cell is held while there are none: the
 // length of the buffer tells them apart (snow_maps()), as nothing is to be read past its end. the kernel which writes the cells
 // (SNOW_WRITE, snow_settle.comp) is pushed them at SNOW_WRITE of its own set
@@ -16,6 +17,9 @@
 const float SNOW_NONE = -5000.0;
 const float SNOW_NO_CEILING = 5000.0;
 const float SNOW_TRACKED = 4.0;
+const float SNOW_HEATED = 8.0;
+// how much of the place of the last snow_coverage() is the heated blades of a switch, 0..1
+float snow_heated = 0.0;
 
 #ifdef SNOW_WRITE
 layout(std430, set = COMPUTE_SET, binding = SNOW_WRITE) writeonly buffer snow_ssbo
@@ -129,6 +133,7 @@ float snow_coverage(vec3 world, vec3 worldnormal, out float depth, out float exp
 	depth = snow_cover.x;
 	exposure = 0.0;
 	tracked = 0.0;
+	snow_heated = 0.0;
 	vec2 stable;
 	ivec4 cells;
 	vec4 weights;
@@ -146,6 +151,7 @@ float snow_coverage(vec3 world, vec3 worldnormal, out float depth, out float exp
 	float depthsum = 0.0;
 	float exposuresum = 0.0;
 	float trackedsum = 0.0;
+	float heatedsum = 0.0;
 	for (int i = 0; i < 4; ++i)
 	{
 		vec4 cell = snow_cells[cells[i]];
@@ -160,6 +166,8 @@ float snow_coverage(vec3 world, vec3 worldnormal, out float depth, out float exp
 		float lying = 0.0;
 		float ground = cell.x - cell.y;
 		float kind = cell.w;
+		float isheated = (kind > SNOW_TRACKED + SNOW_HEATED * 0.5) ? 1.0 : 0.0;
+		kind -= isheated * SNOW_HEATED;
 		float istracked = (kind > SNOW_TRACKED * 0.5) ? 1.0 : 0.0;
 		// under a roof, the deck of a bridge, the vault of a tunnel: none
 		bool roofed = (istracked < 0.5) && (cell.z < SNOW_NO_CEILING) && (height < cell.z - 0.1);
@@ -172,11 +180,16 @@ float snow_coverage(vec3 world, vec3 worldnormal, out float depth, out float exp
 			// on it: by the slope and the depth; well over it: what fell on the thing
 			float on = snow_lying(cell.y, worldnormal.y, spots);
 			lying = max(inside, mix(on, open, smoothstep(0.3, 1.0, height - cell.x)));
+			// at the heated blades only what the heaters leave lies, on nothing over it: the sleepers, the rails and the rods
+			// are bare; what stands well over them (a vehicle) holds what fell on it
+			if (isheated > 0.5)
+				lying = max(inside * smoothstep(0.0, 0.02, cell.y), open * smoothstep(0.8, 1.5, height - cell.x));
 		}
 		cover += lying * w;
 		depthsum += cell.y * w;
 		exposuresum += (kind - istracked * SNOW_TRACKED) * w;
 		trackedsum += istracked * w;
+		heatedsum += isheated * w;
 		weightsum += w;
 	}
 	cover /= max(weightsum, 1e-4);
@@ -185,6 +198,7 @@ float snow_coverage(vec3 world, vec3 worldnormal, out float depth, out float exp
 	depth = mix(depthsum / max(weightsum, 1e-4), snow_cover.x, fade);
 	exposure = mix(exposuresum / max(weightsum, 1e-4), 0.0, fade);
 	tracked = mix(trackedsum / max(weightsum, 1e-4), 0.0, fade);
+	snow_heated = mix(heatedsum / max(weightsum, 1e-4), 0.0, fade);
 	return max(cover, plaster);
 }
 

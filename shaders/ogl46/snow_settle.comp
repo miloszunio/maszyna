@@ -20,6 +20,9 @@ layout(location = 0) uniform ivec4 map;
 
 const float NONE = -5000.0;
 const float NO_CAP = 5000.0;
+// as snow_drift.comp
+const float HEATED_BELOW = -5.0;
+const float HEATED_NONE = -10.0;
 // m of a step of the scenery the smoothing doesn't cross
 const float STEP = 0.6;
 
@@ -65,8 +68,17 @@ void main()
 	if (here.z < NO_CAP)
 	{
 		float kept = here.z - here.x;
-		depth = (here.w >= 0.0) ? max(clamp(kept, 0.0, depth), kept - 0.14 + here.w) : clamp(kept, 0.0, depth);
-		buried = here.w > 0.17;
+		if (here.w < HEATED_BELOW)
+		{
+			// the heated blades of a switch: no more than their heaters leave, whatever the smoothing brought from around
+			float left = HEATED_NONE - here.w;
+			depth = clamp((kept - 0.17 + left) * smoothstep(0.0, 0.04, left), 0.0, depth);
+		}
+		else
+		{
+			depth = (here.w >= 0.0) ? max(clamp(kept, 0.0, depth), kept - 0.14 + here.w) : clamp(kept, 0.0, depth);
+			buried = here.w > 0.17;
+		}
 	}
 	snow_cells[index] = vec4(here.x + depth, depth, ((here.z < NO_CAP) && !buried) ? here.z : here.y, own.y);
 }

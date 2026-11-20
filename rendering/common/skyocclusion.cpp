@@ -37,6 +37,11 @@ float const NONE_CEILING{1.0e4f};
 float const NONE_CAP{1.0e4f};
 // no snow on a track known at a texel (gpu_upload_surface()): the snow kept below the cap as before
 float const NO_TRACK_SNOW{-1.f};
+// the heated blades of a switch: this less the snow their heaters leave, m (snow_drift.comp, snow_settle.comp: HEATED_NONE)
+float const HEATED_SNOW{-10.f};
+// m the flat of a track is wider to each side along the blades of a switch: the locks, the rods and the drive beside them, which
+// are cleared, and heated, with the blades
+float const CAP_BLADES_BESIDE{1.f};
 // the snow over the tracks: below the top of the rails between them and just outside them, rising from there along the slopes
 // the ploughs leave, m from the axis and m of rise for a metre further; over the roads: a packed layer over the whole width
 float const CAP_RAIL_BELOW{0.03f};
@@ -462,6 +467,15 @@ void sky_occlusion::apply(tile_result &Result)
 	++m_uploaded;
 }
 
+// the snow of a texel of a track, as the map of the surface holds it: the snow lying on the track there, as the trains go through
+// it (5 mm steps); at the heated blades of a switch what their heaters leave (TTrack::switch_snow()), marked as theirs
+float sky_occlusion::track_snow(track_ref const &Ref)
+{
+	auto const &track{*Ref.track};
+	auto const snow{static_cast<float>(track.snow_at(Ref.distance))};
+	return ((Ref.distance <= track.switch_blades()) && track.switch_heated()) ? HEATED_SNOW - snow : snow;
+}
+
 void sky_occlusion::update_track_snow()
 {
 	// the editor moves and removes the tracks; there the snow is kept down as before
@@ -484,8 +498,7 @@ void sky_occlusion::update_track_snow()
 		{
 			if (refs[texel].track == nullptr)
 				continue;
-			// the snow lying on the track there, as the trains go through it (5 mm steps)
-			auto const snow{static_cast<float>(refs[texel].track->snow_at(refs[texel].distance))};
+			auto const snow{track_snow(refs[texel])};
 			if (std::abs(snow - surface[texel * 4 + 3]) < 0.005f)
 				continue;
 			surface[texel * 4 + 3] = snow;
@@ -921,8 +934,12 @@ void sky_occlusion::gather_tracks(scene::basic_region *Region, glm::ivec2 const 
 		auto const road{(path->iCategoryFlag & 1) == 0};
 		auto const flat{road ? -0.5f * std::max(path->fTrackWidth, path->fTrackWidth2) : CAP_RAIL_FLAT};
 		auto const *track{road ? nullptr : path};
-		along_path(*path, CAP_STEP, corner, tilesize, reach, [&Points, &Refs, flat, track](glm::dvec3 const &Point, double const Distance) {
-			Points.emplace_back(static_cast<float>(Point.x), static_cast<float>(Point.z), static_cast<float>(Point.y), flat);
+		// the blades of a switch, wider with what lies beside them (not with the heating of the switches off: as before it)
+		auto const widened{(false == road) && Global.physics_weather.enabled && Global.physics_weather.switches};
+		auto const blades{widened ? path->switch_blades() : 0.0};
+		along_path(*path, CAP_STEP, corner, tilesize, reach, [&Points, &Refs, flat, track, blades](glm::dvec3 const &Point, double const Distance) {
+			auto const wide{(blades > 0.0) && (Distance <= blades)};
+			Points.emplace_back(static_cast<float>(Point.x), static_cast<float>(Point.z), static_cast<float>(Point.y), wide ? flat + CAP_BLADES_BESIDE : flat);
 			Refs.push_back({track, static_cast<float>(Distance)});
 		});
 	}

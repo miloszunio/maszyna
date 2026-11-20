@@ -268,6 +268,7 @@ class sky_occlusion
 	std::vector<track_ref> m_trackrefs;
 	double m_tracksnowtime{0.0};
 	void update_track_snow();
+	static float track_snow(track_ref const &Ref);
 	std::size_t m_checkslot{0}; // the slot whose signature is checked next
 	// the part of the signatures made of the instances of a cell, worked out for a scene::node_state_version and a count of its
 	// instances. outside the editor an instance is shown or hidden only with the version changing, and isn't moved; reading every
