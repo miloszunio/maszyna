@@ -68,7 +68,14 @@ bool sky_occlusion_maps::gpu_allocate(int const Side)
 		let_go();
 		return false;
 	}
+	// the surface of the scenery for the snow, when it's worked out
+	if (snow_surface() && (false == make(m_surface, VK_FORMAT_R32G32B32A32_SFLOAT, "sky occlusion snow surface")))
+	{
+		let_go();
+		return false;
+	}
 	m_ready = false;
+	m_surfaceready = false;
 	return true;
 }
 
@@ -80,15 +87,18 @@ void sky_occlusion_maps::gpu_release()
 void sky_occlusion_maps::let_go()
 {
 	m_ready = false;
+	m_surfaceready = false;
 	m_squares.clear();
+	m_surfacesquares.clear();
 	m_data.clear();
-	if ((m_deletions != nullptr) && (m_heights || m_occlusion))
+	if ((m_deletions != nullptr) && (m_heights || m_occlusion || m_surface))
 	{
 		// the frames in flight may still read them
-		m_deletions->push(m_value, [heights = std::move(m_heights), occlusion = std::move(m_occlusion)]() {});
+		m_deletions->push(m_value, [heights = std::move(m_heights), occlusion = std::move(m_occlusion), surface = std::move(m_surface)]() {});
 	}
 	m_heights.reset();
 	m_occlusion.reset();
+	m_surface.reset();
 }
 
 void sky_occlusion_maps::gpu_upload(int const X, int const Y, int const Size, float const *Heights, std::uint16_t const *Occlusion)
@@ -105,9 +115,22 @@ void sky_occlusion_maps::gpu_upload(int const X, int const Y, int const Size, fl
 	m_squares.push_back(square{X, Y, Size, offset});
 }
 
+void sky_occlusion_maps::gpu_upload_surface(int const X, int const Y, int const Size, float const *Surface)
+{
+	if (false == bool(m_surface))
+	{
+		return;
+	}
+	auto const bytes{static_cast<std::size_t>(Size) * Size * 4 * sizeof(float)};
+	auto const offset{m_data.size()};
+	m_data.resize(offset + bytes);
+	std::memcpy(m_data.data() + offset, Surface, bytes);
+	m_surfacesquares.push_back(square{X, Y, Size, offset});
+}
+
 void sky_occlusion_maps::flush(command_stream *Commands)
 {
-	if ((Commands == nullptr) || (false == bool(m_heights)) || m_squares.empty())
+	if ((Commands == nullptr) || (false == bool(m_heights)) || (m_squares.empty() && m_surfacesquares.empty()))
 	{
 		return;
 	}
@@ -119,22 +142,39 @@ void sky_occlusion_maps::flush(command_stream *Commands)
 	}
 	std::memcpy(staging->mapped(), m_data.data(), m_data.size());
 	staging->flush(0, static_cast<VkDeviceSize>(m_data.size()));
-	transition(Commands, *m_heights, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
-	transition(Commands, *m_occlusion, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
-	std::vector<VkBufferImageCopy2> heights, occlusion;
-	for (auto const &entry : m_squares)
-	{
+	auto const region_of = [](square const &Entry) {
 		VkBufferImageCopy2 region{};
 		region.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
-		region.bufferOffset = static_cast<VkDeviceSize>(entry.offset);
+		region.bufferOffset = static_cast<VkDeviceSize>(Entry.offset);
 		region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-		region.imageOffset = {entry.x, entry.y, 0};
-		region.imageExtent = {static_cast<std::uint32_t>(entry.size), static_cast<std::uint32_t>(entry.size), 1};
+		region.imageOffset = {Entry.x, Entry.y, 0};
+		region.imageExtent = {static_cast<std::uint32_t>(Entry.size), static_cast<std::uint32_t>(Entry.size), 1};
+		return region;
+	};
+	std::vector<VkBufferImageCopy2> heights;
+	std::vector<VkBufferImageCopy2> occlusion;
+	std::vector<VkBufferImageCopy2> surface;
+	for (auto const &entry : m_squares)
+	{
+		auto region{region_of(entry)};
 		heights.push_back(region);
 		region.bufferOffset += static_cast<VkDeviceSize>(entry.size) * entry.size * 4 * sizeof(float);
 		occlusion.push_back(region);
 	}
+	if (m_surface)
+	{
+		for (auto const &entry : m_surfacesquares)
+		{
+			surface.push_back(region_of(entry));
+		}
+	}
+	// a map with nothing given in the frame is left as it is
 	auto copy = [&](image &Target, std::vector<VkBufferImageCopy2> const &Regions) {
+		if (Regions.empty())
+		{
+			return;
+		}
+		transition(Commands, Target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_2_COPY_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT);
 		VkCopyBufferToImageInfo2 info{};
 		info.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
 		info.srcBuffer = staging->handle();
@@ -143,18 +183,23 @@ void sky_occlusion_maps::flush(command_stream *Commands)
 		info.regionCount = static_cast<std::uint32_t>(Regions.size());
 		info.pRegions = Regions.data();
 		Commands->copy_buffer_to_image2(&info);
+		transition(Commands, Target, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, READ_STAGES, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
 	};
 	copy(*m_heights, heights);
 	copy(*m_occlusion, occlusion);
-	transition(Commands, *m_heights, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, READ_STAGES, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
-	transition(Commands, *m_occlusion, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, READ_STAGES, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
+	if (m_surface)
+	{
+		copy(*m_surface, surface);
+	}
 	if (m_deletions != nullptr)
 	{
 		m_deletions->push(m_value, [staging]() {});
 	}
+	m_ready = m_ready || (false == m_squares.empty());
+	m_surfaceready = m_surfaceready || (false == surface.empty());
 	m_squares.clear();
+	m_surfacesquares.clear();
 	m_data.clear();
-	m_ready = true;
 }
 
 } // namespace vk14

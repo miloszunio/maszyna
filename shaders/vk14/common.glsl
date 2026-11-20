@@ -68,7 +68,8 @@
 #define SKY_OCCLUSION_HEIGHT_TEX 31
 #define SKY_OCCLUSION_TEX 32
 #define CAB_PROBE_MASK_TEX 33
-#define PASS_BINDING_COUNT 34
+#define SNOW_SSBO 34
+#define PASS_BINDING_COUNT 35
 #define MATERIAL_TEXTURE_FIRST 0
 #define CL_CLUSTER_UBO 0
 #define CL_AABB_SSBO 1
@@ -139,6 +140,7 @@
 #define WATER_GROUP_SIZE 64
 #define CAB_PROBE_SH_SIZE 16
 #define CAB_PROBE_SH_GROUP_SIZE 64
+#define SNOW_GROUP_SIZE 8
 #endif
 
 #include "settings.glsl"

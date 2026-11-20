@@ -30,6 +30,7 @@ http://mozilla.org/MPL/2.0/.
 #include "rendering/vulkan14/vulkan14shadows.h"
 #include "rendering/vulkan14/vulkan14cabprobe.h"
 #include "rendering/vulkan14/vulkan14skyocclusion.h"
+#include "rendering/vulkan14/vulkan14snow.h"
 #include "rendering/vulkan14/vulkan14terrain.h"
 #include "rendering/vulkan14/vulkan14grass.h"
 #include "rendering/vulkan14/vulkan14particles.h"
@@ -441,6 +442,12 @@ struct scene_state
 	// the occlusion of the sky by the scenery around the camera (the track T): its maps, and their stand-ins while there are none
 	sky_occlusion_maps skyocclusion;
 	std::shared_ptr<image> skyocclusion_heights_empty, skyocclusion_empty;
+	// the snow lying around the camera (Global.gfx_snow): the drifts worked out from the maps above, their cells (or the stand-in)
+	// as the pass sets were made with them (SNOW_SSBO), and the program of the surface of the drifts, made when it's first drawn
+	snow_drifts snow;
+	VkBuffer snow_cells{VK_NULL_HANDLE};
+	std::shared_ptr<scene_program> snow_program;
+	bool snow_tried{false};
 	// the materials of the heightmap terrain (the stage P6), made with the bank of the textures
 	std::unique_ptr<terrain_materials> terrain;
 	// the grass of the heightmap terrain, and its program, made when it's first drawn
