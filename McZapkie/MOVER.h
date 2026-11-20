@@ -14,6 +14,7 @@ http://mozilla.org/MPL/2.0/.
 #include <map>
 #include <unordered_map>
 #include <optional>
+#include <unordered_map>
 #include "hamulce.h"
 #include "couplerphysics.h"
 #include "derailment.h"

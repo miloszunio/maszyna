@@ -9276,7 +9276,8 @@ void TMoverParameters::EIMICFromSteps(double dt)
 		eimic = 0;
 }
 
-// EIMCtrlType 2: the positions 0 to 4 move the value towards -1, 0 or 1, from the controller's delay on
+// EIMCtrlType 2: the positions 0 to 4 move the value towards -1, 0 or 1, from the controller's delay on; the
+// emergency brake position below them, where the controller has one, brakes in full at once
 void TMoverParameters::EIMICFromFourPositions(double dt)
 {
 	if (IsMainCtrlEmergencyPos())
