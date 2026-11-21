@@ -74,6 +74,10 @@ do ustawienia ręcznie, przyspieszenie czasu i podgląd prowadzonego pojazdu.
 | `physics.weather.breaktime` | 0.08 | s, przerwa przy 1 mm lodu (rośnie z pierwiastkiem grubości) |
 | `physics.weather.trailingshare` | 0.3 | część przerw dla pantografu za innym |
 
+### Opis ustawień dla Startera (`weather-schema.txt`)
+
+Po zbudowaniu gry obok exe leży `weather-schema.txt`: klucze `physics.weather.*` tego builda z domyślnymi wartościami, zakresami i grupami, wypisane z tych samych tabel (`McZapkie/weatherphysics.h`), z których gra je czyta. Starter pokazuje z niego wiersze ustawień i zapisuje do `eu07.ini` tylko klucze, które gracz ruszył. Gra pliku nie czyta: domyślne wartości ma w kodzie, a każdą liczbę przycina do zakresu przy wczytaniu, więc build bez pliku i ręcznie edytowany `eu07.ini` działają jak dotąd. Nowy parametr to jeden wiersz w tabeli (razem z grupą) i sam pojawia się w Starterze, po angielsku do czasu dopisania tłumaczenia. Format pliku opisuje `McZapkie/weatherschema.h`.
+
 ## Czego nie ma (świadomie)
 
 - Mróz a opory łożysk: nie realizujemy.

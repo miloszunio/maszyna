@@ -1221,6 +1221,26 @@ if (MSVC)
 	add_dependencies(${PROJECT_NAME} eu07_starter)
 endif()
 
+# weather-schema.txt next to the simulator: the keys, the defaults, the ranges and the groups of physics.weather.* of this build, for the
+# starter (McZapkie/weatherschema.h). a tool of a few lines writes it out of the very table the game reads the keys with, once the game is
+# linked; the folder of the build is what the releases are packed from, so the file goes with them. nothing in the game reads it, so a
+# file that cannot be written is a warning of the build, not a failure
+if (NOT CMAKE_CROSSCOMPILING)
+	add_executable(eu07_weather_schema "tools/weather/weather_schema.cpp")
+	target_include_directories(eu07_weather_schema PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+	set_target_properties(eu07_weather_schema PROPERTIES
+		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tools"
+		FOLDER "tools")
+	add_dependencies(${PROJECT_NAME} eu07_weather_schema)
+	add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+		COMMAND ${CMAKE_COMMAND}
+			-DTOOL=$<TARGET_FILE:eu07_weather_schema>
+			-DFOLDER=$<TARGET_FILE_DIR:${PROJECT_NAME}>
+			-P "${CMAKE_CURRENT_SOURCE_DIR}/CMake_modules/write_weather_schema.cmake"
+		COMMENT "Writing weather-schema.txt next to the game"
+		VERBATIM)
+endif()
+
 if(WITH_TESTS)
 	enable_testing()
 	add_subdirectory(tests/unit)
