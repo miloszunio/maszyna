@@ -86,12 +86,14 @@ struct settings
 	float arc_brightness{1.f};
 };
 
-// the entries of eu07.ini, the window and the export of the settings take them from here: the key, the label, the member, the range
+// the entries of eu07.ini, the window, the export of the settings and the description of them for the starter (weather-schema.txt,
+// McZapkie/weatherschema.h) take them from here: the key, the label, the member, the range, the group
 struct bool_parameter
 {
 	std::string_view key;
 	char const *label;
 	bool settings::*member;
+	char const *group; // the group of the starter's settings it stands in (McZapkie/weatherschema.h)
 };
 struct float_parameter
 {
@@ -101,52 +103,53 @@ struct float_parameter
 	float minimum;
 	float maximum;
 	char const *format;
+	char const *group;
 };
 
 inline constexpr std::array<bool_parameter, 13> bool_parameters{{
-    {"physics.weather", "Weather in the physics", &settings::enabled},
-    {"physics.weather.adhesion", "Heads of the rails", &settings::adhesion},
-    {"physics.weather.brakes", "Wet and iced brakes", &settings::brakes},
-    {"physics.weather.wind", "Wind in the drag", &settings::wind},
-    {"physics.weather.airdensity", "Density of the air in the drag", &settings::air_density},
-    {"physics.weather.pantographs", "Ice on the wires and the pantographs", &settings::pantographs},
-    {"physics.weather.wirewind", "Wires blown aside by the wind, pantographs torn off", &settings::wire_wind},
-    {"physics.weather.wireshadows", "Shadows of the wires blown aside with them", &settings::wire_shadows},
-    {"physics.weather.arcs", "Arcs at the breaks of the contact", &settings::arcs},
-    {"physics.weather.glaze", "Glaze on the wires (icing)", &settings::glaze},
-    {"physics.weather.rimehard", "Hard rime on the wires", &settings::rime_hard},
-    {"physics.weather.rimesoft", "Soft rime and hoarfrost on the wires", &settings::rime_soft},
-    {"physics.weather.wetsnow", "Wet snow on the wires", &settings::wet_snow},
+    {"physics.weather", "Weather in the physics", &settings::enabled, "main"},
+    {"physics.weather.adhesion", "Heads of the rails", &settings::adhesion, "adhesion"},
+    {"physics.weather.brakes", "Wet and iced brakes", &settings::brakes, "brakes"},
+    {"physics.weather.wind", "Wind in the drag", &settings::wind, "wind"},
+    {"physics.weather.airdensity", "Density of the air in the drag", &settings::air_density, "wind"},
+    {"physics.weather.pantographs", "Ice on the wires and the pantographs", &settings::pantographs, "wires"},
+    {"physics.weather.wirewind", "Wires blown aside by the wind, pantographs torn off", &settings::wire_wind, "wires"},
+    {"physics.weather.wireshadows", "Shadows of the wires blown aside with them", &settings::wire_shadows, "wires"},
+    {"physics.weather.arcs", "Arcs at the breaks of the contact", &settings::arcs, "wires"},
+    {"physics.weather.glaze", "Glaze on the wires (icing)", &settings::glaze, "wires"},
+    {"physics.weather.rimehard", "Hard rime on the wires", &settings::rime_hard, "wires"},
+    {"physics.weather.rimesoft", "Soft rime and hoarfrost on the wires", &settings::rime_soft, "wires"},
+    {"physics.weather.wetsnow", "Wet snow on the wires", &settings::wet_snow, "wires"},
 }};
 
 inline constexpr std::array<float_parameter, 27> float_parameters{{
-    {"physics.weather.wet", "Adhesion, wet rail", &settings::wet, 0.3f, 1.f, "%.2f"},
-    {"physics.weather.emulsion", "Adhesion, first water on a dirty rail", &settings::emulsion, 0.3f, 1.f, "%.2f"},
-    {"physics.weather.ice", "Adhesion, ice on the rail", &settings::ice, 0.1f, 1.f, "%.2f"},
-    {"physics.weather.snow", "Adhesion, snow on the rail", &settings::snow, 0.1f, 1.f, "%.2f"},
-    {"physics.weather.leavesdry", "Adhesion, leaves, dry", &settings::leaves_dry, 0.1f, 1.f, "%.2f"},
-    {"physics.weather.leaveswet", "Adhesion, leaves, wet", &settings::leaves_wet, 0.05f, 1.f, "%.2f"},
-    {"physics.weather.minimum", "Adhesion, the least", &settings::minimum, 0.05f, 0.5f, "%.2f"},
-    {"physics.weather.leaves", "Leaves falling in the autumn", &settings::leaves, 0.f, 2.f, "%.2f"},
-    {"physics.weather.passrecovery", "Rail cleaned by the wheels, s", &settings::pass_recovery, 30.f, 7200.f, "%.0f"},
-    {"physics.weather.sand", "Sand restores, share of the dry rail", &settings::sand, 0.f, 1.f, "%.2f"},
-    {"physics.weather.brakewetcastiron", "Brake friction wet, cast iron", &settings::brake_wet_cast_iron, 0.3f, 1.f, "%.2f"},
-    {"physics.weather.brakewetcomposite", "Brake friction wet, composite", &settings::brake_wet_composite, 0.3f, 1.f, "%.2f"},
-    {"physics.weather.brakewetdisc", "Brake friction wet, disc", &settings::brake_wet_disc, 0.3f, 1.f, "%.2f"},
-    {"physics.weather.brakeicecastiron", "Brake friction iced, cast iron", &settings::brake_ice_cast_iron, 0.2f, 1.f, "%.2f"},
-    {"physics.weather.brakeicecomposite", "Brake friction iced, composite", &settings::brake_ice_composite, 0.2f, 1.f, "%.2f"},
-    {"physics.weather.brakeicedisc", "Brake friction iced, disc", &settings::brake_ice_disc, 0.2f, 1.f, "%.2f"},
-    {"physics.weather.windyaw", "Drag growing with the wind across", &settings::wind_yaw, 0.f, 4.f, "%.2f"},
-    {"physics.weather.wireicebreaks", "Breaks of the contact by the ice", &settings::wire_ice_breaks, 0.f, 4.f, "%.2f"},
-    {"physics.weather.breaktime", "Break of the contact at 1 mm of ice, s", &settings::break_time, 0.01f, 0.5f, "%.3f"},
-    {"physics.weather.trailingshare", "Breaks of a pantograph behind another", &settings::trailing_share, 0.f, 1.f, "%.2f"},
-    {"physics.weather.wiretension", "Tension of a contact wire, N", &settings::wire_tension, 3000.f, 30000.f, "%.0f"},
-    {"physics.weather.wirediameter", "Diameter of a contact wire, m", &settings::wire_diameter, 0.008f, 0.02f, "%.4f"},
-    {"physics.weather.breakglaze", "Breaks of the contact by the glaze", &settings::break_glaze, 0.f, 2.f, "%.2f"},
-    {"physics.weather.breakrimehard", "Breaks of the contact by the hard rime", &settings::break_rime_hard, 0.f, 2.f, "%.2f"},
-    {"physics.weather.breakrimesoft", "Breaks of the contact by the soft rime", &settings::break_rime_soft, 0.f, 2.f, "%.2f"},
-    {"physics.weather.breakwetsnow", "Breaks of the contact by the wet snow", &settings::break_wet_snow, 0.f, 2.f, "%.2f"},
-    {"physics.weather.arcbrightness", "Brightness of the arcs", &settings::arc_brightness, 0.f, 4.f, "%.2f"},
+    {"physics.weather.wet", "Adhesion, wet rail", &settings::wet, 0.3f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.emulsion", "Adhesion, first water on a dirty rail", &settings::emulsion, 0.3f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.ice", "Adhesion, ice on the rail", &settings::ice, 0.1f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.snow", "Adhesion, snow on the rail", &settings::snow, 0.1f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.leavesdry", "Adhesion, leaves, dry", &settings::leaves_dry, 0.1f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.leaveswet", "Adhesion, leaves, wet", &settings::leaves_wet, 0.05f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.minimum", "Adhesion, the least", &settings::minimum, 0.05f, 0.5f, "%.2f", "adhesion"},
+    {"physics.weather.leaves", "Leaves falling in the autumn", &settings::leaves, 0.f, 2.f, "%.2f", "adhesion"},
+    {"physics.weather.passrecovery", "Rail cleaned by the wheels, s", &settings::pass_recovery, 30.f, 7200.f, "%.0f", "adhesion"},
+    {"physics.weather.sand", "Sand restores, share of the dry rail", &settings::sand, 0.f, 1.f, "%.2f", "adhesion"},
+    {"physics.weather.brakewetcastiron", "Brake friction wet, cast iron", &settings::brake_wet_cast_iron, 0.3f, 1.f, "%.2f", "brakes"},
+    {"physics.weather.brakewetcomposite", "Brake friction wet, composite", &settings::brake_wet_composite, 0.3f, 1.f, "%.2f", "brakes"},
+    {"physics.weather.brakewetdisc", "Brake friction wet, disc", &settings::brake_wet_disc, 0.3f, 1.f, "%.2f", "brakes"},
+    {"physics.weather.brakeicecastiron", "Brake friction iced, cast iron", &settings::brake_ice_cast_iron, 0.2f, 1.f, "%.2f", "brakes"},
+    {"physics.weather.brakeicecomposite", "Brake friction iced, composite", &settings::brake_ice_composite, 0.2f, 1.f, "%.2f", "brakes"},
+    {"physics.weather.brakeicedisc", "Brake friction iced, disc", &settings::brake_ice_disc, 0.2f, 1.f, "%.2f", "brakes"},
+    {"physics.weather.windyaw", "Drag growing with the wind across", &settings::wind_yaw, 0.f, 4.f, "%.2f", "wind"},
+    {"physics.weather.wireicebreaks", "Breaks of the contact by the ice", &settings::wire_ice_breaks, 0.f, 4.f, "%.2f", "wires"},
+    {"physics.weather.breaktime", "Break of the contact at 1 mm of ice, s", &settings::break_time, 0.01f, 0.5f, "%.3f", "wires"},
+    {"physics.weather.trailingshare", "Breaks of a pantograph behind another", &settings::trailing_share, 0.f, 1.f, "%.2f", "wires"},
+    {"physics.weather.wiretension", "Tension of a contact wire, N", &settings::wire_tension, 3000.f, 30000.f, "%.0f", "wires"},
+    {"physics.weather.wirediameter", "Diameter of a contact wire, m", &settings::wire_diameter, 0.008f, 0.02f, "%.4f", "wires"},
+    {"physics.weather.breakglaze", "Breaks of the contact by the glaze", &settings::break_glaze, 0.f, 2.f, "%.2f", "wires"},
+    {"physics.weather.breakrimehard", "Breaks of the contact by the hard rime", &settings::break_rime_hard, 0.f, 2.f, "%.2f", "wires"},
+    {"physics.weather.breakrimesoft", "Breaks of the contact by the soft rime", &settings::break_rime_soft, 0.f, 2.f, "%.2f", "wires"},
+    {"physics.weather.breakwetsnow", "Breaks of the contact by the wet snow", &settings::break_wet_snow, 0.f, 2.f, "%.2f", "wires"},
+    {"physics.weather.arcbrightness", "Brightness of the arcs", &settings::arc_brightness, 0.f, 4.f, "%.2f", "wires"},
 }};
 
 // what lies on the head of a rail in the open, 0..1 each: the water, the dirt of a dry spell (rust, oil, the dust of the brakes),
