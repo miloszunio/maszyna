@@ -10,7 +10,9 @@ http://mozilla.org/MPL/2.0/.
 #include "stdafx.h"
 #include "simulation/simulationenvironment.h"
 
+#include "simulation/simulation.h"
 #include "simulation/simulationsounds.h"
+#include "world/Track.h"
 #include "utilities/Globals.h"
 #include "utilities/Timer.h"
 
@@ -139,10 +141,28 @@ world_environment::init() {
         {} };
 }
 
+// the snow at the blades of the switches whose heating the scenery switches is followed as it falls and melts, also where nobody
+// looks or throws them: every 10 s, so that what the heaters could have melted while there was nothing to melt isn't taken off
+// the snow which came later (switch_heating::advance())
+void
+world_environment::update_switches() {
+
+    if( false == ( Global.physics_snow && Global.physics_weather.enabled && Global.physics_weather.switches ) ) { return; }
+    auto const now { Timer::GetTime() };
+    if( ( now >= m_switchestime ) && ( now - m_switchestime < 10.0 ) ) { return; }
+    m_switchestime = now;
+    for( auto const *path : simulation::Paths.sequence() ) {
+        if( path->switch_controlled() ) {
+            path->switch_snow();
+        }
+    }
+}
+
 void
 world_environment::update() {
     // the clouds move with the wind, a change of the weather goes on; the overcast and fog range follow a described weather
     m_weather.update( Timer::GetDeltaTime(), Global.pCamera.Pos );
+    update_switches();
     // move celestial bodies...
     m_sun.update();
     m_moon.update();

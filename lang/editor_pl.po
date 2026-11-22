@@ -19589,6 +19589,9 @@ msgstr "Cienie drutów odchylane razem z nimi"
 msgid "Arcs at the breaks of the contact"
 msgstr "Łuki elektryczne przy przerwach styku"
 
+msgid "Heating of the switches, blades held by snow and ice"
+msgstr "Ogrzewanie rozjazdów, iglice trzymane przez śnieg i lód"
+
 msgid "Glaze on the wires (icing)"
 msgstr "Gołoledź na drutach (oblodzenie)"
 

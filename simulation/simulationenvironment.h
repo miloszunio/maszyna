@@ -86,6 +86,7 @@ private:
 // methods
     void update_wind();
     void update_described_wind( float const Timedelta );
+    void update_switches();
 // members
     CSkyDome m_skydome;
     cStars m_stars;
@@ -97,6 +98,7 @@ private:
     sound_source m_rainsound { sound_placement::external, -1 };
     basic_wind m_wind;
     world_weather m_weather;
+    double m_switchestime { 0.0 }; // when the snow at the blades of the switches was last followed, s
 };
 
 namespace simulation {

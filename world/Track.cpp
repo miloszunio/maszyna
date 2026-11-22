@@ -1260,6 +1260,14 @@ bool TTrack::AssignForcedEvents(basic_event *NewEventPlus, basic_event *NewEvent
     return false;
 };
 
+void TTrack::AssignHeating( TMemCell *Heating, std::array<basic_event *, 2> const &Stuck, std::array<basic_event *, 2> const &Set ) {
+
+    if( ( eType != tt_Switch ) || ( SwitchExtension == nullptr ) ) { return; }
+    SwitchExtension->heating = Heating;
+    SwitchExtension->evStuck = Stuck;
+    SwitchExtension->evSet = Set;
+}
+
 void TTrack::QueueEvents( event_sequence const &Events, TDynamicObject const *Owner ) {
 
     for( auto const &event : Events ) {
@@ -3183,7 +3191,93 @@ double TTrack::snow_at( double const Distance ) const {
      && ( Distance <= m_snow.to + 1.0 ) };
     auto const since { snow.brought() - ( cleared ? m_snow.now : m_snow.before ) };
     auto const around { static_cast<double>( snow.depth() ) * ( 1.0 + SNOW_TRACK_DRIFT * static_cast<double>( snow.drift() ) ) };
-    return std::clamp( since, 0.0, around );
+    auto const lying { std::clamp( since, 0.0, around ) };
+    if( ( eType == tt_Switch ) && ( lying > 0.0 ) && ( Distance <= switch_blades() ) && switch_heated() ) {
+        // along the heated blades no more than their heaters leave
+        return std::min( lying, switch_snow() );
+    }
+    return lying;
+}
+
+namespace {
+
+// the heating of the switches takes part in the simulation
+bool switches_heated() {
+
+    return Global.physics_snow && Global.physics_weather.enabled && Global.physics_weather.switches;
+}
+
+} // namespace
+
+double TTrack::switch_blades() const {
+
+    if( ( eType != tt_Switch ) || ( SwitchExtension == nullptr ) || ( SwitchExtension->Segments[ 0 ] == nullptr ) ) { return 0.0; }
+    if( SwitchExtension->m_heatedreach < 0.0 ) {
+        // the blades, and the locks and rods at their tips a little before them
+        SwitchExtension->m_heatedreach = std::max( 0.0, track_rails::blade_length( *this, 0 ) ) + 1.0;
+    }
+    return SwitchExtension->m_heatedreach;
+}
+
+bool TTrack::switch_controlled() const {
+
+    return ( eType == tt_Switch ) && ( SwitchExtension != nullptr ) && ( SwitchExtension->heating != nullptr );
+}
+
+bool TTrack::switch_heated() const {
+
+    if( ( eType != tt_Switch ) || ( SwitchExtension == nullptr ) || ( false == switches_heated() ) ) { return false; }
+    return ( SwitchExtension->heating == nullptr ) || ( SwitchExtension->heating->Value1() > 0.0 );
+}
+
+double TTrack::switch_snow() const {
+
+    if( ( eType != tt_Switch ) || ( SwitchExtension == nullptr ) || ( false == switches_heated() ) ) { return 0.0; }
+    auto const &snow { simulation::Environment.weather().snow() };
+    auto const around { static_cast<double>( snow.depth() ) * ( 1.0 + SNOW_TRACK_DRIFT * static_cast<double>( snow.drift() ) ) };
+    auto rate { 0.0 };
+    if( switch_heated() ) {
+        auto const *cell { SwitchExtension->heating };
+        auto const power { ( cell != nullptr ) && ( cell->Value2() > 0.0 ) ? cell->Value2() : switch_heating::default_power };
+        rate = switch_heating::melt_rate(
+            power,
+            { static_cast<double>( Global.AirTemperature ), static_cast<double>( glm::length( snow.wind() ) ), static_cast<double>( snow.density() ) } );
+    }
+    return switch_heating::advance( SwitchExtension->heat, snow.brought(), around, Timer::GetTime(), rate );
+}
+
+bool TTrack::switch_held() const {
+
+    // only where the scenery switches the heating: elsewhere it's taken to work, as the sceneries made before it expect
+    if( ( false == switch_controlled() ) || ( false == switches_heated() ) ) {
+        return false;
+    }
+    return switch_heating::holds(
+        switch_snow(),
+        static_cast<double>( simulation::Environment.weather().rails().state().ice ),
+        static_cast<double>( Global.AirTemperature ),
+        switch_heated() );
+}
+
+bool TTrack::SwitchCommand( int i, float const t, float const d ) {
+
+    if( ( eType != tt_Switch ) || ( SwitchExtension == nullptr ) ) {
+        return Switch( i, t, d );
+    }
+    auto const path { i & 1 };
+    if( ( path != SwitchExtension->CurrentIndex ) && switch_held() ) {
+        // the drive can't press the blade to its stock rail: the switch stays as it lies
+        WriteLog( std::format( "Switch {} held by the snow or the ice at its blades, not thrown", name() ) );
+        if( auto *stuck { SwitchExtension->evStuck[ path ] }; stuck != nullptr ) {
+            simulation::Events.AddToQuery( stuck, nullptr );
+        }
+        return false;
+    }
+    auto const thrown { Switch( i, t, d ) };
+    if( auto *set { SwitchExtension->evSet[ path ] }; thrown && ( set != nullptr ) ) {
+        simulation::Events.AddToQuery( set, nullptr );
+    }
+    return thrown;
 }
 
 void TTrack::snow_cleared( double const Distance ) {
@@ -4245,6 +4339,16 @@ path_table::InitTracks() {
             track->AssignForcedEvents(
                 simulation::Events.FindEvent( trackname + ":forced+" ),
                 simulation::Events.FindEvent( trackname + ":forced-" ) );
+            // the heating of the blades: the cell of the switch, else the one of the whole scenery, and the events of a throw
+            // held and of a throw done
+            auto *heating { simulation::Memory.find( trackname + ":eor" ) };
+            if( heating == nullptr ) {
+                heating = simulation::Memory.find( ":eor" );
+            }
+            track->AssignHeating(
+                heating,
+                { simulation::Events.FindEvent( trackname + ":stuck+" ), simulation::Events.FindEvent( trackname + ":stuck-" ) },
+                { simulation::Events.FindEvent( trackname + ":set+" ), simulation::Events.FindEvent( trackname + ":set-" ) } );
             break;
         }
         default: {
