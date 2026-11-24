@@ -5,7 +5,7 @@ naszych gałęziach po 20.11. Jedna wersja ze wszystkim naraz.
 
 - **Całe `ficzery-rc`**: `ficzery2`, renderery OpenGL 4.6 i Vulkan, pogoda, nowy wygląd edytora, `staging` z 20.11. Lista jest w
   `docs/ficzery-rc.md`.
-- **`master` z 22.11, 12:27** (`7c12b83b`), 0 commitów za nim. Względem `ficzery-rc` doszło sześć merge z 21 i 22.11:
+- **`master` z 24.11, 12:07** (`e0b2bdfb`), 0 commitów za nim. Względem `ficzery-rc` doszło siedem merge z 21, 22 i 24.11:
   - `RandomInt()` dla losowania liczb całkowitych, `Random()` z całkowitymi granicami znów daje liczbę rzeczywistą (#416);
   - ortofotomapa tylko na chunkach terenu w pamięci (#417, w tej linii była już w ostatecznej postaci);
   - zamykanie edytora nie czeka na usługę geoportalu, która nie odpowiada (#432);
@@ -14,6 +14,8 @@ naszych gałęziach po 20.11. Jedna wersja ze wszystkim naraz.
   - rozmycie ruchu nie rozmazuje dołu ekranu w jasny pas przy szybkim ruchu kamery (#441): do tej linii weszła tylko część w
     shaderze, w OpenGL 4.6 i w Vulkanie. Część w rendererze OpenGL 3.3 (rozmycie od ruchu samej wolnej kamery) nie ma tu
     odpowiednika, bo tego renderera w tej linii nie ma.
+  - AI rusza stojącym pociągiem dopiero z naładowanymi hamulcami, a na czas ładowania trzyma go hamulcem lokomotywy (#444).
+    Maszynista dostaje to samo czekanie jako podpowiedź.
 - **Ogrzewanie rozjazdów (EOR)** z `feat/infrastructure-impact`: grzałki topią śnieg przy iglicach, a śnieg albo lód trzyma iglice
   rozjazdu, któremu sceneria wyłączyła ogrzewanie. Opis w `docs/switch-heating.md`.
 - **Dźwięk wraca po utracie albo zmianie urządzenia wyjściowego** (PR #433), połączone z opcjami dźwięku ze `staging` (HRTF, tryb
@@ -47,5 +49,7 @@ naszych gałęziach po 20.11. Jedna wersja ze wszystkim naraz.
 - **Ortofotomapa w edytorze** po poprawce #417 i zamykanie edytora bez sieci (#432).
 - **Niebo** po cofnięciu zmętnienia (#410): porównać z `ficzery-rc`.
 - **AI pod górę** (#396): pociąg prowadzony przez AI, ruszający na wzniesieniu.
+- **Ruszanie AI z zimnego składu** (#444): ciężki pociąg postawiony z pustym przewodem, także na pochyleniu. Ma stać, dopóki
+  hamulce się nie naładują, i nie staczać się w tym czasie.
 - **Rozmycie ruchu** z wolną kamerą nisko nad ziemią, w OpenGL i w Vulkanie: bez jasnego pasa u dołu ekranu.
 - Wszystko z listy w `docs/ficzery-rc.md`, w tym śnieg w Vulkanie.
