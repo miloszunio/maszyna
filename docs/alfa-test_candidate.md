@@ -5,7 +5,7 @@ naszych gałęziach po 20.11. Jedna wersja ze wszystkim naraz.
 
 - **Całe `ficzery-rc`**: `ficzery2`, renderery OpenGL 4.6 i Vulkan, pogoda, nowy wygląd edytora, `staging` z 20.11. Lista jest w
   `docs/ficzery-rc.md`.
-- **`master` z 24.11, 12:07** (`e0b2bdfb`), 0 commitów za nim. Względem `ficzery-rc` doszło siedem merge z 21, 22 i 24.11:
+- **`master` z 24.11, 19:44** (`57148761`), 0 commitów za nim. Względem `ficzery-rc` doszło dziesięć merge z 21, 22 i 24.11:
   - `RandomInt()` dla losowania liczb całkowitych, `Random()` z całkowitymi granicami znów daje liczbę rzeczywistą (#416);
   - ortofotomapa tylko na chunkach terenu w pamięci (#417, w tej linii była już w ostatecznej postaci);
   - zamykanie edytora nie czeka na usługę geoportalu, która nie odpowiada (#432);
@@ -16,6 +16,11 @@ naszych gałęziach po 20.11. Jedna wersja ze wszystkim naraz.
     odpowiednika, bo tego renderera w tej linii nie ma.
   - AI rusza stojącym pociągiem dopiero z naładowanymi hamulcami, a na czas ładowania trzyma go hamulcem lokomotywy (#444).
     Maszynista dostaje to samo czekanie jako podpowiedź.
+  - ekrany Pythona znajdują na Linuksie pliki, które same otwierają, także przy innej wielkości liter (#449);
+  - niebo, światło otoczenia i mgła z 26.05 w starym rendererze (#415) oraz wygląd starych zasobów jak w 26.05 i szerszy snop
+    reflektorów, `gfx.headlights.beamwidth` (#481): oba są w historii, ale nic z nich tu nie działa. Dotyczą renderera OpenGL 3.3 i
+    jego shaderów w `shaders/`, których w tej linii nie ma; shadery OpenGL 4.6 i Vulkana (`shaders/ogl46`, `shaders/vk14`) zostały
+    bez zmian, także tonemapping AgX. Klucz `gfx.headlights.beamwidth` nic tu nie robi.
 - **Ogrzewanie rozjazdów (EOR)** z `feat/infrastructure-impact`: grzałki topią śnieg przy iglicach, a śnieg albo lód trzyma iglice
   rozjazdu, któremu sceneria wyłączyła ogrzewanie. Opis w `docs/switch-heating.md`.
 - **Dźwięk wraca po utracie albo zmianie urządzenia wyjściowego** (PR #433), połączone z opcjami dźwięku ze `staging` (HRTF, tryb
