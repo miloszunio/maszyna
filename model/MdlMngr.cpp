@@ -40,6 +40,29 @@ TMdlContainer::LoadModel(std::string const &Name, bool const Dynamic) {
 TModelsManager::modelcontainer_sequence TModelsManager::m_models { 1, TMdlContainer{} };
 TModelsManager::stringmodelcontainerindex_map TModelsManager::m_modelsmap;
 
+// what the loaded models keep in memory, for the debug panel
+TModelsManager::memory_data
+TModelsManager::memory() {
+
+    memory_data result;
+    std::vector<TSubModel const *> pending;
+    for( auto const &container : m_models ) {
+        if( container.Model == nullptr ) { continue; }
+        ++result.models;
+        pending.assign( 1, container.Model->Root );
+        while( false == pending.empty() ) {
+            auto const *submodel { pending.back() };
+            pending.pop_back();
+            if( submodel == nullptr ) { continue; }
+            ++result.submodels.count;
+            result.submodels.bytes += memory_of( submodel->Vertices ) + memory_of( submodel->Userdata ) + memory_of( submodel->Indices );
+            pending.push_back( submodel->Child );
+            pending.push_back( submodel->Next );
+        }
+    }
+    return result;
+}
+
 // wczytanie modelu do tablicy
 TModel3d *
 TModelsManager::LoadModel(std::string const &Name, std::string const &virtualName, bool dynamic) {
@@ -137,15 +160,19 @@ TModelsManager::find_in_databank( std::string const &Name ) {
 }
 
 // checks whether specified file exists. returns name of the located file, or empty string.
+// the file is found in any case, as the scenery made on Windows names it, but the name is given back as asked for: it's the key of
+// the bank, and TModel3d::LoadFromFile() opens the file as it's named on the disk
 std::string
 TModelsManager::find_on_disk( std::string const &Name ) {
 
     std::vector<std::string> extensions { { ".e3d" }, { ".t3d" } };
     for( auto const &extension : extensions ) {
 
-        auto lookup = FileExists(Name + extension) ? Name : FileExists(paths::models + Name + extension) ? paths::models + Name : "";
-        if( false == lookup.empty() ) {
-            return lookup;
+        if( false == FileCased( Name + extension ).empty() ) {
+            return Name;
+        }
+        if( false == FileCased( paths::models + Name + extension ).empty() ) {
+            return paths::models + Name;
         }
     }
 

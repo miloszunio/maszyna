@@ -12,8 +12,7 @@ http://mozilla.org/MPL/2.0/.
 //---------------------------------------------------------------------------
 // Ra: zestaw klas do robienia wskaźników, aby uporządkować nagłówki
 //---------------------------------------------------------------------------
-class opengl_renderer;
-class opengl33_renderer;
+class opengl46_renderer;
 class TTrack; // odcinek trajektorii
 class basic_event;
 class TTrain; // pojazd sterowany
@@ -85,12 +84,14 @@ enum class TCommandType
     cm_SectionVelocity, //ograniczenie prędkości na odcinku
     cm_ShuntVelocity, // prędkość manewrowa na semaforze
     cm_SetProximityVelocity, // informacja wstępna o ograniczeniu
+    cm_PointVelocity, // ograniczenie dla czoła w punkcie podaną odległość za komórką, odczytane przy jej minięciu
     cm_ChangeDirection,
     cm_PassengerStopPoint,
     cm_OutsideStation,
 //    cm_Shunt, // unused?
     cm_EmergencyBrake,
     cm_SecuritySystemMagnet,
+    cm_SignalAreaEnd, // end of the interlocking area of the signal passed last
     cm_Command // komenda pobierana z komórki
 };
 

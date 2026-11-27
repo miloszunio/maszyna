@@ -11,6 +11,8 @@ http://mozilla.org/MPL/2.0/.
 
 #include "utilities/Classes.h"
 #include "audio/sound.h"
+#include "vehicle/gaugescale.h"
+#include "vehicle/universaldrag.h"
 
 enum class TGaugeAnimation {
     // typ ruchu
@@ -45,6 +47,10 @@ public:
     void Load(cParser &Parser, TDynamicObject const *Owner, double const mul = 1.0);
     bool UpdateValue( float fNewDesired );
     bool UpdateValue( float fNewDesired, std::optional<sound_source> &Fallbacksound );
+    // sets a multi-position switch of Positions positions, turned on past its last position to the first one (Forward)
+    // or back past the first one to the last, to the position at fNewDesired. A knob which turns all the way round
+    // turns on the same way, others jump there; either way the position reached sounds
+    void UpdateValueWrapped( float fNewDesired, bool Forward, int Positions, std::optional<sound_source> &Fallbacksound );
     void PutValue(float fNewDesired);
     float GetValue() const;
     float GetDesiredValue() const;
@@ -55,9 +61,25 @@ public:
     void AssignBool(bool *bValue);
     void UpdateValue();
     void AssignState( bool const *State );
+    // copies of the control animated along with it, from its definitions marked duplicate: yes
+    std::vector<TGauge> const &mirrors() const {
+        return m_mirrors; }
+    // the value shown is value * scale + offset. the copies of the control (mirrors()) show the same value, so they
+    // get the same offset
+    float offset() const {
+        return m_offset; }
+    void offset( float const Offset ) {
+        m_offset = Offset;
+        for( auto &mirror : m_mirrors ) {
+            mirror.m_offset = Offset; } }
+    float scale() const {
+        return m_scale; }
     // returns offset of submodel associated with the button from the model centre
     glm::vec3 model_offset() const;
     TGaugeType type() const;
+    // whether the definition of the control declared its type, rather than left it at the default
+    bool type_declared() const {
+        return m_typedeclared; }
     inline
     bool is_push() const {
         return ( static_cast<int>( type() ) & static_cast<int>( TGaugeType::push ) ) != 0; }
@@ -66,6 +88,13 @@ public:
         return ( static_cast<int>( type() ) & static_cast<int>( TGaugeType::toggle ) ) != 0; }
     bool is_delayed() const {
         return ( static_cast<int>( type() ) & static_cast<int>( TGaugeType::delayed ) ) != 0; }
+    // true if the gauge was given a non-uniform scale (scaletable:)
+    bool has_scaletable() const {
+        return false == m_scaletable.empty(); }
+    // the direction the mouse drags the control in to any position between its ends (drag:, MaSzyna-EU07/maszyna#62),
+    // none for a control set only to its ends. a push control springs back, so it isn't dragged
+    universal_drag::direction drag() const {
+        return universal_drag::effective( m_drag, is_push() ); }
 // members
     TSubModel *SubModel { nullptr }; // McZapkie-310302: zeby mozna bylo sprawdzac czy zainicjowany poprawnie
     TSubModel *SubModelOn { nullptr }; // optional submodel visible when the state input is set
@@ -74,19 +103,31 @@ private:
 // types
     struct scratch_data {
         std::optional< std::array<float, 6> > soundproofing;
+        bool duplicate { false }; // the definition is a duplicate submodel of the control defined before
+        std::vector<gauge_scale::point> scaletable; // as read, in the units of the config
+        universal_drag::direction drag { universal_drag::direction::none };
     };
 // methods
     // imports member data pair from the config file
     bool
         Load_mapping( cParser &Input, TGauge::scratch_data &Scratchpad );
+    static bool
+        Load_scaletable( cParser &Input, TGauge::scratch_data &Scratchpad );
     float
         GetScaledValue() const;
     void
         UpdateAnimation( TSubModel *Submodel ) const;
+    // shows the default or the active state submodel as the state says
+    void
+        UpdateVisibility() const;
+    // the copy of this control's submodels and animation, without its sounds and bindings
+    TGauge
+        MirrorCopy() const;
 
 // members
     TGaugeAnimation m_animation { TGaugeAnimation::gt_Unknown }; // typ ruchu
     TGaugeType m_type { TGaugeType::toggle }; // switch type
+    bool m_typedeclared { false }; // the type was given with type: in the definition
     float m_friction { 0.f }; // hamowanie przy zliżaniu się do zadanej wartości
     float m_targetvalue { 0.f }; // wartość docelowa
     float m_value { 0.f }; // wartość obecna
@@ -95,7 +136,10 @@ private:
     float m_endscale { -1.f }; // scale applied to the value at the end of accepted value range
     float m_endvalue { -1.f }; // end value of accepted value range
     bool m_interpolatescale { false };
-    char m_datatype; // typ zmiennej parametru: f-float, d-double, i-int
+    std::vector<gauge_scale::point> m_scaletable; // optional non-uniform scale, sorted by value; replaces scale and offset
+    universal_drag::direction m_drag { universal_drag::direction::none }; // the mouse drags the control smoothly, drag:
+
+    char m_datatype { '\0' }; // typ zmiennej parametru: f-float, d-double, i-int, b-bool; none until one is assigned
     union {
         // wskaźnik na parametr pokazywany przez animację
         float *fData;
@@ -112,6 +156,8 @@ private:
     sound_source m_soundfxincrease { m_soundtemplate }; // sound associated with increasing control's value
     sound_source m_soundfxdecrease { m_soundtemplate }; // sound associated with decreasing control's value
     std::map<int, sound_source> m_soundfxvalues; // sounds associated with specific values
+    TModel3d const *m_sourcemodel { nullptr }; // the 3d model the submodel was found in by Load()
+    std::vector<TGauge> m_mirrors; // duplicate submodels of the control (duplicate: yes), animated along with it
 
 };
 

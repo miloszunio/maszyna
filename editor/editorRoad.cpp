@@ -9,6 +9,8 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "editor/editorRoad.hpp"
+#include "editor/editorFormat.hpp"
+#include "editor/editorRingRoom.hpp"
 
 #include "editor/editorTrack.hpp"
 #include "world/Track.h"
@@ -17,11 +19,11 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulation.h"
 #include "utilities/Globals.h"
 #include "utilities/utilities.h"
+#include "utilities/translation.h"
+#include "editor/editorRoadLimits.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
-#include <set>
 
 namespace
 {
@@ -29,10 +31,8 @@ namespace
 double const kSamePoint{0.25}; // ends of two pieces this close are taken for joined
 double const kPieceLength{50.0}; // longest piece the planner makes
 double const kPieceTurn{glm::radians(30.0)}; // largest turn of a single piece
-double const kShortestRoad{2.0};
-double const kTightestRadius{6.0};
+// the shortest road, the tightest bend and the sharpest angle between roads go by what the road is made of: road_limits_for()
 double const kCornerRoom{4.0}; // length of an arm of a junction past the point where its edge meets the edge of the next one, taken by the rounded corner
-double const kSharpestBranch{glm::radians(30.0)}; // smallest angle between two roads leaving a junction
 double const kWidestCorner{glm::radians(120.0)}; // arms further apart than this don't have to make room for each other
 double const kTransitionLength{30.0}; // length of the road taken by a change of its lanes
 
@@ -274,7 +274,9 @@ bool follow(road_node &Road, double const T, bool const Forward, double const Di
 		auto const lengths{stations(state)};
 		auto const here{station_at(lengths, from)};
 		auto const available{forward ? lengths.back() - here : here};
-		if (remaining <= 0.0 || available >= remaining + kShortestRoad)
+		// what's left of a piece of a roundabout carries on round, so it can be shorter than a road of its own
+		auto const shortest{state.roundabout ? editor_ring::shortest_piece : road_limits_for(state.surfacetype).shortest_road};
+		if (remaining <= 0.0 || available >= remaining + shortest)
 		{
 			// the cut is put here; with nothing left to go the piece is kept whole
 			Cut.road = piece;
@@ -337,6 +339,27 @@ bool cut_arm(road_cut const &Cut, junction_node::arm_data &Arm)
 double edge_reach(double const Halfwidth, double const Otherhalfwidth, double const Angle)
 {
 	return (Otherhalfwidth + Halfwidth * std::cos(Angle)) / std::sin(Angle);
+}
+
+// the circle the axis of a piece bends along at specified value of its curve parameter, seen from above. returns: false if it's straight there
+bool ring_circle(road_node::state const &State, double const T, glm::dvec2 &Centre, double &Radius)
+{
+	auto const points{curve_points(State.axis)};
+	auto const u{1.0 - T};
+	auto const first{3.0 * u * u * (points[1] - points[0]) + 6.0 * u * T * (points[2] - points[1]) + 3.0 * T * T * (points[3] - points[2])};
+	auto const second{6.0 * u * (points[2] - 2.0 * points[1] + points[0]) + 6.0 * T * (points[3] - 2.0 * points[2] + points[1])};
+	glm::dvec2 const velocity{first.x, first.z};
+	auto const speed{glm::length(velocity)};
+	if (speed < 1e-9)
+		return false;
+	auto const curvature{(velocity.x * second.z - velocity.y * second.x) / (speed * speed * speed)};
+	if (std::abs(curvature) < 1e-5)
+		return false;
+	auto const point{curve_point(points, T)};
+	auto const tangent{velocity / speed};
+	Centre = glm::dvec2{point.x, point.z} + glm::dvec2{-tangent.y, tangent.x} / curvature;
+	Radius = 1.0 / std::abs(curvature);
+	return true;
 }
 
 // the look of a junction goes after the road it's made on
@@ -465,12 +488,6 @@ double tightest_radius(segment_data const &Path)
 
 bool editor_road::available(std::string *Reason)
 {
-	if (Global.NvRenderer)
-	{
-		if (Reason != nullptr)
-			*Reason = "Geometry of the roads can't be rebuilt with the experimental renderer";
-		return false;
-	}
 	if (simulation::Region == nullptr)
 	{
 		if (Reason != nullptr)
@@ -1067,7 +1084,7 @@ bool editor_road::dissolve(glm::dvec3 const &Joint, record &Record, std::string 
 	{
 		if (false == can_edit(*end.road, &reason))
 		{
-			Error = "\"" + end.road->name() + "\" can't be changed: " + reason;
+			Error = format(STR_C("\"%s\" can't be changed: %s"), end.road->name().c_str(), STR(reason).c_str());
 			return false;
 		}
 	}
@@ -1369,12 +1386,15 @@ editor_road::loose_end editor_road::find_end(glm::dvec3 const &Point, double con
 	return result;
 }
 
-std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 const *Direction, glm::dvec3 const &Target, glm::dvec2 const *Enddirection, bool const Straight, std::string &Error)
+std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 const *Direction, glm::dvec3 const &Target, glm::dvec2 const *Enddirection, bool const Straight,
+                                            road_surface_type const Type, double const Halfwidth, std::string &Error)
 {
 	std::vector<segment_data> pieces;
 	glm::dvec2 const chord{Target.x - Start.x, Target.z - Start.z};
 	auto const span{glm::length(chord)};
-	if (span < kShortestRoad)
+	auto const limits{road_limits_for(Type)};
+	auto const tightest{editor_road_limits::tightest_bend(limits, Halfwidth)};
+	if (span < limits.shortest_road)
 	{
 		Error = "Too short";
 		return pieces;
@@ -1394,7 +1414,7 @@ std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 
 	if (Direction != nullptr && Enddirection != nullptr)
 	{
 		// both ends are tied, which leaves a single curve with the tangents set
-		if (glm::dot(*Direction, chord) < 0.1 * span || glm::dot(*Enddirection, chord) < 0.1 * span)
+		if (glm::dot(*Direction, chord) < limits.tied_lead * span || glm::dot(*Enddirection, chord) < limits.tied_lead * span)
 		{
 			Error = "The road would have to turn back to meet the end";
 			return pieces;
@@ -1412,7 +1432,7 @@ std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 
 			straight(Target);
 			return pieces;
 		}
-		if (radius < kTightestRadius)
+		if (radius < tightest)
 		{
 			Error = "The bend is too tight";
 			return pieces;
@@ -1425,7 +1445,7 @@ std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 
 	{
 		// only the far end is tied: the same road as the one leading back from there, turned around
 		glm::dvec2 const back{-*Enddirection};
-		auto reversed{plan(Target, &back, Start, nullptr, Straight, Error)};
+		auto reversed{plan(Target, &back, Start, nullptr, Straight, Type, Halfwidth, Error)};
 		for (auto &piece : reversed)
 		{
 			std::swap(piece.points[segment_data::point::start], piece.points[segment_data::point::end]);
@@ -1447,7 +1467,7 @@ std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 
 	auto const side{glm::dot(chord, left)};
 	if (Straight || std::abs(side) < 0.02 * span)
 	{
-		if (along < kShortestRoad)
+		if (along < limits.shortest_road)
 		{
 			Error = "The target is behind the start";
 			return pieces;
@@ -1457,12 +1477,12 @@ std::vector<segment_data> editor_road::plan(glm::dvec3 const &Start, glm::dvec2 
 	}
 	auto const turn{2.0 * std::atan2(side, along)}; // positive to the left
 	auto const radius{span * span / (2.0 * side)}; // likewise
-	if (std::abs(turn) > glm::radians(170.0))
+	if (std::abs(turn) > limits.widest_turn)
 	{
 		Error = "The road would have to turn back to reach the target";
 		return pieces;
 	}
-	if (std::abs(radius) < kTightestRadius)
+	if (std::abs(radius) < tightest)
 	{
 		Error = "The bend is too tight";
 		return pieces;
@@ -1621,6 +1641,17 @@ bool editor_road::nearest_joint(glm::dvec3 const &Point, double const Radius, gl
 	return found;
 }
 
+void editor_road::each_joint(std::function<void(glm::dvec3 const &)> const &Visit)
+{
+	for (auto const *road : simulation::Roads.sequence())
+	{
+		if (road == nullptr || road->m_editorremoved)
+			continue;
+		Visit(axis_end(road->definition(), false));
+		Visit(axis_end(road->definition(), true));
+	}
+}
+
 std::vector<editor_road::piece_end> editor_road::ends_at(glm::dvec3 const &Point)
 {
 	std::vector<piece_end> result;
@@ -1664,7 +1695,6 @@ void editor_road::settle(road_node &Road, record &Record, std::string &Notes)
 		float lanewidth{0.f};
 		auto const evenlanes{lane_width(layout, atend ? 1.0 : 0.0, lanewidth)};
 		auto const gap{static_cast<float>(layout.median_width(atend ? 1.0 : 0.0))};
-		char const *unevenlanes{" differ in width, and a junction takes roads with lanes of the same width. "};
 		std::string reason;
 
 		auto const junctions{arms_at(position)};
@@ -1680,12 +1710,12 @@ void editor_road::settle(road_node &Road, record &Record, std::string &Notes)
 					continue;
 				if (false == evenlanes)
 				{
-					Notes += "Lanes of \"" + Road.name() + "\"" + unevenlanes;
+					Notes += format(STR_C("Lanes of \"%s\" differ in width, and a junction takes roads with lanes of the same width"), Road.name().c_str()) + ". ";
 					continue;
 				}
 				if (false == can_edit(*junction, &reason))
 				{
-					Notes += "\"" + junction->name() + "\" wasn't fitted: " + reason + ". ";
+					Notes += format(STR_C("\"%s\" wasn't fitted: %s"), junction->name().c_str(), STR(reason).c_str()) + ". ";
 					continue;
 				}
 				arm.incoming = arriving;
@@ -1717,7 +1747,7 @@ void editor_road::settle(road_node &Road, record &Record, std::string &Notes)
 				continue;
 			if (false == can_edit(*other, &reason))
 			{
-				Notes += "\"" + other->name() + "\" wasn't fitted: " + reason + ". ";
+				Notes += format(STR_C("\"%s\" wasn't fitted: %s"), other->name().c_str(), STR(reason).c_str()) + ". ";
 				continue;
 			}
 			auto state{otherlayout};
@@ -1743,12 +1773,12 @@ void editor_road::settle(road_node &Road, record &Record, std::string &Notes)
 		float otherlanewidth{0.f};
 		if (false == evenlanes || false == lane_width(otherlayout, otheratend ? 1.0 : 0.0, otherlanewidth))
 		{
-			Notes += "Lanes of \"" + (evenlanes ? other->name() : Road.name()) + "\" differ in width, and a road changes the number of its lanes only if they're all as wide. ";
+			Notes += format(STR_C("Lanes of \"%s\" differ in width, and a road changes the number of its lanes only if they're all as wide"), (evenlanes ? other->name() : Road.name()).c_str()) + ". ";
 			continue;
 		}
 		if (false == can_edit(*other, &reason))
 		{
-			Notes += "The lanes next to \"" + Road.name() + "\" weren't fitted: " + reason + ". ";
+			Notes += format(STR_C("The lanes next to \"%s\" weren't fitted: %s"), Road.name().c_str(), STR(reason).c_str()) + ". ";
 			continue;
 		}
 		auto *stretch{other};
@@ -1758,7 +1788,7 @@ void editor_road::settle(road_node &Road, record &Record, std::string &Notes)
 			auto *rest{split(*other, parameter_at(lengths, otheratend ? lengths.back() - kTransitionLength : kTransitionLength))};
 			if (rest == nullptr)
 			{
-				Notes += "\"" + other->name() + "\" couldn't be cut for the lanes to change. ";
+				Notes += format(STR_C("\"%s\" couldn't be cut for the lanes to change"), other->name().c_str()) + ". ";
 				continue;
 			}
 			// the neighbour goes on record the way it was before the cut
@@ -1781,7 +1811,7 @@ void editor_road::settle(road_node &Road, record &Record, std::string &Notes)
 		state.lanes_between(counts[0][0], counts[0][1], counts[1][0], counts[1][1]);
 		if (state.lanes_at(end, true) != counts[end][0] || state.lanes_at(end, false) != counts[end][1])
 		{
-			Notes += "The lanes of \"" + Road.name() + "\" can't be led on to the road next to it. ";
+			Notes += format(STR_C("The lanes of \"%s\" can't be led on to the road next to it"), Road.name().c_str()) + ". ";
 			continue;
 		}
 		// and it's as wide there as the piece is, with its directions as far apart
@@ -1813,7 +1843,8 @@ bool editor_road::lane_width(road_node::state const &State, double const T, floa
 	return true;
 }
 
-bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const &Direction, int const Incoming, int const Outgoing, float const Width, branch &Result, std::string &Error)
+bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const &Direction, int const Incoming, int const Outgoing, float const Width, road_surface_type const Type, branch &Result,
+                              std::string &Error)
 {
 	Result = branch{};
 	auto const &layout{Road.definition()};
@@ -1822,31 +1853,47 @@ bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const 
 	auto const direction{glm::length(Direction) > 1e-9 ? glm::normalize(Direction) : glm::dvec2{0.0, 1.0}};
 	// the sharper the angle the road leaves at, the further from the centre the edges of the roads part
 	auto const angle{std::acos(std::clamp(std::abs(glm::dot(direction, along)), 0.0, 1.0))};
-	if (angle < kSharpestBranch)
+	if (angle < road_limits_for(Type).sharpest_branch)
 	{
 		Error = "The road would leave at too sharp an angle";
 		return false;
 	}
 	if (layout.changing())
 	{
-		Error = "\"" + Road.name() + "\" changes its lanes along the way, which leaves no place for a junction. Lead the road out of a piece next to it";
+		Error = format(STR_C("\"%s\" changes its lanes along the way, which leaves no place for a junction. Lead the road out of a piece next to it"), Road.name().c_str());
 		return false;
 	}
 	float lanewidth{0.f};
 	if (false == lane_width(layout, T, lanewidth))
 	{
-		Error = "Lanes of \"" + Road.name() + "\" differ in width, and a junction takes roads with lanes of the same width";
+		Error = format(STR_C("Lanes of \"%s\" differ in width, and a junction takes roads with lanes of the same width"), Road.name().c_str());
 		return false;
 	}
 	auto const halfwidth{0.5 * (layout.forward + layout.backward) * lanewidth + 0.5 * layout.median_width(T)};
 	auto const branchhalfwidth{0.5 * (Incoming + Outgoing) * Width};
 	auto const reach{edge_reach(halfwidth, branchhalfwidth, angle) + kCornerRoom};
 	auto const branchreach{edge_reach(branchhalfwidth, halfwidth, angle) + kCornerRoom};
+	// how far the junction takes the road back along it and ahead of the centre
+	std::array<double, 2> reaches{reach, reach};
+	glm::dvec2 ringcentre{0.0};
+	double ringradius{0.0};
+	if (layout.roundabout && ring_circle(layout, T, ringcentre, ringradius))
+	{
+		// the ring bends away from a road leaving it to the outside, so their edges meet sooner than on a straight road; and a road
+		// leaving at a slant meets the edge of the ring sooner on the side it leans away from. the room of a straight road, measured
+		// on the side the road leans towards, is the most a side takes
+		for (int side = 0; side < 2; ++side)
+		{
+			auto const room{editor_ring::edge_room(ringcentre, ringradius, glm::dvec2{centre.x, centre.z}, direction, side == 0 ? -along : along, halfwidth, branchhalfwidth)};
+			if (room >= 0.0)
+				reaches[side] = std::min(reach, room + kCornerRoom);
+		}
+	}
 
 	// where the road is cut on both sides of the centre
 	road_cut cuts[2];
 	std::vector<road_node *> consumed;
-	if (false == follow(Road, T, false, reach, cuts[0], consumed, Error) || false == follow(Road, T, true, reach, cuts[1], consumed, Error))
+	if (false == follow(Road, T, false, reaches[0], cuts[0], consumed, Error) || false == follow(Road, T, true, reaches[1], cuts[1], consumed, Error))
 		return false;
 	if (cuts[0].road == cuts[1].road && cuts[0].road != &Road)
 	{
@@ -1878,7 +1925,7 @@ bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const 
 	{
 		if (false == can_edit(*change.first, &reason))
 		{
-			Error = "\"" + change.first->name() + "\" can't be changed: " + reason;
+			Error = format(STR_C("\"%s\" can't be changed: %s"), change.first->name().c_str(), STR(reason).c_str());
 			return false;
 		}
 	}
@@ -1886,7 +1933,7 @@ bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const 
 	{
 		if (false == can_edit(*piece, &reason))
 		{
-			Error = "\"" + piece->name() + "\" can't be changed: " + reason;
+			Error = format(STR_C("\"%s\" can't be changed: %s"), piece->name().c_str(), STR(reason).c_str());
 			return false;
 		}
 	}
@@ -1899,7 +1946,7 @@ bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const 
 		junction_node::arm_data arm;
 		if (false == cut_arm(cut, arm))
 		{
-			Error = "Lanes of \"" + cut.road->name() + "\" differ in width, and a junction takes roads with lanes of the same width";
+			Error = format(STR_C("Lanes of \"%s\" differ in width, and a junction takes roads with lanes of the same width"), cut.road->name().c_str());
 			return false;
 		}
 		junction.arms.emplace_back(arm);
@@ -1924,7 +1971,8 @@ bool editor_road::branch_from(road_node &Road, double const T, glm::dvec2 const 
 	return true;
 }
 
-bool editor_road::branch_from(junction_node &Junction, glm::dvec2 const &Direction, int const Incoming, int const Outgoing, float const Width, branch &Result, std::string &Error)
+bool editor_road::branch_from(junction_node &Junction, glm::dvec2 const &Direction, int const Incoming, int const Outgoing, float const Width, road_surface_type const Type, branch &Result,
+                              std::string &Error)
 {
 	Result = branch{};
 	auto const &layout{Junction.definition()};
@@ -1936,7 +1984,7 @@ bool editor_road::branch_from(junction_node &Junction, glm::dvec2 const &Directi
 	std::string reason;
 	if (false == can_edit(Junction, &reason))
 	{
-		Error = "\"" + Junction.name() + "\" can't be changed: " + reason;
+		Error = format(STR_C("\"%s\" can't be changed: %s"), Junction.name().c_str(), STR(reason).c_str());
 		return false;
 	}
 	auto const direction{glm::length(Direction) > 1e-9 ? glm::normalize(Direction) : glm::dvec2{0.0, 1.0}};
@@ -1947,7 +1995,7 @@ bool editor_road::branch_from(junction_node &Junction, glm::dvec2 const &Directi
 	{
 		auto const &other{layout.arms[idx]};
 		auto const angle{std::acos(std::clamp(glm::dot(direction, other.direction), -1.0, 1.0))};
-		if (angle < kSharpestBranch)
+		if (angle < road_limits_for(Type).sharpest_branch)
 		{
 			Error = "The road would leave too close to another road of the junction";
 			return false;
@@ -2053,32 +2101,4 @@ std::vector<road_node::state> editor_road::roundabout(glm::dvec3 const &Centre, 
 	// the last piece ends exactly where the first one starts
 	pieces.back().axis.points[segment_data::point::end] = pieces.front().axis.points[segment_data::point::start];
 	return pieces;
-}
-
-std::vector<std::string> const &editor_road::materials()
-{
-	static std::vector<std::string> names;
-	static bool scanned{false};
-	if (scanned)
-		return names;
-	scanned = true;
-	std::set<std::string> found;
-	std::error_code error;
-	for (std::filesystem::directory_iterator file{Global.asCurrentTexturePath, std::filesystem::directory_options::skip_permission_denied, error}, end; file != end; file.increment(error))
-	{
-		if (error || false == file->is_regular_file(error))
-			continue;
-		auto extension{file->path().extension().string()};
-		std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-		if (extension != ".mat" && extension != ".dds" && extension != ".tga" && extension != ".png" && extension != ".bmp" && extension != ".jpg" && extension != ".ktx" && extension != ".tex")
-			continue;
-		auto name{file->path().stem().string()};
-		std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-		// names with spaces can't be put in a scenery file
-		if (name.empty() || name.find(' ') != std::string::npos)
-			continue;
-		found.emplace(name);
-	}
-	names.assign(found.begin(), found.end());
-	return names;
 }

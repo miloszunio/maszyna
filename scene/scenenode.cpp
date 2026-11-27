@@ -108,7 +108,13 @@ shape_node::shapenode_data::deserialize( std::istream &Input ) {
     origin = sn_utils::d_dvec3( Input );
     // NOTE: geometry handle is acquired during geometry creation
     // vertex data
-    vertices.resize( sn_utils::ld_uint32( Input ) );
+    auto const vertexcount { sn_utils::ld_uint32( Input ) };
+    if( vertexcount > sn_utils::remaining( Input ) / ( 8 * sizeof( float ) ) ) {
+        // each vertex takes 8 floats of the data at least: a count the rest of it can't hold comes from a damaged file
+        Input.setstate( std::ios::failbit );
+        return;
+    }
+    vertices.resize( vertexcount );
 	if(has_userdata)
 		userdata.resize(vertices.size());
     gfx::basic_vertex localvertex;
@@ -143,7 +149,7 @@ shape_node::deserialize( std::istream &Input ) {
 
 // restores content of the node from provided input stream
 shape_node &
-shape_node::import( cParser &Input, scene::node_data const &Nodedata ) {
+shape_node::import_from( cParser &Input, scene::node_data const &Nodedata ) {
 
     // import common data
     m_name = Nodedata.name;
@@ -527,7 +533,13 @@ lines_node::linesnode_data::deserialize( std::istream &Input ) {
     origin = sn_utils::d_dvec3( Input );
     // NOTE: geometry handle is acquired during geometry creation
     // vertex data
-    vertices.resize( sn_utils::ld_uint32( Input ) );
+    auto const vertexcount { sn_utils::ld_uint32( Input ) };
+    if( vertexcount > sn_utils::remaining( Input ) / ( 8 * sizeof( float ) ) ) {
+        // each vertex takes 8 floats of the data at least: a count the rest of it can't hold comes from a damaged file
+        Input.setstate( std::ios::failbit );
+        return;
+    }
+    vertices.resize( vertexcount );
     gfx::basic_vertex localvertex;
     for( auto &vertex : vertices ) {
         localvertex.deserialize( Input );
@@ -561,7 +573,7 @@ lines_node::deserialize( std::istream &Input ) {
 
 // restores content of the node from provded input stream
 lines_node &
-lines_node::import( cParser &Input, scene::node_data const &Nodedata ) {
+lines_node::import_from( cParser &Input, scene::node_data const &Nodedata ) {
 
     // import common data
     m_name = Nodedata.name;
@@ -794,11 +806,21 @@ basic_node::radius() {
     return m_area.radius;
 }
 
+// the radius as worked out already, or worked out anew and not kept
+float
+basic_node::radius() const {
+
+    if( m_area.radius == -1.0 ) {
+        return radius_();
+    }
+    return m_area.radius;
+}
+
 // radius() subclass details, calculates node's bounding radius
 // by default nodes are 'virtual don't extend from their center point
 float
-basic_node::radius_() {
-    
+basic_node::radius_() const {
+
     return 0.f;
 }
 

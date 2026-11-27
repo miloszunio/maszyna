@@ -17,6 +17,8 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulation.h"
 #include "simulation/simulationtime.h"
 #include "simulation/simulationenvironment.h"
+#include "simulation/simulationtest.h"
+#include "simulation/blackboxrecorder.h"
 #include "scene/scene.h"
 #include "rendering/lightarray.h"
 #include "rendering/particles.h"
@@ -29,6 +31,9 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/Timer.h"
 #include "rendering/renderer.h"
 #include "utilities/Logs.h"
+
+#include <algorithm>
+
 /*
 namespace input {
 
@@ -159,6 +164,30 @@ bool driver_mode::init()
 }
 
 // mode-specific update of simulation data. returns: false on error, true otherwise
+namespace {
+
+// the camera as the black box tells it: where it is and where it looks, as the heading of a vehicle
+blackbox::camera_state blackbox_camera(TCamera const &Camera, std::uint8_t const Mode, int const View) {
+	blackbox::camera_state state;
+	state.mode = Mode;
+	state.view = static_cast<std::uint8_t>(View);
+	state.position = Camera.Pos;
+	state.pitch = Camera.Angle.x;
+	if (Camera.m_owner != nullptr && false == DebugCameraFlag) {
+		// it looks at a point, then turns by its yaw from there
+		auto const where{Camera.LookAt - Camera.Pos};
+		state.heading = static_cast<float>(std::atan2(where.x, where.z)) + Camera.Angle.y;
+	}
+	else {
+		// the yaw alone: 0 looks towards -z
+		state.heading = static_cast<float>(std::atan2(-std::sin(Camera.Angle.y), -std::cos(Camera.Angle.y)));
+	}
+	state.heading = std::remainder(state.heading, 2.0f * glm::pi<float>());
+	return state;
+}
+
+} // namespace
+
 bool driver_mode::update()
 {
 
@@ -167,9 +196,13 @@ bool driver_mode::update()
 
 	double const deltatime = Timer::GetDeltaTime(); // 0.0 gdy pauza
 
+	Timer::subsystem.sim_scripting.start();
 	simulation::State.update_clocks();
 	simulation::State.update_scripting_interface();
+	Timer::subsystem.sim_scripting.stop();
+	Timer::subsystem.sim_environment.start();
 	simulation::Environment.update();
+	Timer::subsystem.sim_environment.stop();
 
 	if (deltatime != 0.0 || false == simulation::is_ready)
 	{
@@ -233,6 +266,7 @@ bool driver_mode::update()
 		Timer::subsystem.sim_dynamics.stop();
 
 		// secondary fixed step simulation time routines
+		Timer::subsystem.sim_secondary.start();
 		while (m_secondaryupdateaccumulator >= m_secondaryupdaterate)
 		{
 
@@ -252,6 +286,7 @@ bool driver_mode::update()
 
 			m_secondaryupdateaccumulator -= m_secondaryupdaterate; // these should be inexpensive enough we have no cap
 		}
+		Timer::subsystem.sim_secondary.stop();
 
 		// variable step simulation time routines
 
@@ -298,24 +333,49 @@ bool driver_mode::update()
 		else
 			TSubModel::iInstance = 0;
 
+		Timer::subsystem.sim_trains.start();
 		if (Global.trainThreads > 0)
 			simulation::Trains.updateAsync(deltatime);
 		else
 			simulation::Trains.update(deltatime);
+		Timer::subsystem.sim_trains.stop();
+		Timer::subsystem.sim_events.start();
 		simulation::Events.update();
 		simulation::Region->update_events();
+		Timer::subsystem.sim_events.stop();
+		Timer::subsystem.sim_lights.start();
 		simulation::Lights.update();
+		Timer::subsystem.sim_lights.stop();
+		{
+			// where the user looks from, for the black box
+			auto const &camera{DebugCameraFlag ? DebugCamera : Camera};
+			auto const mode{DebugCameraFlag      ? blackbox::camera_modes::debug :
+			                false == FreeFlyModeFlag ? blackbox::camera_modes::cab :
+			                m_externalview       ? blackbox::camera_modes::external :
+			                                       blackbox::camera_modes::free};
+			simulation::Blackbox.camera(blackbox_camera(camera, mode, mode == blackbox::camera_modes::external ? m_externalviewmode : 0),
+			    DebugCameraFlag ? nullptr : camera.m_owner);
+		}
+		simulation::Blackbox.update(deltatime);
+
+		if (Global.test.enabled && simulation::is_ready)
+		{
+			simulation::test().update(deltatime);
+		}
 	}
 
 	// render time routines follow:
 
 	auto const deltarealtime = Timer::GetDeltaRenderTime(); // nie uwzględnia pauzowania ani mnożenia czasu
+	Timer::subsystem.sim_commands.start();
 	simulation::State.process_commands();
+	Timer::subsystem.sim_commands.stop();
 
 	// fixed step render time routines
 
 	fTime50Hz += deltarealtime; // w pauzie też trzeba zliczać czas, bo przy dużym FPS będzie problem z odczytem ramek
 	bool runonce{false};
+	Timer::subsystem.sim_ui.start();
 	while (fTime50Hz >= 1.0 / 50.0)
 	{
 #ifdef _WIN32
@@ -406,22 +466,36 @@ bool driver_mode::update()
 
 		fTime50Hz -= 1.0 / 50.0;
 	}
+	Timer::subsystem.sim_ui.stop();
 
 	// variable step render time routines
 
+	Timer::subsystem.sim_camera.start();
 	update_camera(deltarealtime);
+	Timer::subsystem.sim_camera.stop();
 
+	Timer::subsystem.sim_precipitation.start();
 	simulation::Environment.update_precipitation(); // has to be launched after camera step to work properly
+	Timer::subsystem.sim_precipitation.stop();
 
 	Timer::subsystem.sim_total.stop();
+	// the parts of the vehicle update made in the frame, none when paused
+	Timer::subsystem.commit_frame();
+	Timer::subsystem.switching.update();
 
+	Timer::subsystem.loop_audio.start();
 	simulation::Region->update_sounds();
 	audio::renderer.update(Global.iPause ? 0.0 : deltarealtime);
+	Timer::subsystem.loop_audio.stop();
 
 	// NOTE: particle system runs on simulation time, but needs actual camera position to determine how to update each particle source
+	Timer::subsystem.loop_particles.start();
 	simulation::Particles.update();
+	Timer::subsystem.loop_particles.stop();
 
+	Timer::subsystem.loop_renderer_update.start();
 	GfxRenderer->Update(deltarealtime);
+	Timer::subsystem.loop_renderer_update.stop();
 
 	simulation::is_ready = simulation::is_ready || (simulation::Train != nullptr && simulation::Train->is_cab_initialized) || Global.local_start_vehicle == "ghostview";
 
@@ -477,6 +551,13 @@ void driver_mode::enter()
 	}
 
 	Timer::ResetTimers();
+
+	if (Global.test.enabled)
+	{
+		// the test runs as fast as it can compute, in steps of fixed length, so that runs on different machines agree
+		Timer::set_fixed_step(simulation::test_manager::frame_step);
+		simulation::test().start();
+	}
 
 	set_picking(!Global.captureonstart);
 
@@ -576,6 +657,12 @@ bool driver_mode::is_command_processor() const
 {
 
 	return true;
+}
+
+double driver_mode::shake_fraction() const
+{
+	// how far the simulation time has got from the last step of the shake towards the next one
+	return std::clamp(m_secondaryupdateaccumulator / m_secondaryupdaterate, 0.0, 1.0);
 }
 
 void driver_mode::update_camera(double const Deltatime)
@@ -690,7 +777,12 @@ void driver_mode::update_camera(double const Deltatime)
 	// reset window state, it'll be set again if applicable in a check below
 	Global.CabWindowOpen = false;
 
-	if (simulation::Train != nullptr && controlled != nullptr && Camera.m_owner != nullptr && false == DebugCameraFlag)
+	if (consist_view_active())
+	{
+		// the orbit, shunting, coupling and trackside views place the camera themselves
+		update_consist_view(Deltatime);
+	}
+	else if (simulation::Train != nullptr && controlled != nullptr && Camera.m_owner != nullptr && false == DebugCameraFlag)
 	{
 		// jeśli jazda w kabinie, przeliczyć trzeba parametry kamery
 		/*
@@ -721,7 +813,8 @@ void driver_mode::update_camera(double const Deltatime)
 				// ale bez odbicia
 				Camera.LookAt = Camera.Pos - simulation::Train->GetDirection() * (double)simulation::Train->Occupied()->CabOccupied; //-1 albo 1
 			}
-			auto const shakeangles{simulation::Train->Dynamic()->shake_angles()};
+			auto const *dynamic{simulation::Train->Dynamic()};
+			auto const shakeangles{dynamic->shake_angles(dynamic->shake_between(shake_fraction()))};
 			Camera.Angle.x = 0.5 * shakeangles.second; // hustanie kamery przod tyl
 			Camera.Angle.z = shakeangles.first; // hustanie kamery na boki
 			/*
@@ -742,8 +835,9 @@ void driver_mode::update_camera(double const Deltatime)
 			}
 
 			float const shakescale{FreeFlyModeFlag ? 5.0f : 1.0f};
-			auto shakencamerapos{Camera.m_owneroffset +
-			                     shakescale * glm::vec3(1.5 * Camera.m_owner->ShakeState.offset.x, 2.0 * Camera.m_owner->ShakeState.offset.y, 1.5 * Camera.m_owner->ShakeState.offset.z)};
+			// the shake steps at a fixed rate, the frames come at their own: taken at the frame's moment between the steps, it moves as smoothly as the vehicle
+			auto const shake{Camera.m_owner->shake_between(shake_fraction())};
+			auto shakencamerapos{Camera.m_owneroffset + shakescale * glm::vec3(1.5 * shake.offset.x, 2.0 * shake.offset.y, 1.5 * shake.offset.z)};
 
 			Camera.Pos = Camera.m_owner->GetWorldPosition(FreeFlyModeFlag ? glm::dvec3(shakencamerapos) : // TODO: vehicle collision box for the external vehicle camera
 			                                                                simulation::Train->clamp_inside(shakencamerapos));
@@ -751,7 +845,7 @@ void driver_mode::update_camera(double const Deltatime)
 			if (!Global.iPause)
 			{
 				// podczas pauzy nie przeliczać kątów przypadkowymi wartościami
-				auto const shakeangles{Camera.m_owner->shake_angles()};
+				auto const shakeangles{Camera.m_owner->shake_angles(shake)};
 				Camera.Angle.x -= 0.5 * shakeangles.second; // hustanie kamery przod tyl
 				Camera.Angle.z = shakeangles.first; // hustanie kamery na boki
 				/*
@@ -1053,6 +1147,17 @@ void driver_mode::OnKeyDown(int cKey)
 		}
 		break;
 	}
+	case GLFW_KEY_LEFT_BRACKET:
+	case GLFW_KEY_RIGHT_BRACKET:
+	{
+		// in the orbit, shunting, coupling and trackside views: the vehicle (coupling) towards the front, or the rear,
+		// of the train. [Ctrl] with them moves the train in the debug mode, bound in the keyboard settings
+		if (false == Global.ctrlState && consist_view_active())
+		{
+			m_consistviews.select(cKey == GLFW_KEY_LEFT_BRACKET ? -1 : 1);
+		}
+		break;
+	}
 	default:
 	{
 		break;
@@ -1060,6 +1165,18 @@ void driver_mode::OnKeyDown(int cKey)
 	}
 
 	return; // nie są przekazywane do pojazdu wcale
+}
+
+bool driver_mode::consist_view_active() const
+{
+	return FreeFlyModeFlag && m_externalview && m_externalviewmode >= view::orbit && Camera.m_owner != nullptr && false == DebugCameraFlag;
+}
+
+void driver_mode::update_consist_view(double const Deltatime)
+{
+	auto *controlled{simulation::Train != nullptr ? simulation::Train->Dynamic() : nullptr};
+	// the camera goes with the vehicle picked, or stays where it is once the train is gone
+	Camera.m_owner = m_consistviews.update(Camera, controlled, Deltatime);
 }
 
 // places camera outside the controlled vehicle, or nearest if nothing is under control
@@ -1110,7 +1227,8 @@ void driver_mode::ExternalView()
 	if (true == m_externalview)
 	{
 		// we're already in some external view mode, so select next one on the list
-		m_externalviewmode = clamp_circular(++m_externalviewmode, static_cast<int>(view::count_));
+		// the views of the train's vehicles come after the four older ones, unless they're turned off in eu07.ini
+		m_externalviewmode = clamp_circular(++m_externalviewmode, static_cast<int>(Global.ConsistViews ? view::count_ : view::orbit));
 	}
 
 	FreeFlyModeFlag = true;
@@ -1211,6 +1329,17 @@ void driver_mode::ExternalView()
 	case view::driveby:
 	{
 		DistantView(false);
+		break;
+	}
+	case view::orbit:
+	case view::shunting:
+	case view::coupling:
+	case view::trackside:
+	{
+		// the camera goes with a vehicle of the train, placed by update_consist_view() from the next frame on
+		auto const kind{static_cast<consist_views::kind>(m_externalviewmode - view::orbit)};
+		Camera.m_owner = m_consistviews.enter(kind, vehicle);
+		Camera.m_owneroffset = {};
 		break;
 	}
 	default:

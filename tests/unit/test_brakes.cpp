@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "doctest.h"
 #include "vehicle.h"
+#include "consist.h"
+#include "utilities/Globals.h"
+
+#include <cmath>
 
 using test::definition;
 using test::vehicle;
@@ -90,4 +94,118 @@ TEST_CASE("brakes: service braking stops a heavier wagon too") {
 	wagon.hold_brake_pipe(3.5); // bar, as a coupled locomotive would hold it
 	wagon.run(40.0 /* s */, test::track{0.15 /* friction */, 0.0 /* gradient */});
 	CHECK(std::abs(wagon.speed()) < 0.1);
+}
+
+// eu07/maszyna#87: the ESt4d of the EN57's EP2 valve charged its auxiliary reservoir from the main reservoir pipe
+// alone, so a dead unit hauled by a locomotive coupled with the hook and the brake hose ("3") never charged it,
+// its control reservoir stopped half way, and it didn't brake. Like every ESt, it charges from the brake pipe too
+TEST_CASE("brakes: a dead EN57 hauled with the brake hose alone charges from the brake pipe and brakes") {
+	test::consist train;
+	auto &locomotive{train.add(definition::fiz("sm42_v1/6d1"))};
+	train.add(definition::fiz("en57_v1/5bgb"), 0, coupling::coupler | coupling::brakehose);
+	train.add(definition::fiz("en57_v1/6ba_840"));
+	train.add(definition::fiz("en57_v1/5bgaiii_led_spot"));
+	// a unit standing dead: no air anywhere, nothing in its main reservoir pipe
+	for (std::size_t i = 1; i < train.size(); ++i) {
+		auto &car{train[i].mover()};
+		REQUIRE(car.BrakeValve == TBrakeValve::EP2);
+		car.Hamulec->ForceEmptiness();
+		car.Pipe->CreatePress(0.0);
+		car.Pipe->Act();
+		car.Pipe2->CreatePress(0.0);
+		car.Pipe2->Act();
+		car.CompressedVolume = 0.0;
+	}
+	locomotive.hold_brake_pipe(5.0);
+	train.run(900.0);
+	for (std::size_t i = 1; i < train.size(); ++i) {
+		CAPTURE(i);
+		auto &car{train[i].mover()};
+		REQUIRE(car.ScndPipePress < 0.1); // no main reservoir pipe
+		CHECK(car.Hamulec->GetBRP() > 4.8);
+		CHECK(car.Hamulec->GetCRP() > 4.8);
+		CHECK(car.BrakePress < 0.1);
+	}
+	// a full service application brakes the unit, and it releases again
+	locomotive.hold_brake_pipe(3.5);
+	train.run(20.0);
+	for (std::size_t i = 1; i < train.size(); ++i) {
+		CAPTURE(i);
+		CHECK(train[i]->BrakePress > 2.0);
+	}
+	locomotive.hold_brake_pipe(5.0);
+	train.run(60.0);
+	for (std::size_t i = 1; i < train.size(); ++i) {
+		CAPTURE(i);
+		CHECK(train[i]->BrakePress < 0.1);
+	}
+}
+
+namespace {
+
+// Global.physics_sleepheld, off by default, on for the test it's made in
+struct sleepheld_on {
+	bool const was{Global.physics_sleepheld};
+	sleepheld_on() { Global.physics_sleepheld = true; }
+	~sleepheld_on() { Global.physics_sleepheld = was; }
+	sleepheld_on(sleepheld_on const &) = delete;
+	sleepheld_on &operator=(sleepheld_on const &) = delete;
+};
+
+} // namespace
+
+TEST_CASE("brakes: a wagon standing braked on a gradient sleeps while the brakes hold, and wakes and rolls away once they release") {
+	// Global.physics_sleepheld: a vehicle standing still held by its brakes lets its physics sleep, keeping the brake force of
+	// the step it fell asleep in. the brake system of the test vehicle steps on while asleep, as in the vehicle the user is in
+	sleepheld_on const sleepheld;
+	test::track slope;
+	slope.gradient = 0.01; // the brakes hold it, the running resistance alone (about 2.5 per mille) doesn't
+	vehicle wagon{definition::load("wagon")};
+	// made standing, it has the hand brake on too (SetBraked()), which is the other test's
+	wagon->DecManualBrakeLevel(ManualBrakePosNo);
+	wagon.hold_brake_pipe(3.5);
+	wagon.run(30.0, slope);
+	REQUIRE(wagon->BrakePress > 1.0);
+	CHECK(std::abs(wagon.speed()) < 0.01);
+	CHECK_FALSE(wagon->PhysicActivation);
+
+	// the brakes holding as they are, it sleeps on
+	auto wakes{0};
+	for (int step = 0; step < 12000; ++step) {
+		auto const asleep{false == wagon->PhysicActivation};
+		wagon.step(slope);
+		if (asleep && wagon->PhysicActivation) {
+			++wakes;
+		}
+	}
+	CHECK(wakes == 0);
+	CHECK(std::abs(wagon.speed()) < 0.01);
+
+	// released, it wakes, the force of the brakes is gone and it rolls down the gradient
+	wagon.hold_brake_pipe(5.0);
+	wagon.run(60.0, slope);
+	CHECK(wagon->BrakePress < 0.1);
+	CHECK(wagon->Fb < 1.0);
+	CHECK(std::abs(wagon.speed()) > 1.0);
+	CHECK(wagon->PhysicActivation);
+}
+
+TEST_CASE("brakes: a wagon held by its hand brake on a gradient wakes and rolls away once the hand brake is released") {
+	// the setting changes by hand on a sleeping vehicle, whose brake system doesn't step in the game while asleep
+	sleepheld_on const sleepheld;
+	test::track slope;
+	slope.gradient = 0.01;
+	vehicle wagon{definition::load("wagon")};
+	// made standing, it has the hand brake on (SetBraked())
+	REQUIRE(wagon->ManualBrakePos == ManualBrakePosNo);
+	wagon.hold_brake_pipe(5.0);
+	wagon.run(90.0, slope);
+	REQUIRE(wagon->BrakePress < 0.1);
+	CHECK(std::abs(wagon.speed()) < 0.01);
+	CHECK_FALSE(wagon->PhysicActivation);
+
+	wagon->DecManualBrakeLevel(ManualBrakePosNo);
+	wagon.run(30.0, slope);
+	CHECK(wagon->Fb < 1.0);
+	CHECK(std::abs(wagon.speed()) > 1.0);
 }

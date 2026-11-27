@@ -83,6 +83,8 @@ class TAnimContainer : public std::enable_shared_from_this<TAnimContainer>
         return pSubModel ? pSubModel->pName : ""; };
     void SetRotateAnim( glm::vec3 vNewRotateAngles, double fNewRotateSpeed);
     void SetTranslateAnim( glm::dvec3 vNewTranslate, double fNewSpeed);
+    // the rotation and the shift set brought to their ends at once, for the editor which shows them with the time stopped
+    void Finish();
     void AnimSetVMD(double fNewSpeed);
     void PrepareModel();
     void UpdateModel();
@@ -107,8 +109,7 @@ class TAnimContainer : public std::enable_shared_from_this<TAnimContainer>
 // opakowanie modelu, określające stan egzemplarza
 class TAnimModel : public scene::basic_node {
 
-    friend opengl_renderer;
-    friend opengl33_renderer;
+    friend opengl46_renderer;
     friend itemproperties_panel;
 
 public:
@@ -182,7 +183,7 @@ public:
     void RaAnimate( unsigned int const Framestamp ); // przeliczenie animacji egzemplarza
 
     // radius() subclass details, calculates node's bounding radius
-    float radius_();
+    float radius_() const override;
     // serialize() subclass details, sends content of the subclass to provided stream
     void serialize_( std::ostream &Output ) const;
     // deserialize() subclass details, restores content of the subclass from provided stream
@@ -203,6 +204,7 @@ public:
     glm::vec3 m_rotationscaleangles { 0.0f, 0.0f, 0.0f };
     glm::vec3 m_rotationscalescale { 1.0f, 1.0f, 1.0f };
     bool m_rotationscalevalid { false };
+    bool m_texturesprefetched { false }; // the renderer had the data of its textures read ahead (gfx.textures.streaming)
     material_data m_materialdata;
 
     std::string asText; // tekst dla wyświetlacza znakowego
@@ -223,12 +225,17 @@ public:
     float fOffTime { 1.f / 2 };// { 60.f / 45.f / 2 }; // były stałymi, teraz mogą być zmienne dla każdego egzemplarza
 //    float fTransitionTime { fOnTime * 0.9f }; // time
     bool m_transition { true }; // smooth transition between light states
+    bool m_lightsanimated { false }; // the lights were brought to their state at least once
     unsigned int m_framestamp { 0 }; // id of last rendered gfx frame
 
     // true if this instance is eligible for the batched/instanced render path:
     // no lights, no submodel animations, no replacable skins, no seasonal variants.
     // computed once at end of Load() so the renderer can simply test the flag.
     bool m_instanceable { false };
+    // true if the walk of the submodel tree gives the same submodel-local transforms whatever modelview it starts from
+    // (no billboards turned to the camera): an instance drawn on its own can then be culled on the gpu like the instanced
+    // ones, its tree walked from the origin of the instance, which the culling places in view
+    bool m_cameraindependent { false };
     // helper: evaluates current state and updates m_instanceable accordingly.
     void update_instanceable_flag();
     // helper: assigns the model and the replacable skin to the instance, and binds light and variant submodels of the model
@@ -237,6 +244,9 @@ public:
     // diagnostic counters (process-wide). Updated inside update_instanceable_flag()
     // so the renderer can surface load-time classification stats in the debug overlay.
     static int s_instanceable_total;       // count of TAnimModel*'s classified instanceable
+    // bumped whenever an instance loses its instanceable status after it was put in a scene cell (an event adds
+    // an animation container, or changes a skin); the cells rebuild their lists of instances drawn one by one then
+    static unsigned int s_instanceable_revoked;
     static int s_classified_total;         // count of TAnimModel*'s that ran through the classifier
     static int s_rejected_no_pmodel;
     static int s_rejected_lights;

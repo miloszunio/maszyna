@@ -15,6 +15,7 @@ http://mozilla.org/MPL/2.0/.
 #include "simulation/simulationtime.h"
 #include "simulation/simulationsounds.h"
 #include "simulation/simulationenvironment.h"
+#include "simulation/simulationtest.h"
 #include "scene/scenenodegroups.h"
 #include "scene/scenelayers.h"
 #include "scene/sceneterrain.h"
@@ -27,6 +28,7 @@ http://mozilla.org/MPL/2.0/.
 #include "model/AnimModel.h"
 #include "rendering/lightarray.h"
 #include "world/TractionPower.h"
+#include "world/catenary_scene.h"
 #include "world/Road.h"
 #include "world/Sweep.h"
 #include "world/RoadPoint.h"
@@ -36,6 +38,7 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/utilities.h"
 #include "editor/editorTerrainStreamer.hpp"
 
+#include <format>
 
 namespace simulation {
 
@@ -45,6 +48,13 @@ double vehicle_length( std::string const &Folder, std::string const &Type ) {
 
     TMoverParameters probe( 0.0, Type, Type, 0 );
     return probe.LoadFIZ( paths::dynamic + Folder + "/" ) ? probe.Dim.L : 0.0;
+}
+
+// the catenary straight in the scenery file belongs to the file (layer) it's in, the scenery save writes it there
+std::string catenary_file( cParser const &Input ) {
+
+    auto const layer { scene::Layers.handle() };
+    return ( ( layer != null_handle && Input.InLayerFile() ) ? scene::Layers.layer( layer ).name : Input.Name() );
 }
 
 } // namespace
@@ -59,11 +69,16 @@ state_serializer::deserialize_begin( std::string const &Scenariofile ) {
     EditorTerrain.reset();
     scene::terrain_file::references().clear();
 
+    // podwieszenia sieci trakcyjnej poprzedniej scenerii
+    catenary_scene_clear();
+
     // TODO: move initialization to separate routine so we can reuse it
     SafeDelete( Region );
     Region = new scene::basic_region();
 
     simulation::State.init_scripting_interface();
+    // the weather section of the previous scenery doesn't carry over
+    simulation::Environment.weather().reset();
 
 	// NOTE: for the time being import from text format is a given, since we don't have full binary serialization
 	std::shared_ptr<deserializer_state> state =
@@ -134,6 +149,7 @@ state_serializer::deserialize_begin( std::string const &Scenariofile ) {
 	            { "test",        &state_serializer::deserialize_test },
 	            { "time",        &state_serializer::deserialize_time },
 	            { "trainset",    &state_serializer::deserialize_trainset },
+	            { "weather",     &state_serializer::deserialize_weather },
 	            { "terrain",     &state_serializer::deserialize_terrain },
 	            { "heightmap_terrain", &state_serializer::deserialize_heightmapterrain },
 	            { "editorterrain", &state_serializer::deserialize_editorterrain },
@@ -165,6 +181,14 @@ state_serializer::deserialize_continue(std::shared_ptr<deserializer_state> state
 		auto lookup = state->functionmap.find( token );
 		if( lookup != state->functionmap.end() ) {
             lookup->second();
+        }
+        else if( token == "catenary" ) {
+            // sieć trakcyjna: plik z podwieszeniami, "catenary <plik> endcatenary"
+            catenary_scene_load( Input );
+        }
+        else if( token == "skin" ) {
+            // domyślna tekstura podwieszeń sieci z tego pliku: plik sieci z dyrektywy "catenary" dołączony jako warstwa
+            catenary_scene_skin( Input, catenary_file( Input ) );
         }
         else {
             ErrorLog( "Bad scenario: unexpected token \"" + token + "\" defined in file \"" + Input.Name() + "\" (line " + std::to_string( Input.Line() - 1 ) + ")" );
@@ -248,8 +272,8 @@ state_serializer::deserialize_assignment( cParser &Input, scene::scratch_data &S
     while( false == token.empty()
         && token != "endassignment" ) {
         // assignment is expected to come as string pairs: language id and the actual assignment enclosed in quotes to form a single token
-        auto assignment{ Input.getToken<std::string>() };
-        win1250_to_ascii( assignment );
+        // the assignment is only shown to the player, so it's kept with its letters, in utf-8 as the user interface takes it
+        auto const assignment{ data_text_to_utf8( Input.getToken<std::string>() ) };
         Scratchpad.trainset.assignment.emplace( token, assignment );
         token = Input.getToken<std::string>();
     }
@@ -360,8 +384,13 @@ state_serializer::deserialize_camera( cParser &Input, scene::scratch_data &Scrat
 void
 state_serializer::deserialize_config( cParser &Input, scene::scratch_data &Scratchpad ) {
 
-    // config parameters (re)definition
-    Global.ConfigParse( Input );
+    // config parameters (re)definition, but for what only eu07.ini sets: programs to run, connections, the sandbox of
+    // the scripts (utilities/inionlysettings.h)
+    Global.ConfigParse( Input, config_source::scenery );
+    if( Global.test.enabled ) {
+        // a scenery doesn't get to turn on what a test keeps off
+        simulation::apply_test_mode_settings();
+    }
 }
 
 void
@@ -399,7 +428,8 @@ void state_serializer::deserialize_lua( cParser &Input, scene::scratch_data &Scr
        std::string file;
        Input >> file;
 #ifdef WITH_LUA
-       simulation::Lua.interpret(Global.asCurrentSceneryPath + file);
+       // the file is relative to the scenery folder, and stays inside it
+       simulation::Lua.interpret(Global.asCurrentSceneryPath, file);
 #else
        ErrorLog(file + ": lua scripts not supported in this build.");
 #endif
@@ -418,7 +448,13 @@ state_serializer::deserialize_firstinit( cParser &Input, scene::scratch_data &Sc
         // TBD: postpone loading furter and only load required blocks during the simulation?
 		if (false == Scratchpad.binary.terrain_included)
 		{
-			Region->deserialize(Scratchpad.name);
+			if (false == Region->deserialize(Scratchpad.name))
+			{
+				// the file looked whole to is_scene() but its content is damaged. the geometry it holds is missing from this
+				// session, as the text definitions were skipped already. the file is the game's own copy of the text, so it
+				// goes, and the next start loads the text and writes it anew
+				Region->discard_scene(Scratchpad.name);
+			}
 		}
 		else
 		{
@@ -439,6 +475,9 @@ state_serializer::deserialize_firstinit( cParser &Input, scene::scratch_data &Sc
     Scratchpad.binary.terrain_binaryfiles.clear();
 
     simulation::Paths.InitTracks();
+    if( Global.track_check ) {
+        simulation::Paths.CheckTracks();
+    }
     // the roads tie up their own lanes where they gain or lose some, the junctions tie the lanes of the roads together,
     // what's left loose after that gets closed by the roads
     simulation::Roads.InitLanes();
@@ -446,7 +485,10 @@ state_serializer::deserialize_firstinit( cParser &Input, scene::scratch_data &Sc
     simulation::Roads.InitRoads();
     // crossings and traffic points go by the lanes, which are complete at this point
     simulation::Roadpoints.InitRoadpoints();
+    // the catenary entries of the scenery files make their spans before these get tied together
+    catenary_scene_loaded();
     simulation::Traction.InitTraction();
+    catenary_scene_resolve();
     simulation::Events.InitEvents();
     simulation::Events.InitLaunchers();
     simulation::Memory.InitCells();
@@ -504,6 +546,8 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
     }
     // a run of plain model instances is taken straight from the text, instead of token by token
     if( true == deserialize_models( Input, Scratchpad, nodedata, inputline, sourcebegin ) ) { return; }
+    // the text of the header as written, for the entries which need the case of their names
+    auto const header { Input.remainingText() };
     // common data and node type indicator
     Input.getTokens( 4 );
     Input
@@ -542,7 +586,14 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
     }
     else if( nodedata.type == "track" ) {
 
-        auto *path { deserialize_path( Input, Scratchpad, nodedata ) };
+        std::unique_ptr<TTrack> made { deserialize_path( Input, Scratchpad, nodedata ) };
+        if( made->eType == tt_Unknown ) {
+            // with no path made it can't be joined nor drawn, and nothing could run on it: it goes with its holder
+            ErrorLog( std::format( R"(Bad scenario: track "{}" of an unknown type defined in file "{}" (line {}) left out)", made->name(), Input.Name(), inputline ) );
+            return;
+        }
+        // from here on the scene owns it
+        auto *path { made.release() };
         // duplicates of named tracks are currently experimentally allowed
         if( false == simulation::Paths.insert( path ) ) {
             ErrorLog( "Bad scenario: duplicate track name \"" + path->name() + "\" defined in file \"" + Input.Name() + "\" (line " + std::to_string( inputline ) + ")" );
@@ -558,7 +609,7 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
     else if( nodedata.type == "road" ) {
 
         auto *road { new road_node( nodedata ) };
-        road->import(
+        road->import_from(
             Input,
             ( Scratchpad.location.offset.empty() ?
                 glm::dvec3 { 0.0 } :
@@ -571,10 +622,33 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
         road->create_lanes();
         scene::Layers.track( road, { sourcebegin, Input.TokenEnd() } );
     }
+    else if( nodedata.type == "suspension" || nodedata.type == "chain" || nodedata.type == "gantry" || nodedata.type == "anchor" ) {
+        // the names are referred to by the other entries as they're written, the parser gives them in lower case
+        auto name { nodedata.name };
+        if( false == header.empty() ) {
+            std::string_view words[ 4 ];
+            auto const breaks { std::string_view { "\n\r\t ;" } };
+            std::size_t position { 0 };
+            for( auto &word : words ) {
+                position = std::min( header.find_first_not_of( breaks, position ), header.size() );
+                auto const end { std::min( header.find_first_of( breaks, position ), header.size() ) };
+                word = header.substr( position, end - position );
+                position = end;
+            }
+            auto lower { std::string { words[ 2 ] } };
+            std::transform( lower.begin(), lower.end(), lower.begin(), []( unsigned char const C ) { return static_cast<char>( std::tolower( C ) ); } );
+            auto type { std::string { words[ 3 ] } };
+            std::transform( type.begin(), type.end(), type.begin(), []( unsigned char const C ) { return static_cast<char>( std::tolower( C ) ); } );
+            if( false == name.empty() && lower == name && type == nodedata.type ) {
+                name = words[ 2 ];
+            }
+        }
+        catenary_scene_node( Input, nodedata.type, nodedata.range_max, nodedata.range_min, name, catenary_file( Input ) );
+    }
     else if( nodedata.type == "sweep" ) {
 
         auto *sweep { new sweep_node( nodedata ) };
-        sweep->import(
+        sweep->import_from(
             Input,
             ( Scratchpad.location.offset.empty() ?
                 glm::dvec3 { 0.0 } :
@@ -588,7 +662,7 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
     else if( nodedata.type == "junction" ) {
 
         auto *junction { new junction_node( nodedata ) };
-        junction->import(
+        junction->import_from(
             Input,
             ( Scratchpad.location.offset.empty() ?
                 glm::dvec3 { 0.0 } :
@@ -620,7 +694,7 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
     else if( roadpoint_node::is_keyword( nodedata.type ) ) {
         // level crossing, or a point where road vehicles appear or are taken away
         auto *point { new roadpoint_node( nodedata ) };
-        point->import(
+        point->import_from(
             Input,
             ( Scratchpad.location.offset.empty() ?
                 glm::dvec3 { 0.0 } :
@@ -721,7 +795,7 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
         if( false == skip ) {
 
             ++Scratchpad.binary.geometry_imported;
-            auto shape { scene::shape_node().import( Input, nodedata ) };
+            auto shape { scene::shape_node().import_from( Input, nodedata ) };
             material = shape.data().material;
             if( true == Global.editor_session ) {
                 shape.source_file( scene::terrain_file::reference_of( Input.Name() ) );
@@ -759,7 +833,7 @@ state_serializer::deserialize_node( cParser &Input, scene::scratch_data &Scratch
 
             ++Scratchpad.binary.geometry_imported;
             simulation::Region->insert(
-                scene::lines_node().import(
+                scene::lines_node().import_from(
                     Input, nodedata ),
                 Scratchpad );
         }
@@ -1042,6 +1116,13 @@ state_serializer::deserialize_sky( cParser &Input, scene::scratch_data &Scratchp
 }
 
 void
+state_serializer::deserialize_weather( cParser &Input, scene::scratch_data &Scratchpad ) {
+
+    // clouds, fog and precipitation, see environment/weather.h. wins over the atmo section
+    simulation::Environment.weather().deserialize( Input );
+}
+
+void
 state_serializer::deserialize_test( cParser &Input, scene::scratch_data &Scratchpad ) {
 
     // legacy section, no longer supported;
@@ -1187,6 +1268,8 @@ include_terrain_file( std::string File, std::string &Includes, scene::scratch_da
 
     replace_slashes( File );
     erase_extension( File );
+    // the parser gives the name in lowercase, the files may be named in another case; the binary file is made next to the text
+    File = FileStemOnDisk( Global.asCurrentSceneryPath, File, { ".txtf", ".btf" } );
     if( std::find( binary.terrain_textfiles.begin(), binary.terrain_textfiles.end(), File ) != binary.terrain_textfiles.end() ) {
         WriteLog( "Terrain file: " + File + " is already in use, ignored" );
         return;
@@ -1867,7 +1950,7 @@ state_serializer::export_nodes_to_stream(std::ostream &scmfile, bool Dirty) cons
 	}
 }
 
-TAnimModel *state_serializer::create_model(const std::string &src, const std::string &name, const glm::dvec3 &position) {
+TAnimModel *state_serializer::create_model(const std::string &src, const std::string &name, const glm::dvec3 &position, scene::layer_handle const Layer) {
 	cParser parser(src);
 	parser.getTokens(); // "node"
 	parser.getTokens(2); // ranges
@@ -1878,7 +1961,8 @@ TAnimModel *state_serializer::create_model(const std::string &src, const std::st
 	parser.getTokens(2); // name, type
 	nodedata.name = name;
 	nodedata.type = "model";
-	nodedata.layer = scene::Layers.active(); // null_handle unless the scenery was opened for editing
+	// null_handle unless the scenery was opened for editing
+	nodedata.layer = Layer != null_handle ? Layer : scene::Layers.active();
 
 	scene::scratch_data scratch;
 
@@ -1925,7 +2009,7 @@ std::pair<int, int> state_serializer::preview_include(std::string const &Directi
 	static std::unordered_map<std::string, std::string> const statementends {
 	    { "event", "endevent" }, { "trainset", "endtrainset" }, { "isolated", "endisolated" }, { "area", "endarea" }, { "assignment", "endassignment" },
 	    { "atmo", "endatmo" }, { "camera", "endcamera" }, { "config", "endconfig" }, { "description", "enddescription" }, { "light", "endlight" },
-	    { "sky", "endsky" }, { "test", "endtest" }, { "time", "endtime" }, { "terrain", "endterrain" }, { "heightmap_terrain", "endheightmap_terrain" }, { "editorterrain", "endeditorterrain" } };
+	    { "sky", "endsky" }, { "weather", "endweather" }, { "test", "endtest" }, { "time", "endtime" }, { "terrain", "endterrain" }, { "heightmap_terrain", "endheightmap_terrain" }, { "editorterrain", "endeditorterrain" } };
 
 	cParser parser(Directive, cParser::buffer_TEXT, Global.asCurrentSceneryPath, Global.bLoadTraction);
 	// the template is processed with the placement its directive is going to be loaded with

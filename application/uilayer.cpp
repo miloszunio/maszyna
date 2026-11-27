@@ -126,6 +126,14 @@ bool ui_layer::char_callback(unsigned int c)
 bool ui_layer::scroll_callback(double xoffset, double yoffset)
 {
 	ImGui_ImplGlfw_ScrollCallback(m_window, xoffset, yoffset);
+	// a line a second in the log of where a scroll went, for a wheel or a touchpad that seems to do nothing
+	static double logged{-10.0};
+	if (auto const now{glfwGetTime()}; now - logged > 1.0)
+	{
+		logged = now;
+		auto const *hovered{ImGui::GetCurrentContext() != nullptr ? ImGui::GetCurrentContext()->HoveredWindow : nullptr};
+		WriteLog("scroll " + std::to_string(xoffset) + " " + std::to_string(yoffset) + ", taken by the ui: " + (m_imguiio->WantCaptureMouse ? "yes" : "no") + ", over: " + (hovered != nullptr ? hovered->Name : "the view"));
+	}
 	return m_imguiio->WantCaptureMouse;
 }
 
@@ -288,6 +296,11 @@ bool ui_layer::init(GLFWwindow *Window)
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     m_imguiio = &ImGui::GetIO();
+	if (Global.test.enabled)
+	{
+		// a test leaves the player's window layout alone (imgui.ini in the game folder), runs in parallel included
+		m_imguiio->IniFilename = nullptr;
+	}
 	ImGui::GetCurrentContext()->ConfigNavWindowingKeyNext = ImGuiKey_None;
 	ImGui::GetCurrentContext()->ConfigNavWindowingKeyPrev = ImGuiKey_None;
 	// imgui.ini is read with the first frame, which may be of another mode than the editor
@@ -387,7 +400,11 @@ bool ui_layer::init(GLFWwindow *Window)
 
 	imgui_style();
 
-    ImGui_ImplGlfw_InitForOpenGL(m_window, false);
+    // a window without an opengl context belongs to the vulkan renderer
+    if (glfwGetWindowAttrib(m_window, GLFW_CLIENT_API) == GLFW_NO_API)
+        ImGui_ImplGlfw_InitForVulkan(m_window, false);
+    else
+        ImGui_ImplGlfw_InitForOpenGL(m_window, false);
 
     if (!GfxRenderer->GetImguiRenderer() || !GfxRenderer->GetImguiRenderer()->Init())
 	  {
@@ -395,14 +412,23 @@ bool ui_layer::init(GLFWwindow *Window)
 	  }
 
 	// panels can be docked together, and dragged out of the simulator window into windows of their own (e.g. on another monitor)
-	// when both backends can do it. glfw can't place windows under wayland. both flags have to be set before the first frame
+	// when both backends can do it. glfw can't place windows under wayland. gamescope does not work well with popup windows.
+	// both flags have to be set before the first frame
 	m_imguiio->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	const char* desktop = std::getenv("XDG_CURRENT_DESKTOP");
+	const char* gamepadui = std::getenv("SteamGamepadUI");
+	if (!desktop) desktop = "";
+	if (!gamepadui) gamepadui = "";
 	auto const viewportsupport{(m_imguiio->BackendFlags & ImGuiBackendFlags_PlatformHasViewports) && (m_imguiio->BackendFlags & ImGuiBackendFlags_RendererHasViewports) &&
-	                           glfwGetPlatform() != GLFW_PLATFORM_WAYLAND};
+	                           glfwGetPlatform() != GLFW_PLATFORM_WAYLAND && std::string_view{desktop} != "gamescope" && std::string_view{gamepadui} != "1"};
+	// a tooltip as long as a paragraph is wrapped: in one line it can run past the screen
+	m_imguiio->ConfigTooltipsWrapWidth = std::round(Global.ui_fontsize * 40.0f);
 	if (Global.ui_viewports && viewportsupport)
 	{
 		m_imguiio->ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 		m_imguiio->ConfigViewportsNoTaskBarIcon = true;
+		// only dragging a panel with the cursor past the main window takes it out, not resizing it or placing it at the edge
+		m_imguiio->ConfigViewportsNoAutoDetach = true;
 		auto &platformio{ImGui::GetPlatformIO()};
 		imgui_create_window = platformio.Platform_CreateWindow;
 		platformio.Platform_CreateWindow = create_viewport_window;
@@ -416,7 +442,11 @@ void ui_layer::shutdown()
 {
 	ImGui::EndFrame();
 
-	GfxRenderer->GetImguiRenderer()->Shutdown();
+	// the vulkan renderer is gone by now (its backend of imgui went with it)
+	if (auto *renderer{GfxRenderer->GetImguiRenderer()})
+	{
+		renderer->Shutdown();
+	}
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 }
@@ -567,7 +597,7 @@ void ui_layer::render_hierarchy(){
 	// fitted to the contents when it first appears; no auto resize, which a docked window can't do
 	ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiCond_FirstUseEver);
 	ImGui::Begin((std::string(STR_C("Scene Hierarchy")) + "###scenehierarchy").c_str(), &m_editor_hierarchy);
-	ImGui::Text("Registered nodes: %zu", scene::Hierarchy.size());
+	ImGui::Text(STR_C("Registered nodes: %zu"), scene::Hierarchy.size());
     ImGui::BeginChild("hierarchy_list", ImVec2(500, 300), true);
 
 	for (auto &entry : scene::Hierarchy)
@@ -598,7 +628,7 @@ void ui_layer::render_hierarchy(){
 
                 if (ImGui::IsItemHovered())
                 {
-                    ImGui::SetTooltip("UUID: %s\nNode type: %s", uuid.c_str(), typeid(*node).name());
+                    ImGui::SetTooltip(STR_C("UUID: %s\nNode type: %s"), uuid.c_str(), typeid(*node).name());
                 }
             }
         }
@@ -610,8 +640,18 @@ void ui_layer::render_hierarchy(){
  
 void ui_layer::set_cursor(int const Mode)
 {
-	glfwSetInputMode(m_window, GLFW_CURSOR, Mode);
+	// the cursor drawn into the picture: the one of the system hidden, so only that one shows, also in a capture of the window
+	auto const hidden{Mode == GLFW_CURSOR_NORMAL && m_drawcursor};
+	glfwSetInputMode(m_window, GLFW_CURSOR, hidden ? GLFW_CURSOR_HIDDEN : Mode);
 	m_cursorvisible = Mode != GLFW_CURSOR_DISABLED;
+	if (m_imguiio != nullptr)
+		m_imguiio->MouseDrawCursor = m_drawcursor && m_cursorvisible;
+}
+
+void ui_layer::draw_cursor(bool const Draw)
+{
+	m_drawcursor = Draw;
+	set_cursor(m_cursorvisible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 }
 
 void ui_layer::set_progress(std::string const &Text)
@@ -695,6 +735,7 @@ void ui_layer::render_menu_contents()
 
 		if (ImGui::MenuItem(STR_C("Screenshot"), "PrtScr"))
 			Application.queue_screenshot();
+		render_tools_menu();
 		ImGui::EndMenu();
 	}
 	if (ImGui::BeginMenu(STR_C("Windows")))
@@ -708,14 +749,14 @@ void ui_layer::render_menu_contents()
 			GfxRenderer->Debug_Ui_State(ret);
 		}
 		if(EditorModeFlag){
-			ImGui::MenuItem("Hierarchy", nullptr, &m_editor_hierarchy);
+			ImGui::MenuItem(STR_C("Scene Hierarchy"), nullptr, &m_editor_hierarchy);
 			bool change_history_enabled = editor_mode::change_history();
-			if (ImGui::MenuItem("Change History", nullptr, &change_history_enabled))
+			if (ImGui::MenuItem(STR_C("Change History"), nullptr, &change_history_enabled))
 			{
 				editor_mode::set_change_history(change_history_enabled);
 			}
 			bool settings_open = editor_mode::settings_open();
-			if (ImGui::MenuItem("Editor Settings", nullptr, &settings_open))
+			if (ImGui::MenuItem(STR_C("Editor Settings"), nullptr, &settings_open))
 			{
 				editor_mode::set_settings_open(settings_open);
 			}

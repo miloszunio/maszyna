@@ -29,6 +29,7 @@ http://mozilla.org/MPL/2.0/.
 #include "model/AnimModel.h"
 #include "vehicle/DynObj.h"
 #include "vehicle/Driver.h"
+#include "vehicle/crewchange.h"
 #include "rendering/renderer.h"
 #include "utilities/Timer.h"
 #include "utilities/Logs.h"
@@ -175,110 +176,6 @@ basic_event::event_conditions::test() const {
     }
     // if we made it here it means we passed all checks
     return true;
-}
-
-void
-basic_event::event_conditions::deserialize( cParser &Input ) {
-    // przetwarzanie warunków, wspólne dla Multiple i UpdateValues
-
-    std::string token;
-    while( true == Input.getTokens()
-        && false == (token = Input.peek()).empty()
-        && false == basic_event::is_keyword(token) ) {
-
-        if( token == "trackoccupied" ) {
-            flags |= flags::track_busy;
-        }
-        else if( token == "trackfree" ) {
-            flags |= flags::track_free;
-        }
-        else if( token == "propability" || token == "probability") { //remove propability in few years after changing old scenery scripts 01.2021
-            flags |= flags::probability;
-            Input.getTokens();
-            Input >> probability;
-        }
-        else if( token == "memcompare" ) {
-            Input.getTokens( 1, false ); // case sensitive
-            if( Input.peek() != "*" ) //"*" - nie brac command pod uwage
-            { // zapamiętanie łańcucha do porównania
-                Input >> memcompare_text;
-                flags |= flags::text;
-            }
-            Input.getTokens();
-            if( Input.peek() != "*" ) //"*" - nie brac val1 pod uwage
-            {
-                Input >> memcompare_value1;
-                flags |= flags::value1;
-            }
-            Input.getTokens();
-            if( Input.peek() != "*" ) //"*" - nie brac val2 pod uwage
-            {
-                Input >> memcompare_value2;
-                flags |= flags::value2;
-            }
-        }
-        else if( token == "memcompareex" ) {
-            memcompare_pass = comparison_pass_from_string( Input.getToken<std::string>() );
-            Input.getTokens();
-            if( Input.peek() != "*" ) //"*" - nie brac pod uwage
-            { // two tokens, operator followed by comparison value
-                std::string operatorstring;
-                Input >> operatorstring;
-                memcompare_text_operator = comparison_operator_from_string( operatorstring );
-                Input.getTokens( 1, false ); // case sensitive
-                Input >> memcompare_text;
-                flags |= flags::text;
-            }
-            Input.getTokens();
-            if( Input.peek() != "*" ) //"*" - nie brac pod uwage
-            { // two tokens, operator followed by comparison value
-                std::string operatorstring;
-                Input >> operatorstring;
-                memcompare_value1_operator = comparison_operator_from_string( operatorstring );
-                Input.getTokens();
-                Input >> memcompare_value1;
-                flags |= flags::value1;
-            }
-            Input.getTokens();
-            if( Input.peek() != "*" ) //"*" - nie brac pod uwage
-            { // two tokens, operator followed by comparison value
-                std::string operatorstring;
-                Input >> operatorstring;
-                memcompare_value2_operator = comparison_operator_from_string( operatorstring );
-                Input.getTokens();
-                Input >> memcompare_value2;
-                flags |= flags::value2;
-            }
-        }
-    }
-}
-
-// sends basic content of the class in legacy (text) format to provided stream
-void
-basic_event::event_conditions::export_as_text( std::ostream &Output ) const {
-
-    if( flags != 0 ) {
-        Output << "condition ";
-        if( ( flags & flags::track_busy ) != 0 ) {
-            Output << "trackoccupied ";
-        }
-        if( ( flags & flags::track_free ) != 0 ) {
-            Output << "trackfree ";
-        }
-        if( ( flags & flags::probability ) != 0 ) {
-            Output
-                << "probability "
-                << probability << ' ';
-        }
-        if( ( flags & ( flags::text | flags::value1 | flags::value2 ) ) != 0 ) {
-            // NOTE: export doesn't preserve original memcompare condition, these are all upgraded to memcompareex format for simplicity
-            Output
-                << "memcompareex "
-                << ( ( flags & flags::text )   == 0 ? "*" :            memcompare_text     + ' ' + to_string( memcompare_text_operator ) ) << ' '
-                << ( ( flags & flags::value1 ) == 0 ? "*" : std::to_string( memcompare_value1 ) + ' ' + to_string( memcompare_value1_operator ) ) << ' '
-                << ( ( flags & flags::value2 ) == 0 ? "*" : std::to_string( memcompare_value2 ) + ' ' + to_string( memcompare_value2_operator ) ) << ' ';
-        }
-    }
 }
 
 basic_event::~basic_event() {
@@ -439,12 +336,10 @@ basic_event::input_location() const {
     return glm::dvec3( 0, 0, 0 );
 };
 
-bool
-basic_event::is_keyword( std::string const &Token ) {
-    // TODO: convert to array lookup if keyword list gets longer
-    return Token == "endevent"
-        || Token == "randomdelay"
-        || Token == "departuredelay";
+TMemCell const *
+basic_event::input_cell() const {
+
+    return nullptr;
 }
 
 
@@ -676,6 +571,12 @@ getvalues_event::input_location() const {
     return m_input.data_cell()->location(); // współrzędne podłączonej komórki pamięci
 }
 
+TMemCell const *
+getvalues_event::input_cell() const {
+
+    return m_input.data_cell();
+}
+
 
 
 // prepares event for use
@@ -716,7 +617,8 @@ putvalues_event::deserialize_( cParser &Input, scene::scratch_data &Scratchpad )
         if( contains( token, '#' ) ) {
             token.erase( token.find( '#' ) ); // obcięcie unikatowości
         }
-        win1250_to_ascii( token ); // get rid of non-ascii chars
+        // NOTE: the name stays as the scenery spells it, with its polish letters; whoever matches it with the name
+        // a timetable has goes by timetable::stop_point_is_for(), which takes any spelling of the station
         m_input.command_type = TCommandType::cm_PassengerStopPoint;
         // nie do kolejki (dla SetVelocity też, ale jak jest do toru dowiązany)
         m_passive = true;
@@ -733,6 +635,10 @@ putvalues_event::deserialize_( cParser &Input, scene::scratch_data &Scratchpad )
         m_input.command_type = TCommandType::cm_SectionVelocity;
         m_passive = true;
     }
+    else if( token == "PointVelocity" ) {
+        m_input.command_type = TCommandType::cm_PointVelocity;
+        m_passive = true;
+    }
     else if( token == "ShuntVelocity" ) {
         m_input.command_type = TCommandType::cm_ShuntVelocity;
         m_passive = true;
@@ -743,6 +649,11 @@ putvalues_event::deserialize_( cParser &Input, scene::scratch_data &Scratchpad )
     }
     else if( token == "CabSignal" ) {
         m_input.command_type = TCommandType::cm_SecuritySystemMagnet;
+        m_passive = true;
+    }
+    else if( token == "SignalAreaEnd" ) {
+        // scanned, so the train sees where the interlocking area of the signal it passed ends
+        m_input.command_type = TCommandType::cm_SignalAreaEnd;
         m_passive = true;
     }
     else {
@@ -772,6 +683,12 @@ putvalues_event::run_() {
         + to_string( m_input.data_value_1, 2 ) + "] ["
         + to_string( m_input.data_value_2, 2 ) + "]" );
 
+    if( crew::is_command( m_input.data_text ) ) {
+        // a driver for the vehicle named in the command, or none (eu07/maszyna#510). not a command for a driver or
+        // a vehicle to take, and it works with nothing setting the event off too (a key, an event launcher)
+        crew::change( crew::parse( m_input.data_text, m_input.data_value_1, m_input.data_value_2 ), m_activator );
+        return;
+    }
     if( m_activator == nullptr ) { return; }
     // zamiana, bo fizyka ma inaczej niż sceneria
     // NOTE: y & z swap, negative x
@@ -1025,13 +942,42 @@ whois_event::run_() {
         auto *targetcell { static_cast<TMemCell *>( std::get<scene::basic_node *>( target ) ) };
         if( targetcell == nullptr ) { continue; }
         // event effect code
+        // +48: station after the next one, unused, stop there or passthrough
         // +40: next station name, unused, stop at next station (duplicate of +0 2nd numeric value)
         // +32: vehicle name
         // +24: vehicle type, consist brake level, obstacle distance
         // +16: load type, load amount, max load amount
         // +8: destination, direction, engine power
         // +0: train name, station count, stop on next station
-        if( m_input.flags & flags::whois_name ) {
+        if( ( m_input.flags & ( flags::whois_name | flags::whois_load | flags::mode_alt ) )
+            == ( flags::whois_name | flags::whois_load ) ) {
+            // +48 (the whois_name | whois_load combination was unused; +56, same with mode_alt
+            // set, stays free for a future mode)
+            // the timetable entry one past the next stop, and whether the train stops there
+            auto const *owner { (
+                m_activator->Mechanik != nullptr && m_activator->Mechanik->primary() ?
+                    m_activator->Mechanik :
+                    m_activator->ctOwner ) };
+            auto const *entry { (
+                owner != nullptr ?
+                    &owner->TrainTimetable().TimeTableEntryAhead( 1 ) :
+                    nullptr ) };
+            auto const aheadname { ( entry != nullptr ? entry->StationName : "none" ) };
+            auto const aheadstop { ( entry != nullptr && entry->Ah >= 0 ? 1 : 0 ) };
+
+            targetcell->UpdateValues(
+                aheadname, // station after the next one
+                0, // unused
+                aheadstop, // stop there or passthrough
+                m_input.flags & ( flags::text | flags::value1 | flags::value2 ) );
+
+            WriteLog(
+                "Type: WhoIs (" + std::to_string( m_input.flags ) + ") - "
+                + "[station after next: " + aheadname + "], "
+                + "[X], "
+                + "[stop there: " + ( aheadstop != 0 ? "yes" : "no" ) + "]" );
+        }
+        else if( m_input.flags & flags::whois_name ) {
             // +32 or +40
             // next station name
             if( m_input.flags & flags::mode_alt ) {
@@ -1248,6 +1194,17 @@ std::vector<basic_event *> multi_event::children() const {
     for (auto const &childevent : m_children) {
         if (std::get<basic_event *>(childevent) != nullptr) {
             result.push_back(std::get<basic_event *>(childevent));
+        }
+    }
+    return result;
+}
+
+std::vector<std::pair<basic_event *, bool>> multi_event::branches() const {
+    std::vector<std::pair<basic_event *, bool>> result;
+    for (auto const &childevent : m_children) {
+        if (std::get<basic_event *>(childevent) != nullptr) {
+            // the flag is set for the ones before "else"
+            result.emplace_back(std::get<basic_event *>(childevent), false == std::get<bool>(childevent));
         }
     }
     return result;
@@ -1746,6 +1703,16 @@ animation_event::run_() {
 	});
 }
 
+void
+animation_event::finish() const {
+
+    for (auto const &container : m_animationcontainers) {
+        if (auto const target = container.lock()) {
+            target->Finish();
+        }
+    }
+}
+
 // export_as_text() subclass details
 void
 animation_event::export_as_text_( std::ostream &Output ) const {
@@ -1991,6 +1958,69 @@ void
 track_event::export_as_text_( std::ostream &Output ) const {
 
     Output << m_velocity << ' ';
+}
+
+
+
+// prepares event for use
+void
+buckle_event::init() {
+
+    init_targets( simulation::Paths, "track" );
+}
+
+// event type string
+std::string
+buckle_event::type() const {
+
+    return "trackbuckle";
+}
+
+// deserialize() subclass details
+void
+buckle_event::deserialize_( cParser &Input, scene::scratch_data &Scratchpad ) {
+
+    Input.getTokens();
+    Input >> m_buckle.amplitude;
+    m_buckle.amplitude = std::clamp( m_buckle.amplitude, 0.f, static_cast<float>( 1000.0 * track_buckle::most_amplitude ) );
+    Input.getTokens();
+    // the length, the centre and the side, each optional
+    if( false == is_keyword( Input.peek() ) ) {
+        Input >> m_buckle.length;
+        if( m_buckle.length > 0.f ) {
+            m_buckle.length = std::clamp( m_buckle.length, static_cast<float>( track_buckle::least_length ), static_cast<float>( track_buckle::most_length ) );
+        }
+        Input.getTokens();
+    }
+    if( false == is_keyword( Input.peek() ) ) {
+        Input >> m_buckle.centre;
+        Input.getTokens();
+    }
+    if( false == is_keyword( Input.peek() ) ) {
+        auto side { 0.f };
+        Input >> side;
+        m_buckle.side = ( side > 0.f ? 1 : side < 0.f ? -1 : 0 );
+        Input.getTokens();
+    }
+}
+
+// run() subclass details
+void
+buckle_event::run_() {
+
+    WriteLog( "Type: TrackBuckle - [" + to_string( m_buckle.amplitude, 0 ) + " mm]" );
+    for( auto &target : m_targets ) {
+        auto *targettrack = static_cast<TTrack *>( std::get<scene::basic_node *>( target ) );
+        if( targettrack == nullptr ) { continue; }
+        targettrack->buckle_now( m_buckle, "event " + m_name );
+    }
+}
+
+// export_as_text() subclass details
+void
+buckle_event::export_as_text_( std::ostream &Output ) const {
+
+    Output << m_buckle.amplitude << ' ' << m_buckle.length << ' ' << m_buckle.centre << ' ' << m_buckle.side << ' ';
 }
 
 
@@ -2251,6 +2281,7 @@ make_event( cParser &Input, scene::scratch_data &Scratchpad ) {
     else if( type == "multiple" )     { event = new multi_event(); }
     else if( type == "switch" )       { event = new switch_event(); }
     else if( type == "trackvel" )     { event = new track_event(); }
+    else if( type == "trackbuckle" )  { event = new buckle_event(); }
     else if( type == "sound" )        { event = new sound_event(); }
     else if( type == "texture" )      { event = new texture_event(); }
     else if( type == "animation" )    { event = new animation_event(); }

@@ -9,6 +9,7 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "application/driveruipanels.h"
+#include "application/editoruipanels.h"
 
 #include "utilities/Globals.h"
 #include "application/application.h"
@@ -19,10 +20,13 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/Timer.h"
 #include "world/Event.h"
 #include "world/TractionPower.h"
+#include "world/catenary_span.h"
 #include "vehicle/Camera.h"
 #include "world/mtable.h"
+#include "world/stationnames.h"
 #include "vehicle/Train.h"
 #include "vehicle/Driver.h"
+#include "vehicle/drivingaid.h"
 #include "model/AnimModel.h"
 #include "vehicle/DynObj.h"
 #include "model/Model3d.h"
@@ -38,12 +42,38 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/uart.h"
 #endif
 
+#include <format>
+#include <string_view>
+#include <vector>
+
+#include "audio/audiorenderer.h"
+
+namespace {
+
+// how close to a broken coupler the camera has to be for the driving aid to offer its repair [m]
+constexpr float coupler_repair_radius { 5.f };
+
+// the broken coupler nearest to the camera, within reach: the vehicle and its end, or no vehicle
+std::pair<TDynamicObject const *, int> broken_coupler_nearby( glm::dvec3 const &Camera ) {
+    auto const *vehicle { std::get<TDynamicObject *>( simulation::Region->find_vehicle( Camera, coupler_repair_radius, false, true ) ) };
+    if( vehicle == nullptr || vehicle->MoverParameters == nullptr ) { return { nullptr, end::front }; }
+    auto const front { glm::distance( vehicle->CouplerPosition( end::front ), Camera ) };
+    auto const rear { glm::distance( vehicle->CouplerPosition( end::rear ), Camera ) };
+    auto const nearest { front <= rear ? end::front : end::rear };
+    if( std::min( front, rear ) > coupler_repair_radius || false == vehicle->MoverParameters->Couplers[ nearest ].broken ) { return { nullptr, end::front }; }
+    return { vehicle, nearest };
+}
+
+} // namespace
+
 void
 drivingaid_panel::update() {
 
     if( false == is_open ) { return; }
 
 	text_lines.clear();
+
+    std::tie( m_brokenvehicle, m_brokenend ) = broken_coupler_nearby( Global.pCamera.Pos );
 
     auto const *train { simulation::Train };
     auto const *controlled { ( train ? train->Dynamic() : nullptr ) };
@@ -54,6 +84,13 @@ drivingaid_panel::update() {
     auto const *mover = controlled->MoverParameters;
     auto const *vehicledriver = controlled->Mechanik;
     auto const *owner = controlled->ctOwner != nullptr ? controlled->ctOwner : controlled->Mechanik;
+    // the numbers of the throttle and brakes lines, with the controls of the cab the driver is in
+    auto const readout { drivingaid::compute( drivingaid::from_movers(
+        *mover,
+        *vehicledriver->Controlling(),
+        drivingaid::cab_controls {
+            train->ggLocalBrake.SubModel != nullptr,
+            train->ggJointCtrl.SubModel != nullptr } ) ) };
 
     { // throttle, velocity, speed limits and grade
         std::string expandedtext;
@@ -70,53 +107,7 @@ drivingaid_panel::update() {
             }
             // next speed limit
             auto const speedlimit { static_cast<int>( owner->VelDesired ) };
-            auto nextspeedlimit { speedlimit };
-            auto nextspeedlimitdistance { std::numeric_limits<double>::max() };
-            if( speedlimit != 0 ) { // if we aren't allowed to move then any next speed limit is irrelevant
-                // nie przekraczać rozkladowej
-                auto const schedulespeedlimit { (
-                    (owner->OrderCurrentGet() & (Obey_train | Bank)) != 0 && owner->TrainParams.TTVmax > 0.0 ? static_cast<int>( owner->TrainParams.TTVmax ) :
-                    (owner->OrderCurrentGet() & (Obey_train | Bank)) == 0 ? static_cast<int>( owner->fShuntVelocity ) :
-                        -1 ) };
-                // first take note of any speed change which should occur after passing potential current speed limit
-                if( owner->VelLimitLastDist.second > 0 ) {
-                    nextspeedlimit = min_speed( schedulespeedlimit, static_cast<int>( owner->VelLimitLastDist.first ) );
-                    nextspeedlimitdistance = owner->VelLimitLastDist.second;
-                }
-                // then take into account speed change ahead, compare it with speed after potentially clearing last limit
-                // lower of these two takes priority; otherwise limit lasts at least until potential last limit is cleared
-                auto const noactivespeedlimit { owner->VelLimitLastDist.second < 0 };
-                if( auto const speedatproximitydistance { min_speed( schedulespeedlimit, static_cast<int>( owner->VelNext ) ) }; speedatproximitydistance == nextspeedlimit ) {
-                    if( noactivespeedlimit ) {
-                        nextspeedlimit = speedatproximitydistance;
-                        nextspeedlimitdistance = owner->ActualProximityDist;
-                    }
-                }
-                else if( speedatproximitydistance < nextspeedlimit ) {
-                    // if the speed limit ahead is more strict than our current limit, it's important enough to report
-                    if( speedatproximitydistance < owner->VelDesired ) {
-                        nextspeedlimit = speedatproximitydistance;
-                        nextspeedlimitdistance = owner->ActualProximityDist;
-                    }
-                    // otherwise report it only if it's located after our current (lower) limit ends
-                    else if( owner->ActualProximityDist > nextspeedlimitdistance ) {
-                        nextspeedlimit = speedatproximitydistance;
-                        nextspeedlimitdistance = owner->ActualProximityDist;
-                    }
-                }
-                else if( noactivespeedlimit ) { // implicit proximity > last, report only if last limit isn't present
-                    nextspeedlimit = speedatproximitydistance;
-                    nextspeedlimitdistance = owner->ActualProximityDist;
-                }
-                // HACK: if our current speed limit extends beyond our scan range don't display potentially misleading information about its length
-                if( nextspeedlimitdistance >= EU07_AI_SPEEDLIMITEXTENDSBEYONDSCANRANGE ) {
-                    nextspeedlimit = speedlimit;
-                }
-                // HACK: hide next speed limit if the 'limit' is a vehicle in front of us
-                else if( owner->ActualProximityDist == std::abs( owner->TrackObstacle() ) ) {
-                    nextspeedlimit = speedlimit;
-                }
-            }
+            auto const [ nextspeedlimit, nextspeedlimitdistance ] { owner->next_speed_limit() };
             std::string nextspeedlimittext;
             if( nextspeedlimit != speedlimit ) {
                 std::snprintf(
@@ -140,8 +131,8 @@ drivingaid_panel::update() {
         std::snprintf(
             m_buffer.data(), m_buffer.size(),
             STR_C("Throttle: %3d+%d %c%s"),
-            mover->EIMCtrlType > 0 ? std::max(0, static_cast<int>(100.4 * mover->eimic_real)) : vehicledriver->Controlling()->MainCtrlPos,
-            mover->EIMCtrlType > 0 ? vehicledriver->Controlling()->MainCtrlPos : vehicledriver->Controlling()->ScndCtrlPos,
+            readout.throttle_first,
+            readout.throttle_second,
             mover->SpeedCtrlUnit.IsActive ? 'T' :
 		              mover->DirActive > 0          ? 'D' :
 		              mover->DirActive < 0          ? 'R' :
@@ -161,16 +152,32 @@ drivingaid_panel::update() {
                 mover->PipePress * 100 );
             expandedtext = m_buffer.data();
         }
-        auto const basicbraking { mover->fBrakeCtrlPos };
-        auto const eimicbraking { std::max( 0.0, -100.0 * mover->eimic_real ) };
-        std::snprintf(
-            m_buffer.data(), m_buffer.size(),
-            STR_C("Brakes: %5.1f+%-2.0f%c%s"),
-//            ( mover->EIMCtrlType == 0 ? basicbraking : mover->EIMCtrlType == 3 ? ( mover->UniCtrlIntegratedBrakeCtrl ? eimicbraking : basicbraking ) : eimicbraking ),
-            mover->UniCtrlIntegratedBrakeCtrl ? eimicbraking : basicbraking,
-            mover->LocalBrakePosA * LocalBrakePosNo,
-            mover->SlippingWheels ? '!' : ' ',
-            expandedtext.c_str() );
+        if( readout.ed_percent ) {
+            // the ED braking demand, ahead of the expanded data (eu07/maszyna#558)
+            std::snprintf(
+                m_buffer.data(), m_buffer.size(),
+                STR_C(" ED brake: %d%%%%"),
+                *readout.ed_percent );
+            expandedtext.insert( 0, m_buffer.data() );
+        }
+        if( readout.show_local_brake ) {
+            std::snprintf(
+                m_buffer.data(), m_buffer.size(),
+                STR_C("Brakes: %5.1f+%-2.0f%c%s"),
+                readout.brake_first,
+                readout.local_brake,
+                mover->SlippingWheels ? '!' : ' ',
+                expandedtext.c_str() );
+        }
+        else {
+            // the cab has no local brake control: its setting is left out (eu07/maszyna#555)
+            std::snprintf(
+                m_buffer.data(), m_buffer.size(),
+                STR_C("Brakes: %5.1f%c%s"),
+                readout.brake_first,
+                mover->SlippingWheels ? '!' : ' ',
+                expandedtext.c_str() );
+        }
 
         text_lines.emplace_back( m_buffer.data(), Global.UITextColor );
     }
@@ -204,6 +211,30 @@ drivingaid_panel::update() {
 
         text_lines.emplace_back( textline + "  " + expandedtext, Global.UITextColor );
     }
+}
+
+void
+drivingaid_panel::render_contents() {
+    ImGui::Checkbox(STR_C("expand"), &is_expanded);
+
+    ImGui::SameLine();
+
+    auto const *driver = (simulation::Train && simulation::Train->Dynamic()) ? simulation::Train->Dynamic()->Mechanik : nullptr;
+    if (driver && (false == Global.RealisticControlMode || DebugModeFlag)) {
+        bool autopilot = driver->AIControllFlag;
+        if (ImGui::Checkbox(STR_C("autopilot"), &autopilot)) {
+            command_relay commandrelay;
+            commandrelay.post(autopilot ? user_command::aidriverenable : user_command::aidriverdisable, 0.0, 0.0, GLFW_PRESS, 0);
+        }
+    }
+
+    // only the coupler the camera is next to, and the one of the vehicle it was coupled with
+    if( m_brokenvehicle != nullptr && ImGui::Button( STR_C( "Repair coupler" ) ) ) {
+        command_relay commandrelay;
+        commandrelay.post( user_command::repaircoupler, m_brokenend, 0.0, GLFW_PRESS, 0, glm::vec3( 0.0f ), &m_brokenvehicle->name() );
+    }
+
+    ui_panel::render_contents();
 }
 
 void
@@ -326,9 +357,10 @@ timetable_panel::update() {
 
     // destination
     {
-        auto textline = Bezogonkow( owner->Relation(), true );
+        // the names with the letters their files have, in utf-8 as the user interface takes it
+        auto textline = table.relation_caption();
         if( false == textline.empty() ) {
-            textline += " (" + Bezogonkow( owner->TrainName(), true ) + ")";
+            textline += " (" + data_name_to_utf8( owner->TrainName(), true ) + ")";
         }
         text_lines.emplace_back( textline, Global.UITextColor );
     }
@@ -395,10 +427,9 @@ timetable_panel::update() {
                     vmax += to_string( tableline->vmax, 0 );
                     vmax = vmax.substr( vmax.size() - 3, 3 ); // z wyrównaniem do prawej
                 }
-                auto const station { (
-                    Bezogonkow( tableline->StationName, true )
-                    + "                                  " )
-                    .substr( 0, 34 ) };
+                // the name as the timetable spells it; in utf-8 a letter can take more than one byte, the column is
+                // 34 characters wide
+                auto const station { utf8_fit( timetable::station_caption( tableline->StationLabel ), 34 ) };
                 auto const location { (
                     ( tableline->km > 0.0 ?
                         to_string( tableline->km, 2 ) :
@@ -526,6 +557,7 @@ void debug_panel::update()
 	m_powergridlines.clear();
 	m_cameralines.clear();
 	m_rendererlines.clear();
+	m_couplerlines.clear();
 #ifdef WITH_UART
     m_uartlines.clear();
 #endif
@@ -539,10 +571,27 @@ void debug_panel::update()
 	update_section_powergrid( m_powergridlines );
 	update_section_camera( m_cameralines );
 	update_section_renderer( m_rendererlines );
+	update_section_coupler( m_couplerlines );
 #ifdef WITH_UART
     update_section_uart(m_uartlines);
 #endif
 }
+
+namespace {
+
+// memory cells of the scenery, to look into and play with while the simulation runs
+bool render_section_memcells() {
+
+    if( false == ImGui::CollapsingHeader( "Memory Cells" ) ) { return false; }
+    static memcells_panel memcells { "Memory cells", true };
+    memcells.listheight = ImGui::GetTextLineHeightWithSpacing() * 12.f;
+    ImGui::PushID( "memcells" );
+    memcells.render_body();
+    ImGui::PopID();
+    return true;
+}
+
+} // namespace
 
 void
 debug_panel::render() {
@@ -572,17 +621,19 @@ debug_panel::render() {
             command_relay commandrelay;
             commandrelay.post(user_command::resetconsist, 0.0, 0.0, GLFW_PRESS, 0, glm::vec3(0.0f), &m_input.vehicle->name());
         }
+        render_section_coupler();
         render_section( "Vehicle Engine", m_enginelines );
         render_section( "Vehicle AI", m_ailines );
         render_section( "Vehicle Scan Table", m_scantablelines );
         render_section_scenario();
         render_section_eventqueue();
+        render_section_memcells();
         if( true == render_section( "Power Grid", m_powergridlines ) ) {
             // traction state debug
             ImGui::Checkbox( "Debug Traction", &DebugTractionFlag );
         }
         render_section( "Camera", m_cameralines );
-        render_section( "Gfx Renderer / Statistics", m_rendererlines );
+        render_section_renderer();
         render_section_settings();
 		render_section_developer(); // Developer tools
 #ifdef WITH_UART
@@ -810,7 +861,7 @@ debug_panel::update_section_vehicle( std::vector<text_line> &Output ) {
 	              mover.HeatingAllow ? 'h' :
 	                                   '.',
         mover.Hamulec->Releaser() ? '^' : '.',
-        std::string( m_input.mechanik ? STR(" R") + ( mover.Radio ? std::to_string( m_input.mechanik->iRadioChannel ) : "-" ) : "" ).c_str(),
+        std::string( m_input.mechanik ? STR(" R") + ( mover.Radio && mover.RadioFuse ? std::to_string( m_input.mechanik->iRadioChannel ) : "-" ) : "" ).c_str(),
         std::string( isdieselenginepowered ? STR(" oil pressure: ") + to_string( mover.OilPump.pressure, 2 )  : "" ).c_str(),
         // power transfers
         // 3000v
@@ -1137,7 +1188,7 @@ debug_panel::update_section_ai( std::vector<text_line> &Output ) const {
     if( mechanik.VelNext == 0.0
      && mechanik.eSignNext ) {
         // jeśli ma zapamiętany event semafora, nazwa eventu semafora
-        Output.emplace_back( "Current signal: " + Bezogonkow( mechanik.eSignNext->m_name ), Global.UITextColor );
+        Output.emplace_back( "Current signal: " + data_name_to_utf8( mechanik.eSignNext->m_name ), Global.UITextColor );
     }
 
     // distances
@@ -1248,7 +1299,7 @@ debug_panel::update_section_scantable( std::vector<text_line> &Output ) const {
 	do {
 		auto const scanline = mechanik.TableText( i );
 		if( scanline.empty() ) { break; }
-		Output.emplace_back( Bezogonkow( scanline ), Global.UITextColor );
+		Output.emplace_back( data_name_to_utf8( scanline ), Global.UITextColor );
 		++i;
 	} while( i < speedtablesize );
 	if( Output.size() == 1 ) {
@@ -1420,7 +1471,7 @@ debug_panel::update_section_camera( std::vector<text_line> &Output ) const {
 }
 
 void
-debug_panel::update_section_renderer( std::vector<text_line> &Output ) const {
+debug_panel::update_section_renderer( std::vector<text_line> &Output ) {
 
             // gfx renderer data
             auto textline =
@@ -1442,29 +1493,9 @@ debug_panel::update_section_renderer( std::vector<text_line> &Output ) const {
 	        {
 		        textline += "Shaders";
 	        }
-            else if (Global.GfxRenderer == "experimental")
-            {
-		        textline += "NVRHI on ";
-            }
-	        else
+	        else if (Global.GfxRenderer == "vulkan")
 	        {
-		        if (Global.BasicRenderer)
-		        {
-			        textline += "Legacy Simple";
-		        }
-		        else
-		        {
-			        textline += "Legacy";
-		        }
-	        }
-
-	        if (Global.bUseVBO)
-	        {
-		        textline += ", VBO";
-	        }
-	        else
-	        {
-		        textline += ", Display Lists";
+		        textline += "Vulkan";
 	        }
 
 	        textline += " ";
@@ -1477,9 +1508,12 @@ debug_panel::update_section_renderer( std::vector<text_line> &Output ) const {
 
 			Output.emplace_back( textline, Global.UITextColor );
 
-            // renderer stats
-            Output.emplace_back( GfxRenderer->info_times(), Global.UITextColor );
-            Output.emplace_back( GfxRenderer->info_stats(), Global.UITextColor );
+            // renderer stats, in sections when the renderer has them (render_section_renderer())
+            m_renderersections = GfxRenderer->info_sections();
+            if( m_renderersections.empty() ) {
+                Output.emplace_back( GfxRenderer->info_times(), Global.UITextColor );
+                Output.emplace_back( GfxRenderer->info_stats(), Global.UITextColor );
+            }
 
             // CPU related
             Output.emplace_back("CPU:", Global.UITextColor);
@@ -1490,6 +1524,172 @@ debug_panel::update_section_renderer( std::vector<text_line> &Output ) const {
 
 }
 
+namespace {
+
+// how far from the camera a coupler shows in the coupler section [m]
+constexpr float coupler_pick_radius { 10.f };
+
+std::string_view coupler_type_name( TCouplerType const Type ) {
+    switch( Type ) {
+        case TCouplerType::Articulated: { return "articulated"; }
+        case TCouplerType::Bare: { return "bare"; }
+        case TCouplerType::Chain: { return "chain"; }
+        case TCouplerType::Screw: { return "screw"; }
+        case TCouplerType::Automatic: { return "automatic"; }
+        default: { return "none"; }
+    }
+}
+
+// the couplerphysics setting of eu07.ini
+std::string_view coupler_physics_setting() {
+    if( Global.coupler_physics_all ) { return "all"; }
+    return Global.coupler_physics ? "yes" : "no";
+}
+
+std::string_view coupler_stop_name( int const Stop ) {
+    if( Stop > 0 ) { return "draw gear solid"; }
+    if( Stop < 0 ) { return "buffers solid"; }
+    return "none";
+}
+
+// a value shown in the Scale of its unit (1000 for kN, 0.001 for mm), dragged within Min and Max of that unit
+bool edit_value( char const *Label, double &Value, double const Scale, double const Min, double const Max, char const *Format ) {
+    auto shown { Value / Scale };
+    if( false == ImGui::DragScalar( Label, ImGuiDataType_Double, &shown, static_cast<float>( ( Max - Min ) / 1000.0 ), &Min, &Max, Format ) ) {
+        return false;
+    }
+    Value = std::clamp( shown, Min, Max ) * Scale;
+    return true;
+}
+
+bool edit_spring( char const *Name, coupler_physics::spring_curve &Curve, double &Unloading ) {
+    ImGui::PushID( Name );
+    ImGui::TextUnformatted( Name );
+    auto changed { edit_value( "Stiffness [kN/m]", Curve.stiffness, 1000.0, 100.0, 50000.0, "%.0f" ) };
+    changed = edit_value( "Travel [mm]", Curve.travel, 0.001, 5.0, 300.0, "%.0f" ) || changed;
+    changed = edit_value( "Progression", Curve.progression, 1.0, 0.0, 0.9, "%.2f" ) || changed;
+    changed = edit_value( "Unloading ratio", Unloading, 1.0, 0.05, 1.0, "%.2f" ) || changed;
+    ImGui::Text( "End force: %.0f kN", Curve.end_force() / 1000.0 );
+    ImGui::PopID();
+    return changed;
+}
+
+bool edit_link( coupler_physics::end_parameters &Parameters ) {
+    auto &link { Parameters.link };
+    ImGui::PushID( "link" );
+    ImGui::TextUnformatted( "Link" );
+    auto changed { ImGui::Checkbox( "Breakable", &link.breakable ) };
+    changed = edit_value( "Ultimate force [kN]", link.ultimate, 1000.0, 10.0, 5000.0, "%.0f" ) || changed;
+    changed = edit_value( "Yield force [kN]", link.yield, 1000.0, 10.0, 5000.0, "%.0f" ) || changed;
+    link.yield = std::min( link.yield, link.ultimate );
+    // the permanent stretch at which the link breaks, which is what the hardening gives
+    auto stretch { ( link.ultimate - link.yield ) / link.hardening };
+    if( edit_value( "Stretch to break [mm]", stretch, 0.001, 1.0, 200.0, "%.1f" ) ) {
+        link.hardening = std::max( ( link.ultimate - link.yield ) / stretch, 1.0 );
+        changed = true;
+    }
+    changed = edit_value( "Link stiffness [kN/m]", Parameters.link_stiffness, 1000.0, 1000.0, 2000000.0, "%.0f" ) || changed;
+    changed = edit_value( "Buffers crush force [kN]", Parameters.crush_force, 1000.0, 100.0, 10000.0, "%.0f" ) || changed;
+    changed = edit_value( "Restitution of a solid hit", Parameters.solid_restitution, 1.0, 0.05, 0.95, "%.2f" ) || changed;
+    ImGui::PopID();
+    return changed;
+}
+
+bool edit_coupler_parameters( coupler_physics::end_parameters &Parameters ) {
+    auto changed { edit_value( "Slack [mm]", Parameters.slack, 0.001, -100.0, 300.0, "%.1f" ) };
+    changed = edit_value( "Damping [kN s/m]", Parameters.damping, 1000.0, 0.0, 1000.0, "%.1f" ) || changed;
+    changed = edit_spring( "Buffers", Parameters.buffers, Parameters.buffers_unloading ) || changed;
+    changed = edit_spring( "Draw gear", Parameters.draw_gear, Parameters.draw_gear_unloading ) || changed;
+    changed = edit_link( Parameters ) || changed;
+    return changed;
+}
+
+} // namespace
+
+void
+debug_panel::update_section_coupler( std::vector<text_line> &Output ) {
+
+    m_coupler = {};
+    if( m_input.camera == nullptr ) { return; }
+    auto const &camera { m_input.camera->Pos };
+    auto const *vehicle { std::get<TDynamicObject *>( simulation::Region->find_vehicle( camera, coupler_pick_radius, false, true ) ) };
+    if( vehicle == nullptr || vehicle->MoverParameters == nullptr ) {
+        Output.emplace_back( std::format( "No coupler within {:.0f} m of the camera", coupler_pick_radius ), Global.UITextColor );
+        return;
+    }
+    auto const nearerfront { glm::distance( vehicle->CouplerPosition( end::front ), camera ) <= glm::distance( vehicle->CouplerPosition( end::rear ), camera ) };
+    m_coupler = { vehicle, nearerfront ? end::front : end::rear };
+
+    auto const &mover { *vehicle->MoverParameters };
+    auto const &coupler { mover.Couplers[ m_coupler.end ] };
+    auto const &neighbour { mover.Neighbours[ m_coupler.end ] };
+    auto const &state { coupler.physics_state };
+
+    Output.emplace_back(
+        std::format( "{}, {} end, {} coupler{}", vehicle->name(), nearerfront ? "front" : "rear", coupler_type_name( coupler.type() ), coupler.has_adapter() ? " (adapter)" : "" ),
+        Global.UITextColor );
+    Output.emplace_back(
+        std::format(
+            "Model: {} (couplerphysics {}, vehicle {}covered), crash damage {}",
+            mover.coupler_physics_at( m_coupler.end ) ? "physical" : "legacy",
+            coupler_physics_setting(),
+            mover.CouplerPhysics ? "" : "not ",
+            Global.crash_damage ? "on" : "off" ),
+        Global.UITextColor );
+    if( neighbour.vehicle != nullptr ) {
+        Output.emplace_back(
+            std::format( "Neighbour: {} ({} end), coupling [{}], gap {:.1f} mm", neighbour.vehicle->name(), neighbour.vehicle_end == end::front ? "front" : "rear", coupler.CouplingFlag, neighbour.distance * 1000.0 ),
+            Global.UITextColor );
+    }
+    else {
+        Output.emplace_back( "Neighbour: none", Global.UITextColor );
+    }
+    Output.emplace_back( std::format( "Force: {:.1f} kN", coupler.CForce / 1000.0 ), Global.UITextColor );
+    Output.emplace_back(
+        std::format( "Draw gear: {:.1f} mm, {:.1f} kN  Buffers: {:.1f} mm, {:.1f} kN", state.draw_gear.deflection * 1000.0, state.draw_gear.force / 1000.0, state.buffers.deflection * 1000.0, state.buffers.force / 1000.0 ),
+        Global.UITextColor );
+    Output.emplace_back(
+        std::format( "Stretch: {:.1f} mm, stop: {}, overloaded for {:.1f} s", state.elongation * 1000.0, coupler_stop_name( state.stop ), coupler.stretch_duration ),
+        Global.UITextColor );
+    if( coupler.broken ) {
+        Output.emplace_back( "Coupler broken (repair it in the driving aid, F1)", glm::vec4( 1.f, 0.25f, 0.25f, 1.f ) );
+    }
+}
+
+bool
+debug_panel::render_section_coupler() {
+
+    if( false == render_section( "Coupler", m_couplerlines ) ) { return false; }
+    // the parameters to try out, in the debug mode, on the simulation itself
+    if( false == DebugModeFlag || m_coupler.vehicle == nullptr || Application.is_client() ) { return true; }
+
+    ImGui::Separator();
+    ImGui::Checkbox( "Physical coupler model", &Global.coupler_physics );
+    ImGui::Checkbox( "Physical model for every train", &Global.coupler_physics_all );
+    ImGui::Checkbox( "Crash damage", &Global.crash_damage );
+    ImGui::Checkbox( "Apply to the other end of the pair too", &m_couplerbothends );
+
+    auto &mover { *m_coupler.vehicle->MoverParameters };
+    auto &coupler { mover.Couplers[ m_coupler.end ] };
+    auto const &neighbour { mover.Neighbours[ m_coupler.end ] };
+    auto *othercoupler { neighbour.vehicle != nullptr ? &neighbour.vehicle->MoverParameters->Couplers[ neighbour.vehicle_end ] : nullptr };
+
+    if( auto parameters { coupler.physics }; edit_coupler_parameters( parameters ) ) {
+        coupler.physics = parameters;
+        if( m_couplerbothends && othercoupler != nullptr ) {
+            othercoupler->physics = parameters;
+        }
+    }
+    if( ImGui::Button( "Reset the stretch of the coupling" ) ) {
+        // both vehicles keep the state of the pair alike
+        coupler.physics_state.elongation = 0.0;
+        if( othercoupler != nullptr ) {
+            othercoupler->physics_state.elongation = 0.0;
+        }
+    }
+    return true;
+}
+
 bool
 debug_panel::render_section( std::string const &Header, std::vector<text_line> const &Lines ) {
 
@@ -1497,6 +1697,30 @@ debug_panel::render_section( std::string const &Header, std::vector<text_line> c
 	if( false == ImGui::CollapsingHeader( Header.c_str() ) ) { return false; }
 
     return render_section( Lines );
+}
+
+// the lines of the renderer, then its data in sections which fold, the long lines wrapped to the width of the panel
+bool
+debug_panel::render_section_renderer() {
+
+    if( false == render_section( "Gfx Renderer / Statistics", m_rendererlines ) ) { return false; }
+
+    ImGui::PushStyleColor( ImGuiCol_Text, { Global.UITextColor.r, Global.UITextColor.g, Global.UITextColor.b, Global.UITextColor.a } );
+    ImGui::PushTextWrapPos( 0.f );
+    for( auto const &section : m_renderersections ) {
+        ImGui::SetNextItemOpen( section.open, ImGuiCond_Once );
+        if( true == ImGui::TreeNode( section.title.c_str() ) ) {
+            ImGui::TextUnformatted( section.text.c_str() );
+            ImGui::TreePop();
+        }
+    }
+    ImGui::PopTextWrapPos();
+    ImGui::PopStyleColor();
+    // the physics of the vehicles, timed in the section of the main loop
+    ImGui::Checkbox( "let vehicles standing still and held by their brakes sleep (physics.sleepheld)", &Global.physics_sleepheld );
+    ImGui::Checkbox( "one step of the physics in a frame for road vehicles farther than 1 km (physics.roadlod)", &Global.physics_roadlod );
+    ImGui::SliderFloat( "bar: change of the pressure in a pipe which wakes the physics of a vehicle, 0 any (physics.pipewake)", &Global.physics_pipewake, 0.f, 0.05f, "%.4f" );
+    return true;
 }
 
 bool
@@ -1526,6 +1750,81 @@ bool debug_panel::render_section_developer() const
 	return true;
 }
 
+namespace {
+
+// a combo choosing one of the names, the first entry standing for the library's own choice. the names are asked for
+// each time the list opens, as devices come and go. returns: true if the choice changed
+template <class Names_>
+bool name_combo( char const *Label, std::string &Value, Names_ const &Names, char const *Defaultlabel, std::string_view const Defaultvalue ) {
+
+    auto const preview { Value == Defaultvalue ? std::string{ Defaultlabel } : Value };
+    if( false == ImGui::BeginCombo( Label, preview.c_str() ) ) { return false; }
+
+    static std::vector<std::string> names; // one list per call site, as each passes its own lambda
+    if( ImGui::IsWindowAppearing() ) {
+        names = Names();
+    }
+    auto changed { false };
+    if( ImGui::Selectable( Defaultlabel, Value == Defaultvalue ) ) {
+        Value = Defaultvalue;
+        changed = true;
+    }
+    for( auto const &name : names ) {
+        if( ImGui::Selectable( name.c_str(), name == Value ) ) {
+            Value = name;
+            changed = true;
+        }
+    }
+    ImGui::EndCombo();
+    return changed;
+}
+
+// options of the audio device, applied by reopening it: output device, output mode, HRTF, limiter, mixing rate, sources
+void render_audio_device_settings() {
+
+    auto changed { false };
+    changed |= name_combo( "Output device###audiodevice", Global.AudioRenderer,
+        [] { return audio::renderer.output_devices(); }, "System default", "" );
+    changed |= name_combo( "Output mode###audiooutputmode", Global.AudioOutputMode,
+        [] { return std::vector<std::string>{ "mono", "stereo", "stereo-basic", "uhj", "headphones", "quad", "5.1", "6.1", "7.1" }; },
+        "Automatic", "auto" );
+    changed |= name_combo( "HRTF###audiohrtf", Global.AudioHrtf,
+        [] { return std::vector<std::string>{ "on", "off" }; }, "Automatic", "auto" );
+    changed |= name_combo( "HRTF data set###audiohrtfprofile", Global.AudioHrtfProfile,
+        [] { return audio::renderer.hrtf_profiles(); }, "Library's choice", "" );
+    changed |= name_combo( "Limiter###audiolimiter", Global.AudioLimiter,
+        [] { return std::vector<std::string>{ "on", "off" }; }, "Automatic", "auto" );
+
+    auto frequency { Global.AudioFrequency > 0 ? std::to_string( Global.AudioFrequency ) : std::string{} };
+    if( name_combo( "Mixing rate###audiofrequency", frequency,
+            [] { return std::vector<std::string>{ "22050", "32000", "44100", "48000", "96000" }; }, "Device's", "" ) ) {
+        Global.AudioFrequency = ( frequency.empty() ? 0 : std::stoi( frequency ) );
+        changed = true;
+    }
+
+    if( changed ) {
+        audio::renderer.apply_device_settings();
+    }
+}
+
+// options of the sources, applied to the playing ones right away: resampler, Doppler effect, EFX
+void render_audio_source_settings() {
+
+    auto changed { false };
+    changed |= name_combo( "Resampler###audioresampler", Global.AudioResampler,
+        [] { return audio::renderer.resamplers(); }, "Library's default", "" );
+    changed |= ImGui::SliderFloat( ( to_string( Global.AudioDoppler, 2 ) + "###audiodoppler" ).c_str(), &Global.AudioDoppler, 0.0f, 1.0f, "Doppler effect" );
+    changed |= ImGui::Checkbox( "Soundproofing muffles high frequencies###audiolowpass", &Global.AudioLowpass );
+    changed |= ImGui::SliderFloat( ( to_string( Global.AudioAirAbsorption, 1 ) + "###audioairabsorption" ).c_str(), &Global.AudioAirAbsorption, 0.0f, 10.0f, "Air absorption" );
+
+    if( changed ) {
+        audio::renderer.apply_source_settings();
+    }
+    ImGui::TextWrapped( "%s", audio::renderer.device_status().c_str() );
+}
+
+} // namespace
+
 bool
 debug_panel::render_section_settings() const {
 
@@ -1534,11 +1833,18 @@ debug_panel::render_section_settings() const {
     ImGui::PushStyleColor( ImGuiCol_Text, { Global.UITextColor.r, Global.UITextColor.g, Global.UITextColor.b, Global.UITextColor.a } );
     ImGui::TextUnformatted( "Graphics" );
     ImGui::PopStyleColor();
-    // reflection fidelity
-    ImGui::SliderInt( ( std::to_string( Global.reflectiontune.fidelity ) + "###reflectionfidelity" ).c_str(), &Global.reflectiontune.fidelity, 0, 2, "Reflection fidelity" );
+    // screen space reflections
+    {
+        char const *ssrlevels[] { "off", "low", "medium", "high" };
+        ImGui::SliderInt( ( std::string( ssrlevels[ std::clamp( Global.gfx_ssr, 0, 3 ) ] ) + "###screenreflections" ).c_str(), &Global.gfx_ssr, 0, 3, "Reflections" );
+    }
     ImGui::SliderInt( ( std::to_string( Global.gfx_shadow_rank_cutoff ) + "###shadowrankcutoff" ).c_str(), &Global.gfx_shadow_rank_cutoff, 1, 3, "Shadow ranks" );
     if( ImGui::SliderFloat( ( to_string( std::abs( Global.gfx_shadow_angle_min ), 2 ) + "###shadowanglecutoff" ).c_str(), &Global.gfx_shadow_angle_min, -1.0, -0.2f, "Shadow angle cutoff" ) ) {
         Global.gfx_shadow_angle_min = quantize( Global.gfx_shadow_angle_min, 0.05f );
+    }
+    // sieć trakcyjna: zasięg rysowania przewodów, lin i uchwytów jako brył; 0 wyłącza bryły
+    if( ImGui::SliderFloat( ( to_string( CatenarySettings.solid_range, 0 ) + " m###catenarysolidrange" ).c_str(), &CatenarySettings.solid_range, 0.0f, 500.0f, "3D overhead wires range" ) ) {
+        CatenarySettings.solid_range = quantize( CatenarySettings.solid_range, 10.0f );
     }
     if( DebugModeFlag ) {
         // sky sliders
@@ -1572,6 +1878,10 @@ debug_panel::render_section_settings() const {
             command_relay commandrelay;
             commandrelay.post(user_command::radiovolumeset, val, 0.0, GLFW_PRESS, 0);
         }
+    }
+    if( Global.bSoundEnabled ) {
+        render_audio_device_settings();
+        render_audio_source_settings();
     }
 
     return true;

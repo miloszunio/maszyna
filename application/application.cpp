@@ -18,20 +18,34 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/utilities.h"
 #include "simulation/simulation.h"
 #include "simulation/simulationsounds.h"
+#include "simulation/blackboxrecorder.h"
 #include "vehicle/Train.h"
 #include "utilities/dictionary.h"
 #include "scene/sceneeditor.h"
 #include "rendering/renderer.h"
 #include "application/uilayer.h"
 #include "utilities/Logs.h"
+#include "utilities/logfiles.h"
+#include "world/SleeperWorker.h"
 #include "rendering/screenshot.h"
 #include "utilities/translation.h"
 #include "vehicle/Train.h"
 #include "utilities/Timer.h"
+#include "utilities/memorystats.h"
+#include "utilities/framepacer.h"
+#include "utilities/hardwareprobe.h"
 #include "utilities/dictionary.h"
 #include "version_info.h"
+#include "simulation/simulationtest.h"
+#include "utilities/physicslog.h"
 #include <chrono>
+#include <filesystem>
 #include <format>
+#include <fstream>
+#include <mutex>
+#include <set>
+#include <string>
+#include <vector>
 #include "utilities/translation.h"
 
 #if WITH_DISCORD_RPC
@@ -48,6 +62,7 @@ http://mozilla.org/MPL/2.0/.
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "dbghelp.lib")
 #pragma comment(lib, "version.lib")
+#include <timeapi.h>
 #endif
 
 #ifdef __unix__
@@ -58,6 +73,36 @@ http://mozilla.org/MPL/2.0/.
 eu07_application Application;
 screenshot_manager screenshot_man;
 ui_layer uilayerstaticinitializer;
+
+namespace
+{
+#ifdef _WIN32
+// windows wakes a sleeping thread of a process which didn't ask for a finer timer in steps of up to ~15.6 ms.
+// the wait of fpslimit sleeps, so a 10 ms frame slot of fpslimit 100 ended ~15.6 ms later, the pacer made it up
+// with no wait in the next frame, and the frames came in turns long and short: with vsync on, shown for one or
+// two refreshes of the screen. the finer timer is asked for only with fpslimit, the only steady sleeper of the
+// main loop, as it costs some power for as long as it's held
+bool timer_period_set{false};
+#endif
+
+// asks for the finer timer once, when fpslimit is set
+void begin_timer_period()
+{
+#ifdef _WIN32
+	if (!timer_period_set && Global.minframetime.count() > 0.f)
+		timer_period_set = (timeBeginPeriod(1) == TIMERR_NOERROR);
+#endif
+}
+
+void end_timer_period()
+{
+#ifdef _WIN32
+	if (timer_period_set)
+		timeEndPeriod(1);
+	timer_period_set = false;
+#endif
+}
+} // namespace
 
 #ifdef _WIN32
 extern "C"
@@ -80,6 +125,8 @@ void focus_callback(GLFWwindow *window, int focus)
 
 void cursor_enter_callback(GLFWwindow *window, int entered)
 {
+	if (scripted_input::driving())
+		return;
 	ui_layer::cursor_enter_callback(entered);
 }
 
@@ -96,6 +143,8 @@ void window_resize_callback(GLFWwindow *, int w, int h)
 
 void cursor_pos_callback(GLFWwindow *window, double x, double y)
 {
+	if (scripted_input::driving())
+		return;
 	ui_layer::cursor_pos_callback(x, y);
 	Global.cursor_pos = glm::ivec2(x, y);
 	Application.on_cursor_pos(x, y);
@@ -103,24 +152,104 @@ void cursor_pos_callback(GLFWwindow *window, double x, double y)
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 {
+	if (scripted_input::driving())
+		return;
 	Application.on_mouse_button(button, action, mods);
 }
 
 void scroll_callback(GLFWwindow *window, double xoffset, double yoffset)
 {
+	if (scripted_input::driving())
+		return;
 	Application.on_scroll(xoffset, yoffset);
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
+	if (scripted_input::driving())
+		return;
 
 	Application.on_key(key, scancode, action, mods);
 }
 
 void char_callback(GLFWwindow *window, unsigned int c)
 {
+	if (scripted_input::driving())
+		return;
 	Application.on_char(c);
 }
+
+namespace
+{
+
+// what glfw says went wrong during the start (init()), such as why the window or its context couldn't be made (no
+// OpenGL driver, no pixel format that fits). each message once, so one repeated, for each window or worker's context,
+// is told once. glfw may call this from any thread that uses it
+void glfw_error_callback(int const Code, char const *Description)
+{
+	auto message{std::format("GLFW error 0x{:08X}: {}", static_cast<unsigned int>(Code), Description != nullptr ? Description : "(no description)")};
+
+	static std::mutex reportedmutex;
+	static std::set<std::string> reported;
+	{
+		std::scoped_lock lock(reportedmutex);
+		if (false == reported.insert(message).second)
+			return;
+	}
+	ErrorLog(message);
+}
+
+#ifdef WITH_CRASHPAD
+// there while the renderer starts (init_gfx()): left behind by a start which crashed in it
+constexpr char const *GFX_START_MARK{"crashdumps/gfx_start.pending"};
+#endif
+
+// the mark of the start of the renderer put down (Starting) or taken away
+void mark_gfx_start(bool const Starting)
+{
+#ifdef WITH_CRASHPAD
+	std::error_code error;
+	if (Starting)
+	{
+		std::ofstream mark(GFX_START_MARK, std::ios::trunc);
+	}
+	else
+	{
+		std::filesystem::remove(GFX_START_MARK, error);
+	}
+#else
+	(void)Starting;
+#endif
+}
+
+// the question about the report of the last crash, asked before the renderer starts when that crash came while it started: the window
+// of the question is drawn by the renderer (run_crashgui()), so a crash in its start, which repeats at every start, would never let it
+// show. a box of the system asks instead, on Windows, where the reports are made
+void ask_crash_report_before_gfx()
+{
+#if defined(WITH_CRASHPAD) && defined(_WIN32)
+	std::error_code error;
+	if ((false == crashreport_is_pending()) || Global.test.enabled || (false == std::filesystem::exists(GFX_START_MARK, error)))
+	{
+		return;
+	}
+	auto const polish{Global.asLang == "pl"};
+	auto const *text{
+		polish ? L"Podczas ostatniego uruchomienia symulator uległ awarii przy uruchamianiu grafiki.\nWysłać raport o błędzie do deweloperów?" :
+		         L"The simulator crashed while starting the graphics during the last launch.\nSend the crash report to the developers?"};
+	auto const *caption{polish ? L"Raportowanie błędów" : L"Crash reporting"};
+	if (::MessageBoxW(nullptr, text, caption, MB_YESNO | MB_ICONERROR) == IDYES)
+	{
+		crashreport_upload_accept();
+	}
+	else
+	{
+		crashreport_upload_reject();
+	}
+#endif
+}
+
+} // namespace
 
 // public:
 
@@ -132,15 +261,12 @@ void eu07_application::queue_screenshot()
 int eu07_application::run_crashgui()
 {
 	bool autoup = false;
+	bool y{false}, n{false};
 
-	while (!glfwWindowShouldClose(m_windows.front()))
-	{
-		glfwPollEvents();
-
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// the questions are the ui of the frames the renderer draws (render_ui()), whichever api it is: the window has no opengl
+	// context with vulkan
+	m_crashui = [&]() {
 		ui_layer::begin_ui_frame_internal();
-
-		bool y, n;
 
 		if (Global.asLang == "pl")
 		{
@@ -188,23 +314,37 @@ int eu07_application::run_crashgui()
 		}
 
 		ui_layer::render_internal();
-		glfwSwapBuffers(m_windows.front());
+	};
+
+	while (!glfwWindowShouldClose(m_windows.front()))
+	{
+		glfwPollEvents();
+
+		y = false;
+		n = false;
+		if (!GfxRenderer->Render())
+			break;
+		GfxRenderer->SwapBuffers();
 
 		if (y)
 		{
 			crashreport_upload_accept();
 			if (autoup)
 				crashreport_set_autoupload();
+			m_crashui = nullptr;
 			return 0;
 		}
 
 		if (n)
 		{
 			crashreport_upload_reject();
+			m_crashui = nullptr;
 			return 0;
 		}
 	}
-	return -1;
+	m_crashui = nullptr;
+	// the player closed the window: the simulator closes with it, as it always has, but that is no failed start
+	return 1;
 }
 #if WITH_DISCORD_RPC
 void eu07_application::DiscordRPCService()
@@ -270,7 +410,11 @@ void eu07_application::DiscordRPCService()
 		}
 
 		if (currentMode != mode::driver)
+		{
+			// the editor and the other modes: nothing to tell, without spinning a core on it
+			std::this_thread::sleep_for(std::chrono::milliseconds(250));
 			continue;
+		}
 
 		// Discord RPC updater
 		if (simulation::is_ready)
@@ -316,22 +460,29 @@ int eu07_application::init(int Argc, char *Argv[])
 {
 
 	int result{0};
+	// a test run is known before anything is logged: whoever started it reads its result on the standard output,
+	// which the log isn't written to then (eu07/maszyna#541)
+	Global.test.enabled = simulation::parse_test_command_line(std::vector<char const *>(Argv, Argv + Argc)).enabled;
 	// start logging service
 	std::thread sLoggingService(LogService);
 	Global.threads.emplace("LogService", std::move(sLoggingService));
 
 	init_debug();
+	result = init_settings(Argc, Argv);
+	// the log files are named by the settings (multiplelogs), so they are cleared and opened once those are read
 	init_files();
-	if ((result = init_settings(Argc, Argv)) != 0)
+	if (result != 0)
 	{
 		ErrorLog("Failed to initialize settings! Maybe you're missing eu07.ini file?");
 		return result;
 	}
+	// fpslimit is known now
+	begin_timer_period();
 
 	// the run's seed, settled once and kept in Globals: the engines come out of it.
 	// narrowed on purpose - mt19937 and seed_of() both work on 32 bits, and that is
 	// the seed somebody can write down and pass on
-	if (!Global.random_seed)
+	if (false == Global.random_seed_given)
 		Global.random_seed = static_cast<std::uint32_t>(true_random_seed());
 	Global.random_engine.seed(Global.random_seed);
 	Global.local_random_engine.seed(Global.random_seed);
@@ -357,9 +508,8 @@ int eu07_application::init(int Argc, char *Argv[])
 		WriteLog(settingspipe.str());
 	}
 
-	// cruel way to prevent crashes because of threaded upload from python
-	if (Global.NvRenderer)
-		Global.python_threadedupload = false;
+	// the cpu, the memory and the graphics adapters, for the bug reports
+	hardware::log_system();
 
 	WriteLog("// startup");
 
@@ -368,20 +518,6 @@ int eu07_application::init(int Argc, char *Argv[])
 		ErrorLog("Failed to initialize glfw!");
 		return result;
 	}
-	if (needs_ogl() && (result = init_ogl()) != 0)
-	{
-		ErrorLog("Failed to initialize ogl!");
-		return result;
-	}
-
-	if (crashreport_is_pending())
-	{ // run crashgui as early as possible
-		if ((result = run_crashgui()) != 0)
-		{
-			ErrorLog("Failed to run crash gui!");
-			return result;
-		}
-	}
 
 	if ((result = init_locale()) != 0)
 	{
@@ -389,16 +525,34 @@ int eu07_application::init(int Argc, char *Argv[])
 		return result;
 	}
 
+	ask_crash_report_before_gfx();
+	mark_gfx_start(true);
 	if ((result = init_gfx()) != 0)
 	{
+		// a start which failed, not one which crashed
+		mark_gfx_start(false);
 		ErrorLog("Failed to initialize GFX!");
 		return result;
 	}
 
 	if ((result = init_ui()) != 0)
 	{ // ui now depends on activated renderer
+		mark_gfx_start(false);
 		ErrorLog("Failed to init UI!");
 		return result;
+	}
+	mark_gfx_start(false);
+	if (crashreport_is_pending() && false == Global.test.enabled)
+	{ // run crashgui as early as possible: it's drawn by the renderer
+		if ((result = run_crashgui()) != 0)
+		{
+			// above 0 the player closed the window, which is no error
+			if (result < 0)
+				ErrorLog("Failed to run crash gui!");
+			else
+				WriteLog("Crash report window closed, closing");
+			return result;
+		}
 	}
 	if ((result = init_audio()) != 0)
 	{
@@ -415,6 +569,16 @@ int eu07_application::init(int Argc, char *Argv[])
 	{
 		m_taskqueue.init();
 	}
+	crashreport_add_info("luascreens_enabled", Global.luascreens_enabled ? "yes" : "no");
+	crashreport_add_info("wasm_enabled", Global.wasm_enabled ? "yes" : "no");
+	if (Global.luascreens_enabled || Global.wasm_enabled)
+	{
+		m_screenqueue.init();
+		if (Global.screens_gpupost)
+		{
+			m_screenqueue.set_post_processor(GfxRenderer->Screen_post_processor());
+		}
+	}
 	if ((result = init_modes()) != 0)
 	{
 		ErrorLog("Failed to initialize game modes");
@@ -424,12 +588,21 @@ int eu07_application::init(int Argc, char *Argv[])
 
 	#if WITH_DISCORD_RPC
 	// Run DiscordRPC service
-	std::thread sDiscordRPC(&eu07_application::DiscordRPCService, this);
-	Global.threads.emplace("DiscordRPC", std::move(sDiscordRPC));
+	// not for a test run: it would show the test scenery as the player's presence, and hold up the closing
+	if (false == Global.test.enabled)
+	{
+		std::thread sDiscordRPC(&eu07_application::DiscordRPCService, this);
+		Global.threads.emplace("DiscordRPC", std::move(sDiscordRPC));
+	}
 	#endif
 
 	if (!init_network())
 		return -1;
+
+	// glfw's errors are told to explain a failed start. once the simulator runs they would only repeat what the
+	// platform can't do (no setting of the cursor position on Wayland) or what a scenery asks for in vain (old key
+	// codes of its launchers), every frame
+	glfwSetErrorCallback(nullptr);
 
 	return result;
 }
@@ -475,16 +648,26 @@ bool eu07_application::is_client() const
 int eu07_application::run()
 {
 	auto frame{0};
+	frame_pacer framepacer;
+	Timer::subsystem.mainloop_period.start();
 	// main application loop
 	while (!glfwWindowShouldClose(m_windows.front()) && !m_modestack.empty())
 	{
+		// the time from one frame's start to the next, the wait for fpslimit included
+		Timer::subsystem.mainloop_period.stop();
+		Timer::subsystem.mainloop_period.start();
 		Timer::subsystem.mainloop_total.start();
+		GfxRenderer->Frame_Start();
+		Timer::subsystem.loop_input.start();
 		glfwPollEvents();
 
 		if (m_headtrack)
 			m_headtrack->update();
+		Timer::subsystem.loop_input.stop();
 
+		Timer::subsystem.loop_ui_frame.start();
 		begin_ui_frame();
+		Timer::subsystem.loop_ui_frame.stop();
 
 		// -------------------------------------------------------------------
 		// multiplayer command relaying logic can seem a bit complex
@@ -612,11 +795,15 @@ int eu07_application::run()
 
 		// keep streamed terrain loaded around the active camera in every mode (editor + driver),
 		// once the simulation is live (avoid streaming while the scenery is still loading)
+		Timer::subsystem.loop_terrain.start();
 		if (simulation::is_ready && EditorTerrain.active())
 			EditorTerrain.update(Global.pCamera.Pos);
+		Timer::subsystem.loop_terrain.stop();
 
+		Timer::subsystem.loop_tasks.start();
 		m_taskqueue.update();
-		opengl_texture::reset_unit_cache();
+		m_screenqueue.update();
+		Timer::subsystem.loop_tasks.stop();
 
 		if (!GfxRenderer->Render())
 			break;
@@ -637,10 +824,13 @@ int eu07_application::run()
 		if (m_network)
 			m_network->update();
 
-		auto const frametime{Timer::subsystem.mainloop_total.stop()};
-		if (Global.minframetime.count() != 0.0f && (Global.minframetime - frametime).count() > 0.0f)
+		Timer::subsystem.mainloop_total.stop();
+		// fpslimit: wait for the next frame's slot (eu07/maszyna#416)
+		if (auto const nextframe{framepacer.next_frame(frame_pacer::clock::now(), Global.minframetime)})
 		{
-			std::this_thread::sleep_for(Global.minframetime - frametime);
+			// fpslimit may come from the config block of the scenery, read after the settings
+			begin_timer_period();
+			std::this_thread::sleep_until(*nextframe);
 		}
 	}
 	// Handled by application.exit
@@ -690,19 +880,42 @@ void eu07_application::release_python_lock()
 void eu07_application::exit()
 {
 	Global.applicationQuitOrder = true;
+	// each step of the closing in the log, to tell from it where a closing that hangs stops
+	auto const closing{std::chrono::steady_clock::now()};
+	auto const step = [closing](char const *What) {
+		WriteLog(std::format("Closing: {} at {} ms", What, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - closing).count()));
+	};
+	step("the sleepers laid in the background");
+	// the sleepers laid in the background read the scenery, which goes below
+	track_sleepers::stop_background();
+	step("the black box");
+	simulation::Blackbox.close();
+	step("the physics logs");
+	// what is kept of them, the black box's written last
+	PhysicsLogs.stop();
+	step("the modes");
 	for (auto &mode : m_modes)
 		mode.reset();
 
+	step("the renderer");
+	// the screens' post-processing goes with the renderer
+	m_screenqueue.set_post_processor(nullptr);
 	GfxRenderer->Shutdown();
 	m_network.reset();
 
 	//    SafeDelete( simulation::Train );
+	step("the odometers");
+	simulation::Vehicles.save_odometers();
+	step("the scenery");
 	SafeDelete(simulation::Region);
 
+	step("the ui and the python workers");
 	ui_layer::shutdown();
 
 	// the python workers detach their GL context on the way out, so they have to be done before the windows they use are destroyed
 	m_taskqueue.exit();
+	m_screenqueue.exit();
+	step("the windows");
 	for (auto *window : m_windows)
 	{
 		glfwDestroyWindow(window);
@@ -713,6 +926,9 @@ void eu07_application::exit()
 	if (!Global.exec_on_exit.empty())
 		system(Global.exec_on_exit.c_str());
 
+	end_timer_period();
+	step("done");
+	StopLogService();
 	auto it = Global.threads.find("LogService");
 	if (it != Global.threads.end())
 	{
@@ -732,6 +948,11 @@ void eu07_application::exit()
 
 void eu07_application::render_ui()
 {
+	if (m_crashui)
+	{
+		m_crashui();
+		return;
+	}
 
 	if (m_modestack.empty())
 	{
@@ -935,16 +1156,26 @@ GLFWwindow *eu07_application::window(int const Windowindex, bool visible, int wi
 	}
 	// for index -1 create a new child window
 
-	auto const *vmode{glfwGetVideoMode(monitor ? monitor : glfwGetPrimaryMonitor())};
-
-	// match requested video mode to current to allow for
-	// fullwindow creation when resolution is the same
-	glfwWindowHint(GLFW_RED_BITS, vmode->redBits);
-	glfwWindowHint(GLFW_GREEN_BITS, vmode->greenBits);
-	glfwWindowHint(GLFW_BLUE_BITS, vmode->blueBits);
-	glfwWindowHint(GLFW_REFRESH_RATE, vmode->refreshRate);
+	auto *videomonitor{monitor ? monitor : glfwGetPrimaryMonitor()};
+	// a machine without a display (e.g. a test runner) has no monitor to match
+	if (auto const *vmode{videomonitor ? glfwGetVideoMode(videomonitor) : nullptr})
+	{
+		// match requested video mode to current to allow for
+		// fullwindow creation when resolution is the same
+		glfwWindowHint(GLFW_RED_BITS, vmode->redBits);
+		glfwWindowHint(GLFW_GREEN_BITS, vmode->greenBits);
+		glfwWindowHint(GLFW_BLUE_BITS, vmode->blueBits);
+		glfwWindowHint(GLFW_REFRESH_RATE, vmode->refreshRate);
+	}
 
 	glfwWindowHint(GLFW_VISIBLE, visible);
+
+	if (share_ctx && (m_gfxbackend != nullptr) && (false == m_gfxbackend->gl_context))
+	{
+		// the windows of the renderer have no opengl context to share
+		WriteLog("window with an opengl context shared with the main window isn't available with the " + m_gfxbackend->name + " renderer");
+		return nullptr;
+	}
 
 	auto *childwindow = glfwCreateWindow(width, height, "eu07window", monitor, share_ctx ? m_windows.front() : nullptr);
 	if (!childwindow)
@@ -953,7 +1184,8 @@ GLFWwindow *eu07_application::window(int const Windowindex, bool visible, int wi
 	if (keep_ownership)
 		m_windows.emplace_back(childwindow);
 
-	glfwFocusWindow(m_windows.front()); // restore focus to main window
+	if (glfwGetWindowAttrib(m_windows.front(), GLFW_VISIBLE))
+		glfwFocusWindow(m_windows.front()); // restore focus to main window
 
 	return childwindow;
 }
@@ -986,11 +1218,6 @@ std::string eu07_application::describe_monitor(GLFWmonitor *monitor) const
 
 // private:
 
-bool eu07_application::needs_ogl() const
-{
-	return !Global.NvRenderer;
-}
-
 void eu07_application::init_debug()
 {
 
@@ -1022,6 +1249,13 @@ void eu07_application::init_debug()
 void eu07_application::init_console()
 {
 #ifdef _WIN32
+	if (Global.test.enabled)
+	{
+		// a test is started by whoever waits for its result, often reading its output: no console of its own
+		// (showsystemconsole) pops up and takes stdout away from them, and a console it was started from isn't hidden
+		return;
+	}
+
 	HWND consoleWnd = ::GetConsoleWindow();
 	const bool hadConsole = consoleWnd != nullptr;
 
@@ -1105,16 +1339,19 @@ void eu07_application::init_console()
 
 void eu07_application::init_files()
 {
-
+	// without multiplelogs the run writes the shared log.txt / errors.txt, and those of the run before go. with it the
+	// run writes files of its own in logs/, and the shared ones are left to whoever ran the game last without it
+	for (auto const &file : stale_log_files(Global.MultipleLogs))
+	{
+		std::error_code error; // not there is fine
+		std::filesystem::remove(file, error);
+	}
 #ifdef _WIN32
-	DeleteFile("log.txt");
-	DeleteFile("errors.txt");
 	CreateDirectory("logs", nullptr);
 #elif __unix__
-	unlink("log.txt");
-	unlink("errors.txt");
 	mkdir("logs", 0750);
 #endif
+	OpenLogFiles();
 }
 namespace fs = std::filesystem;
 
@@ -1122,15 +1359,40 @@ int eu07_application::init_settings(int Argc, char *Argv[])
 {
 	Global.asVersion = VERSION_INFO;
 
+	// a test run is known before the rest of the command line is read (Global.test.enabled, see init()), so a
+	// command line it can't take ends with the error code of the test, not with 0, which would pass it
+	auto const testcommandline{simulation::parse_test_command_line(std::vector<char const *>(Argv, Argv + Argc))};
+	if (false == testcommandline.error.empty())
+	{
+		simulation::test().conclude(simulation::test_result::error, testcommandline.error);
+		return -1;
+	}
+	if (testcommandline.timeout.has_value())
+	{
+		Global.test.timeout = *testcommandline.timeout;
+		Global.test.timeout_from_command_line = true;
+	}
+	if (testcommandline.wall_timeout.has_value())
+	{
+		Global.test.wall_timeout = testcommandline.wall_timeout;
+		Global.test.wall_timeout_from_command_line = true;
+	}
+
 	fs::path iniPath = user_config_path("eu07.ini");
 
-	if (!iniPath.empty() && fs::exists(iniPath))
+	// a test reads the settings of the game folder only (and those given with -ini), not the player's own
+	// (%APPDATA%/MaSzyna, ~/.config/MaSzyna), so it runs the same for whoever runs it
+	if (false == Global.test.enabled && !iniPath.empty() && fs::exists(iniPath))
 	{
 		Global.LoadIniFile(iniPath.string().c_str());
 	}
 	else
 	{
 		Global.LoadIniFile("eu07.ini");
+	}
+	if (Global.debug_memorystats)
+	{
+		start_heap_counting();
 	}
 
 	// process command line arguments
@@ -1172,24 +1434,65 @@ int eu07_application::init_settings(int Argc, char *Argv[])
 		else if (token == "-seed")
 		{
 			// a number is the seed; anything else is a word that stands for one. said in the
-			// log as it was given, because that is what gets passed on to somebody else
+			// log as it was given, because that is what gets passed on to somebody else. 0 is a seed
+			// too; an empty word gives none, as randomseed with nothing after it
 			if (i + 1 < Argc)
 			{
-				Global.random_seed = seed_of(Argv[++i]);
-				WriteLog(std::format("seed given on the command line: {} -> {}", Argv[i], Global.random_seed));
+				if (auto const seed{seed_given(Argv[++i])})
+				{
+					Global.random_seed = *seed;
+					Global.random_seed_given = true;
+					WriteLog(std::format("seed given on the command line: {} -> {}", Argv[i], Global.random_seed));
+				}
+			}
+		}
+		else if (token == "--test")
+		{
+			// integration test: the scenery runs unattended and the exit code is the result (eu07/maszyna#541),
+			// taken from the command line above
+		}
+		else if (token == "--test-timeout" || token == "--test-wall-timeout")
+		{
+			// taken from the command line above, with its value
+			++i;
+		}
+		else if (token == "-ini")
+		{
+			// extra settings file read on top of eu07.ini, so a run can override a few keys
+			// (window size, physicslog...) without touching the user's own config
+			if (i + 1 < Argc)
+			{
+				Global.LoadIniFile(Argv[++i]);
 			}
 		}
 		else
 		{
-			std::cout << "usage: " << std::string(Argv[0]) << " [-s sceneryfilepath]"
+			// a test's standard output carries its result only
+			(Global.test.enabled ? std::cerr : std::cout) << "usage: " << std::string(Argv[0]) << " [-s sceneryfilepath]"
 			          << " [-v vehiclename]"
 			          << " [-edit [sceneryfilepath]]"
-			          << " [-seed number|word]" << std::endl;
+			          << " [-seed number|word]"
+			          << " [-ini settingsfile]"
+			          << " [--test [--test-timeout seconds] [--test-wall-timeout seconds]]" << std::endl;
+			simulation::test().conclude(simulation::test_result::error, std::format("unknown command line argument {}", token));
 			return -1;
 		}
 	}
 	if (editwithoutscenery && false == sceneryfromcommandline)
 		Global.SceneryFile.clear();
+
+	if (Global.test.enabled)
+	{
+		if (false == sceneryfromcommandline || Global.SceneryFile.empty())
+		{
+			simulation::test().conclude(simulation::test_result::error, "--test needs a scenery given with -s");
+			return -1;
+		}
+		simulation::apply_test_mode_settings();
+	}
+
+	// a renderer this build doesn't have: the values of the removed renderers are taken for "default" as eu07.ini is read
+	// (global_settings::ConfigParse), and a vulkan renderer which can't run here falls back to opengl (select_gfx_backend())
 
 	return 0;
 }
@@ -1204,32 +1507,8 @@ int eu07_application::init_locale()
 
 int eu07_application::init_glfw()
 {
-	{
-		int glfw_major, glfw_minor, glfw_rev;
-		glfwGetVersion(&glfw_major, &glfw_minor, &glfw_rev);
-		m_glfwversion = glfw_major * 10000 + glfw_minor * 100 + glfw_minor;
-	}
-
-#ifdef GLFW_ANGLE_PLATFORM_TYPE
-	if (m_glfwversion >= 30400)
-	{
-		int platform = GLFW_ANGLE_PLATFORM_TYPE_NONE;
-		if (Global.gfx_angleplatform == "opengl")
-			platform = GLFW_ANGLE_PLATFORM_TYPE_OPENGL;
-		else if (Global.gfx_angleplatform == "opengles")
-			platform = GLFW_ANGLE_PLATFORM_TYPE_OPENGLES;
-		else if (Global.gfx_angleplatform == "d3d9")
-			platform = GLFW_ANGLE_PLATFORM_TYPE_D3D9;
-		else if (Global.gfx_angleplatform == "d3d11")
-			platform = GLFW_ANGLE_PLATFORM_TYPE_D3D11;
-		else if (Global.gfx_angleplatform == "vulkan")
-			platform = GLFW_ANGLE_PLATFORM_TYPE_VULKAN;
-		else if (Global.gfx_angleplatform == "metal")
-			platform = GLFW_ANGLE_PLATFORM_TYPE_METAL;
-
-		glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, platform);
-	}
-#endif
+	// set before glfwInit(), so a failure of the start itself is told too
+	glfwSetErrorCallback(glfw_error_callback);
 
 	if (glfwInit() == GLFW_FALSE)
 	{
@@ -1248,64 +1527,69 @@ int eu07_application::init_glfw()
 		}
 	}
 
+	select_gfx_backend();
+
+	return create_main_window();
+}
+
+void eu07_application::select_gfx_backend()
+{
+	auto *factory{gfx_renderer_factory::get_instance()};
+	m_gfxbackend = nullptr;
+
+	if (Global.GfxRenderer == "vulkan")
+	{
+		// a renderer which can't run here falls back to opengl, so a setting in eu07.ini doesn't leave the user with a black screen
+		std::string reason;
+		auto const *vulkan{factory->backend("vulkan")};
+		if (vulkan == nullptr)
+		{
+			reason = "this build of the simulator has no vulkan renderer";
+		}
+		else if ((vulkan->probe == nullptr) || vulkan->probe(reason))
+		{
+			m_gfxbackend = vulkan;
+		}
+		if (m_gfxbackend == nullptr)
+		{
+			WriteLog("gfxrenderer vulkan: not available (" + reason + "), using opengl");
+			crashreport_add_info("gfxrenderer_fallback", reason);
+			Global.GfxRenderer = "default";
+		}
+	}
+	else if (Global.GfxRenderer == "null")
+	{
+		// draws nothing and loads no textures (test mode)
+		m_gfxbackend = factory->backend("null");
+	}
+
+	if (m_gfxbackend == nullptr)
+	{
+		m_gfxbackend = factory->backend("modern");
+	}
+
+	crashreport_add_info("gfxrenderer", Global.GfxRenderer);
+	WriteLog("renderer: " + (m_gfxbackend != nullptr ? m_gfxbackend->name : std::string("none")));
+}
+
+int eu07_application::create_main_window()
+{
+	if (m_gfxbackend == nullptr)
+	{
+		ErrorLog("Bad init: no renderer found");
+		return -1;
+	}
+
 	auto *monitor{find_monitor(Global.fullscreen_monitor)};
 	if (!monitor)
 		monitor = glfwGetPrimaryMonitor();
 
+	// the window may be made a second time, after another backend was tried
+	glfwDefaultWindowHints();
 	glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
-	if ((Global.gfx_skippipeline || Global.LegacyRenderer) && Global.iMultisampling > 0)
-	{
-		glfwWindowHint(GLFW_SAMPLES, 1 << Global.iMultisampling);
-	}
-
-	crashreport_add_info("gfxrenderer", Global.GfxRenderer);
-
-	if (!needs_ogl())
-	{
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	}
-	else
-	{
-		if (!Global.LegacyRenderer)
-		{
-			Global.bUseVBO = true;
-			// activate core profile for opengl 3.3 renderer
-			if (!Global.gfx_usegles)
-			{
-				glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-				glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-				glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-				glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-			}
-			else
-			{
-#ifdef GLFW_CONTEXT_CREATION_API
-				if (m_glfwversion >= 30200)
-					glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
-#endif
-				glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-				glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-				glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
-			}
-		}
-		else
-		{
-			if (Global.gfx_usegles)
-			{
-				ErrorLog("legacy renderer not supported in gles mode");
-				return -1;
-			}
-			Global.gfx_shadergamma = false;
-			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
-			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-		}
-
-		if (Global.gfx_gldebug)
-			glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
-	}
-
-	glfwWindowHint(GLFW_SRGB_CAPABLE, !Global.gfx_shadergamma);
+	// NOTE: the hints stay in effect for the additional windows and shared contexts created later through window()
+	if (m_gfxbackend->window_hints != nullptr)
+		m_gfxbackend->window_hints();
 
 	if (Global.fullscreen_windowed)
 	{
@@ -1315,16 +1599,26 @@ int eu07_application::init_glfw()
 		Global.bFullScreen = true;
 	}
 
-	auto *mainwindow = window(-1, true, Global.window_size.x, Global.window_size.y, Global.bFullScreen ? monitor : nullptr, true, false);
+	// test mode keeps its window hidden: glfw, the ui and the input still need one, but nothing is shown in it.
+	// so does a selftest of the editor run while the computer is in use for something else: never shown nor focused
+	bool const shown{false == Global.test.enabled && selftest_script("EU07_EDITOR_SELFTEST_HIDDEN") == nullptr};
+	auto *mainwindow = window(-1, shown, Global.window_size.x, Global.window_size.y, Global.bFullScreen && shown ? monitor : nullptr, true, false);
 
 	if (mainwindow == nullptr)
 	{
+		char const *glfwerror = nullptr;
+		glfwGetError(&glfwerror);
+		std::string const reason = (glfwerror != nullptr ? glfwerror : "unknown error");
+		if (m_gfxbackend->window_failed != nullptr)
+			m_gfxbackend->window_failed(reason);
 		ErrorLog("Bad init: failed to create glfw window");
 		return -1;
 	}
 
-	glfwMakeContextCurrent(mainwindow);
-	glfwSwapInterval(Global.VSync ? 1 : 0); // vsync
+	if ((m_gfxbackend->after_window != nullptr) && (false == m_gfxbackend->after_window(mainwindow)))
+	{
+		return -1;
+	}
 
 	{
 		int width, height;
@@ -1339,12 +1633,31 @@ int eu07_application::init_glfw()
 #ifdef _WIN32
 	// setup wrapper for base glfw window proc, to handle copydata messages
 	Hwnd = glfwGetWin32Window(mainwindow);
-	BaseWindowProc = (WNDPROC)::SetWindowLongPtr(Hwnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
+	// commands sent by other programs are input from outside, which a test doesn't take
+	if (false == Global.test.enabled)
+		BaseWindowProc = (WNDPROC)::SetWindowLongPtr(Hwnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
 	// switch off the topmost flag
 	::SetWindowPos(Hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 #endif
 
 	return 0;
+}
+
+int eu07_application::fallback_to_opengl(std::string const &Reason)
+{
+	WriteLog("gfxrenderer vulkan: " + Reason + ", using opengl");
+	crashreport_add_info("gfxrenderer_fallback", Reason);
+	Global.GfxRenderer = "default";
+	m_gfxbackend = gfx_renderer_factory::get_instance()->backend("modern");
+	crashreport_add_info("gfxrenderer", Global.GfxRenderer);
+	WriteLog("renderer: " + (m_gfxbackend != nullptr ? m_gfxbackend->name : std::string("none")));
+
+	// nothing hangs on the window yet (the ui is set up later), so it can be made anew with the hints of opengl
+	for (auto *window : m_windows)
+		glfwDestroyWindow(window);
+	m_windows.clear();
+
+	return create_main_window();
 }
 
 void eu07_application::init_callbacks()
@@ -1353,35 +1666,18 @@ void eu07_application::init_callbacks()
 	auto *window{m_windows.front()};
 	glfwSetWindowSizeCallback(window, window_resize_callback);
 	glfwSetFramebufferSizeCallback(window, framebuffer_resize_callback);
+	glfwSetWindowFocusCallback(window, focus_callback);
+	glfwSetCursorEnterCallback(window, cursor_enter_callback);
+	if (Global.test.enabled)
+	{
+		// a test takes no input: keys and clicks sent to its hidden window would change the run
+		return;
+	}
 	glfwSetCursorPosCallback(window, cursor_pos_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetScrollCallback(window, scroll_callback);
 	glfwSetCharCallback(window, char_callback);
-	glfwSetWindowFocusCallback(window, focus_callback);
-	glfwSetCursorEnterCallback(window, cursor_enter_callback);
-}
-
-int eu07_application::init_ogl()
-{
-	if (!Global.gfx_usegles)
-	{
-		if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-		{
-			ErrorLog("Bad init: failed to initialize glad");
-			return -1;
-		}
-	}
-	else
-	{
-		if (!gladLoadGLES2Loader((GLADloadproc)glfwGetProcAddress))
-		{
-			ErrorLog("Bad init: failed to initialize glad");
-			return -1;
-		}
-	}
-
-	return 0;
 }
 
 int eu07_application::init_ui()
@@ -1397,21 +1693,8 @@ int eu07_application::init_ui()
 int eu07_application::init_gfx()
 {
 
-	if (Global.GfxRenderer == "default")
-	{
-		// default render path
-		GfxRenderer = gfx_renderer_factory::get_instance()->create("modern");
-	}
-	else if (Global.GfxRenderer == "experimental")
-	{
-		GfxRenderer = gfx_renderer_factory::get_instance()->create(Global.GfxRenderer);
-	}
-	else
-	{
-		// legacy render path
-		GfxRenderer = gfx_renderer_factory::get_instance()->create("legacy");
-		Global.DisabledLogTypes |= static_cast<unsigned int>(logtype::material);
-	}
+	// NOTE: global_settings maps unsupported gfxrenderer values (e.g. the removed "legacy") to "default"
+	GfxRenderer = (m_gfxbackend != nullptr && m_gfxbackend->create != nullptr) ? m_gfxbackend->create() : nullptr;
 
 	if (!GfxRenderer)
 	{
@@ -1421,7 +1704,22 @@ int eu07_application::init_gfx()
 
 	if (false == GfxRenderer->Init(m_windows.front()))
 	{
-		return -1;
+		if (Global.GfxRenderer != "vulkan")
+		{
+			return -1;
+		}
+		// the reason is in the log already
+		GfxRenderer->Shutdown();
+		GfxRenderer.reset();
+		if (fallback_to_opengl("the renderer failed to start") != 0)
+		{
+			return -1;
+		}
+		GfxRenderer = m_gfxbackend->create();
+		if (!GfxRenderer || (false == GfxRenderer->Init(m_windows.front())))
+		{
+			return -1;
+		}
 	}
 
 	for (const global_settings::extraviewport_config &conf : Global.extra_viewports)

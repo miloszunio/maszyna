@@ -23,22 +23,19 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/utilities.h"
 #include "scene/sn_utils.h"
 #include "rendering/flip-s3tc.h"
+#include "rendering/common/texturealpha.h"
 #include "stb/stb_image.h"
 //#include <png.h>
 #include "dds-ktx/dds-ktx.h"
 #include "winheaders.h"
 
+#include <bit>
+#include <utility>
+
 #define EU07_DEFERRED_TEXTURE_UPLOAD
 
 #ifndef FOURCC_DX10
 #define FOURCC_DX10 (MAKEFOURCC('D','X','1','0'))
-#endif
-// BC7, core since GL 4.2 (ARB_texture_compression_bptc), the bundled glad is generated for 3.3
-#ifndef GL_COMPRESSED_RGBA_BPTC_UNORM
-#define GL_COMPRESSED_RGBA_BPTC_UNORM 0x8E8C
-#endif
-#ifndef GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM
-#define GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM 0x8E8D
 #endif
 
 // texture data read by a worker thread. the texture itself is only touched by the main thread,
@@ -54,13 +51,31 @@ struct texture_request {
     int height { 0 };
     int mapcount { 0 };
     int blocksize { 0 };
+    // handed to the workers (texture_source::prefetch()), and when: the main thread only
+    bool submitted { false };
+    std::chrono::steady_clock::time_point submittime;
+    bool ahead { false }; // read ahead of the camera, which was at the origin then
+    glm::dvec3 origin { 0.0 };
     // results, written by the thread reading the data
     std::vector<unsigned char> data;
+    // every texel passes the alpha test of the shadow maps: checked by the worker threads, not by a thread waiting for the data
+    std::optional<bool> alphakept;
     bool failed { false };
     bool done { false }; // guarded by the mutex of the loader
 };
 
 namespace {
+
+// the alpha test of the shadow maps checked on the data of a dds file, block by block of its format
+std::optional<bool> dds_alpha_kept( texture_request const &Request ) {
+    switch( Request.fourcc ) {
+        case FOURCC_DXT1: { return gfx::texels_pass_alpha_test( gfx::alpha_layout::bc1, Request.data ); }
+        case FOURCC_DXT3: { return gfx::texels_pass_alpha_test( gfx::alpha_layout::bc2, Request.data ); }
+        case FOURCC_DXT5: { return gfx::texels_pass_alpha_test( gfx::alpha_layout::bc3, Request.data ); }
+        // the only one load_DDS() takes of the dx10 formats
+        case FOURCC_DX10: { return gfx::texels_pass_alpha_test( gfx::alpha_layout::bc7, Request.data ); }
+        default: { return std::nullopt; }
+    } }
 
 // worker threads reading texture data from disk
 class texture_loader {
@@ -94,12 +109,30 @@ public:
         if( lookup != std::end( m_queue ) ) {
             m_queue.erase( lookup );
             lock.unlock();
-            read( *Request );
+            // the thread waiting for the data doesn't check its alpha: the one which makes the texture does it, if it can wait
+            read( *Request, false );
             lock.lock();
             Request->done = true;
             return;
         }
         m_read.wait( lock, [ &Request ]() { return Request->done; } ); }
+
+    // bytes of the data read for a request, 0 while it isn't there yet
+    std::size_t read_size( texture_request const &Request ) {
+        std::lock_guard<std::mutex> lock( m_mutex );
+        return ( Request.done ? Request.data.capacity() : 0 ); }
+
+    // gives back the data read for a request, once it's there. the request can be submitted again then
+    bool drop( texture_request &Request ) {
+        std::lock_guard<std::mutex> lock( m_mutex );
+        if( false == Request.done ) {
+            return false;
+        }
+        Request.data = std::vector<unsigned char>();
+        Request.alphakept.reset();
+        Request.done = false;
+        Request.failed = false;
+        return true; }
 
     ~texture_loader() {
         {
@@ -122,14 +155,14 @@ private:
             auto request { m_queue.front() };
             m_queue.pop_front();
             lock.unlock();
-            read( *request );
+            read( *request, true );
             lock.lock();
             request->done = true;
             m_read.notify_all();
         } }
 
-    // same as the reading part of opengl_texture::load_DDS()
-    static void read( texture_request &Request ) {
+    // same as the reading part of texture_source::load_DDS(). Check: the alpha of the texels checked too (on a worker thread)
+    static void read( texture_request &Request, bool const Check ) {
         std::ifstream file( Request.file, std::ios::binary );
         if( false == file.is_open() ) {
             Request.failed = true;
@@ -157,6 +190,10 @@ private:
                 height = std::max( height / 2, 4 );
                 --mapcount;
             }
+        }
+        Request.alphakept.reset();
+        if( Check && file.good() ) {
+            Request.alphakept = dds_alpha_kept( Request );
         } }
 
     std::mutex m_mutex;
@@ -279,11 +316,10 @@ GLint bc7_components( std::istream &File, std::streamoff const Start, std::size_
     }
     return GL_RGB; }
 
-// BC7 is core since GL 4.2, older contexts and GLES need the extension. requires current gl context
+// BC7 is core since GL 4.2, older contexts need the extension. requires current gl context
 bool bptc_supported() {
     static bool const supported = []() {
-        if( ( false == Global.gfx_usegles )
-         && ( ( GLVersion.major > 4 ) || ( ( GLVersion.major == 4 ) && ( GLVersion.minor >= 2 ) ) ) ) {
+        if( ( GLVersion.major > 4 ) || ( ( GLVersion.major == 4 ) && ( GLVersion.minor >= 2 ) ) ) {
             return true;
         }
         GLint count { 0 };
@@ -303,12 +339,27 @@ bool bptc_supported() {
     }();
     return supported; }
 
+// format of a compressed texture read back from the gpu, given as the image would have it: the driver tells the srgb variant
+// of the format, which the mapping doesn't take. with the components hint of the texture the linear one gives the same gl
+// format again on the next upload
+GLint readback_format( GLint const Internalformat ) {
+    switch( Internalformat ) {
+        case GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC:    { return GL_COMPRESSED_RGBA8_ETC2_EAC; }
+        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT: { return GL_COMPRESSED_RGBA_S3TC_DXT1_EXT; }
+        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT: { return GL_COMPRESSED_RGBA_S3TC_DXT3_EXT; }
+        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: { return GL_COMPRESSED_RGBA_S3TC_DXT5_EXT; }
+        case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM:    { return GL_COMPRESSED_RGBA_BPTC_UNORM; }
+        default:                                     { return Internalformat; }
+    }
+}
+
 } // namespace
 
 std::array<GLuint, gl::MAX_TEXTURES + gl::HELPER_TEXTURES> opengl_texture::units = { 0 };
 GLint opengl_texture::m_activeunit = -1;
+std::atomic<bool> opengl_texture::m_unitcachestale { false };
 
-std::unordered_map<GLint, int> opengl_texture::precompressed_formats =
+std::unordered_map<GLint, int> texture_source::precompressed_formats =
 {
     { GL_COMPRESSED_RGBA8_ETC2_EAC, 16 },
     { GL_COMPRESSED_SRGB8_ALPHA8_ETC2_EAC, 16 },
@@ -391,132 +442,25 @@ std::unordered_map<GLint, std::unordered_map<GLint, GLint>> opengl_texture::mapp
                                           { GL_RED,        GL_R8 } } },
 };
 
-texture_manager::texture_manager() {
+texture_bank::texture_bank( std::function<texture_source *()> Make ) :
+    m_make( std::move( Make ) ) {
 
     // since index 0 is used to indicate no texture, we put a blank entry in the first texture slot
-    m_textures.emplace_back( new opengl_texture(), std::chrono::steady_clock::time_point() );
+    m_textures.emplace_back( m_make(), std::chrono::steady_clock::time_point() );
 }
 
-// convert image to format suitable for given internalformat
-// required for GLES, on desktop GL it will be done by driver
-void opengl_texture::gles_match_internalformat(GLuint internalformat)
-{
-    // ignore compressed formats (and hope that GLES driver will support it)
-    if (precompressed_formats.find(internalformat) != precompressed_formats.end())
-        return;
+texture_bank::~texture_bank() {
 
-    // don't care about sRGB here
-    if (internalformat == GL_SRGB8)
-        internalformat = GL_RGB8;
-    if (internalformat == GL_SRGB8_ALPHA8)
-        internalformat = GL_RGBA8;
-
-    // we don't want BGR(A), reverse it
-    if (data_format == GL_BGR)
-    {
-        std::vector<unsigned char> reverse;
-        reverse.resize(data.size());
-
-        for (int y = 0; y < data_height; y++)
-            for (int x = 0; x < data_width; x++)
-            {
-                int offset = (y * data_width + x) * 3;
-                reverse[offset + 0] = data[offset + 2];
-                reverse[offset + 1] = data[offset + 1];
-                reverse[offset + 2] = data[offset + 0];
-            }
-
-        data_format = GL_RGB;
-        data = reverse;
-    }
-    else if (data_format == GL_BGRA)
-    {
-        std::vector<unsigned char> reverse;
-        reverse.resize(data.size());
-
-        for (int y = 0; y < data_height; y++)
-            for (int x = 0; x < data_width; x++)
-            {
-                int offset = (y * data_width + x) * 4;
-                reverse[offset + 0] = data[offset + 2];
-                reverse[offset + 1] = data[offset + 1];
-                reverse[offset + 2] = data[offset + 0];
-                reverse[offset + 3] = data[offset + 3];
-            }
-
-        data_format = GL_RGBA;
-        data = reverse;
-    }
-
-    // if format matches, we're done
-    if (data_format == GL_RGBA && internalformat == GL_RGBA8)
-        return;
-    if (data_format == GL_RGB && internalformat == GL_RGB8)
-        return;
-    if (data_format == GL_RG && internalformat == GL_RG8)
-        return;
-    if (data_format == GL_RED && internalformat == GL_R8)
-        return;
-
-    // do conversion
-
-    int in_c = 0;
-    if (data_format == GL_RGBA)
-        in_c = 4;
-    else if (data_format == GL_RGB)
-        in_c = 3;
-    else if (data_format == GL_RG)
-        in_c = 2;
-    else if (data_format == GL_RED)
-        in_c = 1;
-
-    int out_c = 0;
-    if (internalformat == GL_RGBA8)
-        out_c = 4;
-    else if (internalformat == GL_RGB8)
-        out_c = 3;
-    else if (internalformat == GL_RG8)
-        out_c = 2;
-    else if (internalformat == GL_R8)
-        out_c = 1;
-
-    if (!in_c || !out_c)
-        return; // conversion not supported
-
-    std::vector<unsigned char> out;
-    out.resize(data_width * data_height * out_c);
-
-    for (int y = 0; y < data_height; y++)
-        for (int x = 0; x < data_width; x++)
-        {
-            int pixel = y * data_width + x;
-            int in_off = pixel * in_c;
-            int out_off = pixel * out_c;
-            for (int i = 0; i < out_c; i++)
-            {
-                if (i < in_c)
-                    out[out_off + i] = data[in_off + i];
-                else
-                    out[out_off + i] = 0xFF;
-            }
-        }
-
-    if (out_c == 4)
-        data_format = GL_RGBA;
-    else if (out_c == 3)
-        data_format = GL_RGB;
-    else if (out_c == 2)
-        data_format = GL_RG;
-    else if (out_c == 1)
-        data_format = GL_RED;
-
-    data = out;
+    delete_textures();
 }
+
+texture_manager::texture_manager() :
+    texture_bank( []() -> texture_source * { return new opengl_texture(); } ) {}
 
 // loads texture data from specified file
 // TODO: wrap it in a workitem class, for the job system deferred loading
 void
-opengl_texture::load() {
+texture_source::load() {
 	if (data_state == resource_state::good)
 		return;
 
@@ -532,6 +476,8 @@ opengl_texture::load() {
         WriteLog( "Loading texture data from \"" + name + "\"", logtype::texture );
 
         data_state = resource_state::loading;
+        // known only of the data a worker thread reads (complete_data())
+        data_alphakept.reset();
 
              if( type == ".dds" ) { load_DDS(); }
         else if( type == ".tga" ) { load_TGA(); }
@@ -569,11 +515,11 @@ fail:
     data_state = resource_state::failed;
     ErrorLog( "Bad texture: failed to load texture \"" + name + "\"" );
     // NOTE: temporary workaround for texture assignment errors
-    id = 0;
+    on_failed();
     return;
 }
 
-void opengl_texture::load_PNG()
+void texture_source::load_PNG()
 {
 	//png_image png;
 	//memset(&png, 0, sizeof(png_image));
@@ -620,11 +566,11 @@ void opengl_texture::load_PNG()
     //data_state = resource_state::good;
 }
 
-void opengl_texture::load_STBI()
+void texture_source::load_STBI()
 {
 	int x, y, n;
 	stbi_set_flip_vertically_on_load(1);
-	uint8_t *image = stbi_load((name + type).c_str(), &x, &y, &n, 4);
+	uint8_t *image = stbi_load(FileOnDisk(name + type).c_str(), &x, &y, &n, 4);
 
 	if (!image) {
 		data_state = resource_state::failed;
@@ -645,7 +591,7 @@ void opengl_texture::load_STBI()
 }
 
 void
-opengl_texture::make_stub()
+texture_source::make_stub()
 {
     data_width = 2;
     data_height = 2;
@@ -660,7 +606,7 @@ opengl_texture::make_stub()
 }
 
 void
-opengl_texture::make_from_memory(size_t width, size_t height, const uint8_t *raw)
+texture_source::make_from_memory(size_t width, size_t height, const uint8_t *raw)
 {
     release();
 
@@ -695,8 +641,6 @@ void opengl_texture::update_from_memory(size_t width, size_t height, const uint8
 		set_filtering();
 		glTexParameteri(target, GL_TEXTURE_WRAP_S, wrap_mode_s);
 		glTexParameteri(target, GL_TEXTURE_WRAP_T, wrap_mode_t);
-		if (!glGenerateMipmap)
-			glTexParameteri(target, GL_GENERATE_MIPMAP, GL_TRUE);
 	}
 	else
 	{
@@ -706,12 +650,119 @@ void opengl_texture::update_from_memory(size_t width, size_t height, const uint8
 	if (glGenerateMipmap)
 		glGenerateMipmap(target);
 	glFlush();
+	// the content given straight to the gpu can't be read again: released by the garbage sweep, the texture would come back as
+	// the grey stub
+	if (type == "internalsrc:")
+	{
+		is_static = true;
+		is_ready = true;
+	}
+	// the name may be a new one, and the unit active took the texture past the unit cache. this runs on the python upload
+	// thread too (python.threadedupload), so the cache is only marked here: clearing it outright raced the drawing thread
+	// filling it for a multi-bind, and an object got the texture of the one drawn before it for a frame
+	invalidate_unit_cache();
+}
+
+namespace
+{
+// gl objects of an image uploaded by another thread that was never put in place
+void delete_thread_upload(GLuint const Texture, GLsync const Fence)
+{
+	if (Fence != nullptr)
+		glDeleteSync(Fence);
+	glDeleteTextures(1, &Texture);
+}
+} // namespace
+
+void opengl_texture::upload_from_thread(size_t width, size_t height, const uint8_t *raw)
+{
+	// a texture of its own each time: the one drawn from may be in use by the gpu for the drawing context, and writing it from
+	// here, with nothing to order the two contexts, could leave it incomplete or half written for a frame
+	texture_thread_upload upload;
+	upload.width = width;
+	upload.height = height;
+	glGenTextures(1, &upload.id);
+	glBindTexture(target, upload.id);
+	set_filtering();
+	glTexParameteri(target, GL_TEXTURE_WRAP_S, wrap_mode_s);
+	glTexParameteri(target, GL_TEXTURE_WRAP_T, wrap_mode_t);
+	glTexImage2D(target, 0, GL_SRGB8_ALPHA8, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, raw);
+	if (glGenerateMipmap)
+		glGenerateMipmap(target);
+	glBindTexture(target, 0);
+	if (glFenceSync)
+	{
+		upload.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+	}
+	if (upload.fence == nullptr)
+	{
+		// no sync objects, or no fence made: the drawing context can only be sure of the image once the upload is done
+		glFinish();
+	}
+	else
+	{
+		// the drawing context asks for the fence, which signals only once it is on its way to the gpu
+		glFlush();
+	}
+
+	std::optional<texture_thread_upload> superseded;
+	{
+		std::scoped_lock lock{m_threaduploadmutex};
+		superseded = std::exchange(m_threadupload, upload);
+	}
+	if (superseded.has_value())
+	{
+		// the drawing thread didn't take it, so nothing drew from it
+		delete_thread_upload(superseded->id, superseded->fence);
+	}
+}
+
+bool opengl_texture::commit_thread_upload()
+{
+	texture_thread_upload upload;
+	{
+		std::scoped_lock lock{m_threaduploadmutex};
+		if (false == m_threadupload.has_value())
+			return true;
+		// asked without waiting. the image goes in place only once the upload is done, so every context binding it after
+		// has it whole: the extra viewports and the windows of python.displaywindows draw in contexts of their own
+		if (m_threadupload->fence != nullptr)
+		{
+			// a failed query (GL_WAIT_FAILED) isn't asked again: the image would never go in place
+			if (glClientWaitSync(m_threadupload->fence, 0, 0) == GL_TIMEOUT_EXPIRED)
+				return false;
+			glDeleteSync(m_threadupload->fence);
+		}
+		upload = *m_threadupload;
+		m_threadupload.reset();
+	}
+
+	if (id != invalid_id)
+		glDeleteTextures(1, &id);
+	id = upload.id;
+	data_width = static_cast<unsigned int>(upload.width);
+	data_height = static_cast<unsigned int>(upload.height);
+	data_format = GL_SRGB8_ALPHA8;
+	data_components = GL_RGBA;
+	if (type == "internalsrc:")
+	{
+		is_static = true;
+		is_ready = true;
+	}
+	// the name deleted may come back for another texture, and a deleted texture isn't bound any more
+	for (auto &unit : units)
+		unit = -1;
+	return true;
 }
 
 void
-opengl_texture::make_request() {
+texture_source::make_request() {
 
     auto const components { Split( name, '?' ) };
+    if( components.front().ends_with( ".lua" ) || components.front().ends_with( ".wasm" ) ) {
+        // script destination signs are drawn by the vehicles showing them (script_screen_queue)
+        return;
+    }
 
 	auto dictionary = std::make_shared<dictionary_source>( components.back() );
 
@@ -721,7 +772,7 @@ opengl_texture::make_request() {
 	Application.request( { ToLower( components.front() ), dictionary, rt } );
 }
 
-DDCOLORKEY opengl_texture::deserialize_ddck(std::istream &s)
+DDCOLORKEY texture_source::deserialize_ddck(std::istream &s)
 {
 	DDCOLORKEY ddck;
 
@@ -731,7 +782,7 @@ DDCOLORKEY opengl_texture::deserialize_ddck(std::istream &s)
 	return ddck;
 }
 
-DDPIXELFORMAT opengl_texture::deserialize_ddpf(std::istream &s)
+DDPIXELFORMAT texture_source::deserialize_ddpf(std::istream &s)
 {
 	DDPIXELFORMAT ddpf;
 
@@ -747,7 +798,7 @@ DDPIXELFORMAT opengl_texture::deserialize_ddpf(std::istream &s)
 	return ddpf;
 }
 
-DDSCAPS2 opengl_texture::deserialize_ddscaps(std::istream &s)
+DDSCAPS2 texture_source::deserialize_ddscaps(std::istream &s)
 {
 	DDSCAPS2 ddsc;
 
@@ -759,7 +810,7 @@ DDSCAPS2 opengl_texture::deserialize_ddscaps(std::istream &s)
 	return ddsc;
 }
 
-DDSURFACEDESC2 opengl_texture::deserialize_ddsd(std::istream &s)
+DDSURFACEDESC2 texture_source::deserialize_ddsd(std::istream &s)
 {
 	DDSURFACEDESC2 ddsd;
 
@@ -786,9 +837,9 @@ DDSURFACEDESC2 opengl_texture::deserialize_ddsd(std::istream &s)
 }
 
 void
-opengl_texture::load_DDS() {
+texture_source::load_DDS() {
 
-    std::ifstream file( name + type, std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
     std::size_t filesize = static_cast<size_t>(file.tellg());   // ios::ate already positioned us at the end of the file
     file.seekg( 0, std::ios::beg ); // rewind the caret afterwards
 
@@ -908,7 +959,7 @@ opengl_texture::load_DDS() {
     if( true == Global.gfx_texture_streaming ) {
         // the data is read by a worker thread, everything else about the texture is known already
         request = std::make_shared<texture_request>();
-        request->file = name + type;
+        request->file = FileOnDisk( name + type );
         request->offset = static_cast<std::size_t>( file.tellg() ) + offset;
         request->size = datasize;
         request->flip = flip;
@@ -917,7 +968,8 @@ opengl_texture::load_DDS() {
         request->height = data_height;
         request->mapcount = data_mapcount;
         request->blocksize = blockSize;
-        texture_loader::instance().submit( request );
+        // the data is read when it's going to be needed (prefetch()), or the first time the texture is made: the data of textures
+        // nothing draws yet would take the memory for nothing
 
         data_components = components;
 
@@ -969,8 +1021,8 @@ opengl_texture::load_DDS() {
 }
 
 void
-opengl_texture::load_KTX() {
-    std::ifstream file( name + type, std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
+texture_source::load_KTX() {
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary | std::ios::ate ); file.unsetf( std::ios::skipws );
     std::size_t filesize = static_cast<size_t>(file.tellg());   // ios::ate already positioned us at the end of the file
     file.seekg( 0, std::ios::beg ); // rewind the caret afterwards
 
@@ -1029,9 +1081,9 @@ opengl_texture::load_KTX() {
 }
 
 void
-opengl_texture::load_TEX() {
+texture_source::load_TEX() {
 
-    std::ifstream file( name + type, std::ios::binary ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary ); file.unsetf( std::ios::skipws );
 
     char head[ 5 ];
     file.read( head, 4 );
@@ -1076,9 +1128,9 @@ opengl_texture::load_TEX() {
 }
 
 void
-opengl_texture::load_TGA() {
+texture_source::load_TGA() {
 
-    std::ifstream file( name + type, std::ios::binary ); file.unsetf( std::ios::skipws );
+    std::ifstream file( FileOnDisk( name + type ), std::ios::binary ); file.unsetf( std::ios::skipws );
 
     // Read the header of the TGA, compare it with the known headers for compressed and uncompressed TGAs
     unsigned char tgaheader[ 18 ];
@@ -1233,21 +1285,10 @@ opengl_texture::bind(size_t unit) {
         return false;
     }
 
+    sync_unit_cache();
     if (units[unit] == id)
         return true;
-    if (GLAD_GL_ARB_direct_state_access)
-    {
-        glBindTextureUnit(unit, id);
-    }
-    else
-    {
-        if (unit != m_activeunit)
-        {
-            glActiveTexture(GL_TEXTURE0 + unit);
-            m_activeunit = unit;
-        }
-        glBindTexture(target, id);
-    }
+    glBindTextureUnit(unit, id);
     units[unit] = id;
 
     return true;
@@ -1256,20 +1297,7 @@ opengl_texture::bind(size_t unit) {
 void
 opengl_texture::unbind(size_t unit)
 {
-    if (GLAD_GL_ARB_direct_state_access)
-    {
-        glBindTextureUnit(unit, 0);
-    }
-    else
-    {
-        if (unit != m_activeunit)
-        {
-            glActiveTexture(GL_TEXTURE0 + unit);
-            m_activeunit = unit;
-        }
-        //todo: for other targets
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
+    glBindTextureUnit(unit, 0);
     units[unit] = 0;
 }
 
@@ -1329,7 +1357,6 @@ opengl_texture::create( bool const Static ) {
         {
             if (data_components == GL_DEPTH_COMPONENT)
             {
-				glTexParameteri(target, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
                 wrap_mode_s = GL_CLAMP_TO_BORDER;
                 wrap_mode_t = GL_CLAMP_TO_BORDER;
                 float borderColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -1340,27 +1367,14 @@ opengl_texture::create( bool const Static ) {
             glTexParameteri( target, GL_TEXTURE_WRAP_S, wrap_mode_s );
             glTexParameteri( target, GL_TEXTURE_WRAP_T, wrap_mode_t );
 
-            if (Global.gfx_usegles)
-            {
-                if( target == GL_TEXTURE_2D )
-					glTexStorage2D(target, std::countr_zero(static_cast<unsigned int>(std::max(data_width, data_height))) + 1, data_format, data_width, data_height);
-                else if( target == GL_TEXTURE_2D_MULTISAMPLE )
-                    glTexStorage2DMultisample( target, samples, data_format, data_width, data_height, GL_FALSE );
-                else if( target == GL_TEXTURE_2D_ARRAY )
-					glTexStorage3D(target, std::countr_zero(static_cast<unsigned int>(std::max(data_width, data_height))) + 1, data_format, data_width, data_height, layers);
-                else if( target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY )
-                    glTexStorage3DMultisample( target, samples, data_format, data_width, data_height, layers, GL_FALSE );
-            }
-            else {
-                if( target == GL_TEXTURE_2D )
-                    glTexImage2D( target, 0, data_format, data_width, data_height, 0, data_components, GL_UNSIGNED_SHORT, nullptr );
-                else if( target == GL_TEXTURE_2D_MULTISAMPLE )
-                    glTexImage2DMultisample( target, samples, data_format, data_width, data_height, GL_FALSE );
-                else if( target == GL_TEXTURE_2D_ARRAY )
-                    glTexImage3D( target, 0, data_format, data_width, data_height, layers, 0, data_components, GL_UNSIGNED_SHORT, nullptr );
-                else if( target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY )
-                    glTexImage3DMultisample( target, samples, data_format, data_width, data_height, layers, GL_FALSE );
-            }
+            if( target == GL_TEXTURE_2D )
+                glTexImage2D( target, 0, data_format, data_width, data_height, 0, data_components, GL_UNSIGNED_SHORT, nullptr );
+            else if( target == GL_TEXTURE_2D_MULTISAMPLE )
+                glTexImage2DMultisample( target, samples, data_format, data_width, data_height, GL_FALSE );
+            else if( target == GL_TEXTURE_2D_ARRAY )
+                glTexImage3D( target, 0, data_format, data_width, data_height, layers, 0, data_components, GL_UNSIGNED_SHORT, nullptr );
+            else if( target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY )
+                glTexImage3DMultisample( target, samples, data_format, data_width, data_height, layers, GL_FALSE );
         }
         else
         {
@@ -1383,21 +1397,14 @@ opengl_texture::create( bool const Static ) {
                 components_hint = GL_SRGB_ALPHA;
 
             GLint internal_format = mapping[components][components_hint];
-
-            if (Global.gfx_usegles)
-            {
-                // GLES cannot generate mipmaps on SRGB8
-                if (internal_format == GL_SRGB8)
-                    internal_format = GL_SRGB8_ALPHA8;
-
-                gles_match_internalformat(internal_format);
+            if( ( internal_format == 0 )
+             && ( f_it != precompressed_formats.end() ) ) {
+                // data read back from the card (Global.ResourceMove) is in the format it was made in, which can be one the
+                // mapping doesn't start from (srgb)
+                internal_format = data_format;
             }
 
             auto blocksize_it = precompressed_formats.find(internal_format);
-
-            if ( data_mapcount == 1 && !glGenerateMipmap ) {
-                glTexParameteri(target, GL_GENERATE_MIPMAP, GL_TRUE);
-            }
 
             for( int maplevel = 0; maplevel < data_mapcount; ++maplevel ) {
 
@@ -1434,7 +1441,8 @@ opengl_texture::create( bool const Static ) {
             }
 
             if( true == Global.ResourceMove
-             || false == Global.ResourceSweep ) {
+             || false == Global.ResourceSweep
+             || true == streamed() ) {
                 // if garbage collection is disabled we don't expect having to upload the texture more than once
                 data = std::vector<unsigned char>();
                 data_state = resource_state::none;
@@ -1456,10 +1464,12 @@ opengl_texture::create( bool const Static ) {
 
 // takes over the data read by a worker thread, waiting for it if needed
 void
-opengl_texture::complete_data() {
+texture_source::complete_data() {
 
     if( request == nullptr ) { return; }
 
+    // read right away if nothing asked for the data before
+    prefetch();
     texture_loader::instance().wait( request );
     auto const completed { std::move( request ) };
 
@@ -1467,12 +1477,47 @@ opengl_texture::complete_data() {
         data_state = resource_state::failed;
         ErrorLog( "Bad texture: failed to load texture \"" + name + "\"" );
         // NOTE: temporary workaround for texture assignment errors, same as in load()
-        id = 0;
+        on_failed();
         return;
     }
     data.swap( completed->data );
+    data_alphakept = completed->alphakept;
     data_state = resource_state::good;
     size = data.size() / 1024;
+}
+
+// has a worker thread read the data of the texture, if it's waiting for that. Origin: the camera, for data read ahead of it
+void
+texture_source::prefetch( glm::dvec3 const *Origin ) {
+
+    if( ( request == nullptr )
+     && ( false == resident() )
+     && ( data_state == resource_state::none )
+     && ( true == reload_on_use )
+     && ( true == streamed() ) ) {
+        // the data went with the gl texture, it's read from the file again
+        reload_on_use = false;
+        load();
+    }
+    if( ( request == nullptr ) || ( true == request->submitted ) ) { return; }
+
+    request->submitted = true;
+    request->submittime = std::chrono::steady_clock::now();
+    request->ahead = ( Origin != nullptr );
+    if( Origin != nullptr ) {
+        request->origin = *Origin;
+    }
+    texture_loader::instance().submit( request );
+}
+
+// the data of the texture is read from its file by worker threads when it's needed (gfx.textures.streaming), and not kept
+// after the upload: it can be read again
+bool
+texture_source::streamed() const {
+
+    return ( ( true == Global.gfx_texture_streaming )
+          && ( type == ".dds" )
+          && ( false == is_rendertarget ) );
 }
 
 // releases resources allocated on the opengl end, storing local copy if requested
@@ -1482,7 +1527,13 @@ opengl_texture::release() {
     if( id == -1 ) { return; }
     if( is_static ) { return; }
 
-    if( true == Global.ResourceMove && !is_rendertarget ) {
+    if( true == streamed() ) {
+        // no copy of the data is kept, it's read from the file again when the texture is needed (prefetch(), create())
+        data = std::vector<unsigned char>();
+        data_state = resource_state::none;
+        reload_on_use = true;
+    }
+    else if( true == Global.ResourceMove && !is_rendertarget ) {
         // if resource move is enabled we don't keep a cpu side copy after upload
         // so need to re-acquire the data before release
         // TBD, TODO: instead of vram-ram transfer fetch the data 'normally' from the disk using worker thread
@@ -1492,29 +1543,13 @@ opengl_texture::release() {
         }
         else {
 	        ::glBindTexture(target, id );
-	        GLint datasize {};
 	        GLint iscompressed {};
 	        ::glGetTexLevelParameteriv(target, 0, GL_TEXTURE_COMPRESSED, &iscompressed );
-	        if( iscompressed == GL_TRUE ) {
-	            // texture is compressed on the gpu side
-	            // query texture details needed to perform the backup...
-	            ::glGetTexLevelParameteriv(target, 0, GL_TEXTURE_INTERNAL_FORMAT, &data_format );
-	            ::glGetTexLevelParameteriv(target, 0, GL_TEXTURE_COMPRESSED_IMAGE_SIZE, &datasize );
-	            data.resize( datasize );
-	            // ...fetch the data...
-	            ::glGetCompressedTexImage(target, 0, &data[ 0 ] );
+	        if( ( iscompressed != GL_TRUE )
+	         || ( false == read_back_compressed() ) ) {
+	            // the texture didn't get compressed during upload, or got a format the upload doesn't take
+	            read_back_uncompressed();
 	        }
-	        else {
-	            // for whatever reason texture didn't get compressed during upload
-	            // fallback on plain rgba storage...
-	            data_format = GL_RGBA;
-	            data_type = GL_UNSIGNED_BYTE;
-	            data.resize( data_width * data_height * 4 );
-	            // ...fetch the data...
-	            ::glGetTexImage(target, 0, data_format, GL_UNSIGNED_BYTE, &data[ 0 ] );
-	        }
-	        // ...and update texture object state
-	        data_mapcount = 1; // we keep copy of only top mipmap level
 	        data_state = resource_state::good;
         }
     }
@@ -1524,6 +1559,56 @@ opengl_texture::release() {
     is_ready = false;
 
     return;
+}
+
+// copies all mipmaps of the compressed gl texture into the data, in the layout of a dds file. returns false, leaving the data as
+// it was, when the format can't be uploaded again as it is. all levels are kept since the driver may not generate mipmaps
+// of a compressed format; without them the texture would be incomplete and drawn black
+bool
+opengl_texture::read_back_compressed() {
+
+    GLint internalformat {};
+    ::glGetTexLevelParameteriv( target, 0, GL_TEXTURE_INTERNAL_FORMAT, &internalformat );
+    auto const format { readback_format( internalformat ) };
+    if( ( false == precompressed_formats.contains( format ) )
+     || ( false == mapping.contains( format ) ) ) {
+        return false;
+    }
+    auto const levelcount { static_cast<int>( std::bit_width( std::max( data_width, data_height ) ) ) };
+    std::vector<unsigned char> leveldata;
+    auto mapcount { 0 };
+    while( mapcount < levelcount ) {
+        GLint levelwidth {};
+        GLint levelsize {};
+        ::glGetTexLevelParameteriv( target, mapcount, GL_TEXTURE_WIDTH, &levelwidth );
+        ::glGetTexLevelParameteriv( target, mapcount, GL_TEXTURE_COMPRESSED_IMAGE_SIZE, &levelsize );
+        if( ( levelwidth <= 0 ) || ( levelsize <= 0 ) ) {
+            // the levels past the last one present weren't made
+            break;
+        }
+        auto const offset { leveldata.size() };
+        leveldata.resize( offset + static_cast<std::size_t>( levelsize ) );
+        ::glGetCompressedTexImage( target, mapcount, &leveldata[ offset ] );
+        ++mapcount;
+    }
+    if( mapcount == 0 ) {
+        return false;
+    }
+    data.swap( leveldata );
+    data_format = format;
+    data_mapcount = static_cast<unsigned int>( mapcount );
+    return true;
+}
+
+// copies the top level of the gl texture into the data as plain rgba, the mipmaps are generated again on upload
+void
+opengl_texture::read_back_uncompressed() {
+
+    data_format = GL_RGBA;
+    data_type = GL_UNSIGNED_BYTE;
+    data.resize( data_width * data_height * 4 );
+    ::glGetTexImage( target, 0, data_format, GL_UNSIGNED_BYTE, &data[ 0 ] );
+    data_mapcount = 1;
 }
 
 void
@@ -1538,9 +1623,6 @@ opengl_texture::alloc_rendertarget( GLint format, GLint components, int width, i
     wrap_mode_s = wrap;
     wrap_mode_t = wrap;
     samples = s;
-    if( Global.gfx_usegles && !glTexStorage2DMultisample ) {
-        samples = 1;
-    }
     layers = l;
     if( layers > 1 ) {
         target = samples > 1 ? GL_TEXTURE_2D_MULTISAMPLE_ARRAY : GL_TEXTURE_2D_ARRAY;
@@ -1552,7 +1634,7 @@ opengl_texture::alloc_rendertarget( GLint format, GLint components, int width, i
 }
 
 void
-opengl_texture::set_components_hint( GLint hint ) {
+texture_source::set_components_hint( GLint hint ) {
 
     components_hint = hint;
 }
@@ -1567,43 +1649,39 @@ opengl_texture::reset_unit_cache() {
 }
 
 void
+opengl_texture::invalidate_unit_cache() {
+
+    m_unitcachestale.store( true );
+}
+
+void
+opengl_texture::sync_unit_cache() {
+
+    // a plain load first: bind() calls this for every texture, and a read-modify-write each time would cost more
+    if( ( false == m_unitcachestale.load() )
+     || ( false == m_unitcachestale.exchange( false ) ) ) {
+        return;
+    }
+    for( auto &unit : units ) {
+        unit = -1;
+    }
+}
+
+void
 opengl_texture::set_filtering() const
 {
     // default texture mode
     ::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
     ::glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
 
-    if (Global.AnisotropicFiltering >= 0
-     && ( GLAD_GL_EXT_texture_filter_anisotropic ||  GLAD_GL_ARB_texture_filter_anisotropic) ) {
+    if (Global.AnisotropicFiltering >= 0) {
         // anisotropic filtering
-        ::glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, Global.AnisotropicFiltering );
-    }
-
-    if( Global.LegacyRenderer ) {
-
-        bool sharpen{ false };
-        for( auto const &trait : traits ) {
-
-            switch( trait ) {
-
-                case '#': { sharpen = true; break; }
-                default:  {                 break; }
-            }
-        }
-
-        if( true == sharpen ) {
-            // #: sharpen more
-            ::glTexEnvf( GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -2.0f );
-        }
-        else {
-            // regular texture sharpening
-            ::glTexEnvf( GL_TEXTURE_FILTER_CONTROL, GL_TEXTURE_LOD_BIAS, -1.0f );
-        }
+        ::glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, Global.AnisotropicFiltering );
     }
 }
 
 void
-opengl_texture::downsize( GLuint const Format ) {
+texture_source::downsize( GLuint const Format ) {
 
     while( data_width > Global.CurrentMaxTextureSize || data_height > Global.CurrentMaxTextureSize ) {
         // scale down the base texture, if it's larger than allowed maximum
@@ -1632,7 +1710,7 @@ opengl_texture::downsize( GLuint const Format ) {
 }
 
 void
-opengl_texture::flip_vertical() {
+texture_source::flip_vertical() {
 
     auto const swapsize { data_width * 4 };
     auto destination { data.begin() + ( data_height - 1 ) * swapsize };
@@ -1657,7 +1735,7 @@ texture_manager::unit( GLint const Textureunit ) {
 
 // ustalenie numeru tekstury, wczytanie jeśli jeszcze takiej nie było
 texture_handle
-texture_manager::create( std::string Filename, bool const Loadnow, GLint Formathint ) {
+texture_bank::create( std::string Filename, bool const Loadnow, GLint Formathint ) {
 
     if( contains( Filename, '|' ) ) {
         Filename.erase( Filename.find( '|' ) ); // po | może być nazwa kolejnej tekstury
@@ -1730,7 +1808,7 @@ texture_manager::create( std::string Filename, bool const Loadnow, GLint Formath
         }
     }
 
-    auto texture = new opengl_texture();
+    auto texture = m_make();
     texture->name = locator.first;
     texture->type = locator.second;
     texture->traits = traits;
@@ -1743,9 +1821,9 @@ texture_manager::create( std::string Filename, bool const Loadnow, GLint Formath
 
     if( true == Loadnow ) {
 
-        texture_manager::texture( textureindex ).load();
+        texture_bank::texture( textureindex ).load();
 #ifndef EU07_DEFERRED_TEXTURE_UPLOAD
-        texture_manager::texture( textureindex ).create();
+        texture_bank::texture( textureindex ).create();
         // texture creation binds a different texture, force a re-bind on next use
         m_activetexture = -1;
 #endif
@@ -1765,8 +1843,8 @@ texture_manager::bind( std::size_t const Unit, texture_handle const Texture ) {
         opengl_texture::unbind(Unit);
 }
 
-opengl_texture &
-texture_manager::mark_as_used(const texture_handle Texture) {
+texture_source &
+texture_bank::mark_as_used(const texture_handle Texture) {
 
     auto &pair = m_textures[ Texture ];
     pair.second = m_garbagecollector.timestamp();
@@ -1774,20 +1852,45 @@ texture_manager::mark_as_used(const texture_handle Texture) {
 }
 
 void
-texture_manager::delete_textures() {
+texture_bank::delete_textures() {
     for( auto const &texture : m_textures ) {
         // usunięcie wszyskich tekstur (bez usuwania struktury)
-        if( texture.first->id > 0
-         && texture.first->id != -1 ) {
-            ::glDeleteTextures( 1, &texture.first->id );
-        }
+        texture.first->destroy();
         delete texture.first;
     }
+    m_textures.clear();
+}
+
+void
+opengl_texture::destroy() {
+
+    if( id > 0
+     && id != -1 ) {
+        ::glDeleteTextures( 1, &id );
+    }
+}
+
+void
+opengl_texture::unload_object() {
+
+    // deleted outright: release() would read the texture back from the card with gfx.resource.move, only for it to be dropped
+    if( ( id != invalid_id ) && ( id != 0 ) ) {
+        ::glDeleteTextures( 1, &id );
+    }
+    id = invalid_id;
+    is_ready = false;
+}
+
+void
+opengl_texture::on_failed() {
+
+    // NOTE: temporary workaround for texture assignment errors: the texture counts as made, with no gl texture
+    id = 0;
 }
 
 // starts a scan for gl textures used only by vehicles far away
 void
-texture_manager::begin_release_scan() {
+texture_bank::begin_release_scan() {
 
     m_releasescantime = std::chrono::steady_clock::now();
     // textures bound from now on are stamped with the time of this scan, the sweep may not be running
@@ -1799,7 +1902,7 @@ texture_manager::begin_release_scan() {
 
 // marks texture of a vehicle as needed if the vehicle is near, otherwise only as one used by vehicles
 void
-texture_manager::mark_as_needed( texture_handle const Texture, bool const Near ) {
+texture_bank::mark_as_needed( texture_handle const Texture, bool const Near ) {
 
     if( ( Texture <= 0 )
      || ( Texture >= static_cast<texture_handle>( m_neededtimes.size() ) ) ) {
@@ -1814,6 +1917,7 @@ texture_manager::mark_as_needed( texture_handle const Texture, bool const Near )
             // the vehicle came back, the texture is read again before it's drawn (in the background with gfx.textures.streaming)
             texture.reload_on_use = false;
             texture.load();
+            texture.prefetch();
         }
     }
     else if( needed == resource_timestamp() ) {
@@ -1822,9 +1926,51 @@ texture_manager::mark_as_needed( texture_handle const Texture, bool const Near )
     }
 }
 
+void
+texture_bank::unload( texture_handle const Texture ) {
+
+    if( ( Texture <= 0 )
+     || ( Texture >= static_cast<texture_handle>( m_textures.size() ) ) ) {
+        return;
+    }
+    auto const &record { m_textures[ Texture ] };
+    auto &texture { *record.first };
+    if( ( record.second != resource_timestamp() )
+     || ( true == texture.busy() ) // another thread of the renderer makes it
+     || ( ( true == texture.resident() ) && ( texture.get_id() == 0 ) ) // failed to load
+     || ( true == texture.is_static )
+     || ( true == texture.is_rendertarget )
+     || ( texture.type == "make:" )
+     || ( texture.type == "internalsrc:" ) ) {
+        return;
+    }
+    if( ( texture.data_state == resource_state::loading )
+     && ( texture.request != nullptr ) ) {
+        // read by a worker thread: taken over first, to be dropped with the rest
+        texture.complete_data();
+        if( texture.data_state == resource_state::failed ) {
+            return;
+        }
+    }
+    auto const created { texture.resident() };
+    if( ( false == created )
+     && ( texture.data_state != resource_state::good ) ) {
+        // nothing read nor made, e.g. the textures of a material asked for without loading
+        return;
+    }
+    if( true == created ) {
+        texture.unload_object();
+        // the released names can be given to new textures, the unit cache can't trust them
+        released();
+    }
+    texture.data = std::vector<unsigned char>();
+    texture.data_state = resource_state::none;
+    texture.reload_on_use = true;
+}
+
 // releases gl textures of vehicles not needed nor drawn for a while
 void
-texture_manager::release_unneeded() {
+texture_bank::release_unneeded() {
 
     // the delay keeps textures of a vehicle moving back and forth around the release distance from going in and out
     auto const delay { std::chrono::seconds{ 10 } };
@@ -1838,8 +1984,8 @@ texture_manager::release_unneeded() {
         }
         auto &record { m_textures[ index ] };
         auto &texture { *record.first };
-        if( ( texture.id == static_cast<GLuint>( -1 ) )
-         || ( texture.id == 0 )
+        if( ( false == texture.resident() )
+         || ( texture.get_id() == 0 )
          || ( true == texture.is_static )
          || ( true == texture.is_rendertarget )
          || ( texture.type == "make:" )
@@ -1857,26 +2003,103 @@ texture_manager::release_unneeded() {
     }
     if( releasecount > 0 ) {
         // released gl names can be given to new textures, the unit cache can't trust them
-        for( auto &unit : opengl_texture::units ) {
-            unit = -1;
-        }
+        released();
     }
 }
 
 // performs a resource sweep
 void
-texture_manager::update() {
+texture_bank::update() {
 
     if( m_garbagecollector.sweep() > 0 ) {
-        for( auto &unit : opengl_texture::units ) {
-            unit = -1;
+        released();
+    }
+}
+
+void
+texture_manager::released() {
+
+    for( auto &unit : opengl_texture::units ) {
+        unit = -1;
+    }
+}
+
+// what the textures keep in memory, for the debug panel
+texture_bank::memory_data
+texture_bank::memory() const {
+
+    memory_data result;
+    for( auto const &texture : m_textures ) {
+        if( texture.first == nullptr ) { continue; }
+        // made by another thread at the moment
+        if( texture.first->busy() ) { continue; }
+        if( false == texture.first->data.empty() ) {
+            ++result.cpu.count;
+            result.cpu.bytes += memory_of( texture.first->data );
+        }
+        if( true == texture.first->resident() ) {
+            ++result.gpu.count;
+            result.gpu.bytes += static_cast<std::uint64_t>( texture.first->size ) * 1024;
+        }
+        if( texture.first->request != nullptr ) {
+            auto const &request { *texture.first->request };
+            if( false == request.submitted ) {
+                ++result.waiting;
+            }
+            else if( auto const size { texture_loader::instance().read_size( request ) }; size > 0 ) {
+                ++result.readahead.count;
+                result.readahead.bytes += size;
+            }
+            else {
+                ++result.reading;
+            }
         }
     }
+    return result;
+}
+
+// has the data of a texture read, if it's waiting for that
+void
+texture_bank::prefetch( texture_handle const Texture, glm::dvec3 const &Origin ) {
+
+    if( ( Texture <= 0 )
+     || ( Texture >= static_cast<texture_handle>( m_textures.size() ) ) ) {
+        return;
+    }
+    m_textures[ Texture ].first->prefetch( &Origin );
+}
+
+// gives back the data read for textures which nothing drew within the specified time since it was asked for, or read ahead of the
+// camera which went farther than the specified distance from there since. it's read again when a texture is needed
+std::size_t
+texture_bank::drop_read_ahead( std::chrono::steady_clock::duration const Age, glm::dvec3 const &Camera, double const Distance ) {
+
+    auto const now { std::chrono::steady_clock::now() };
+    std::size_t count { 0 };
+    for( auto const &texture : m_textures ) {
+        if( ( texture.first == nullptr )
+         || ( texture.first->request == nullptr ) ) {
+            continue;
+        }
+        auto &request { *texture.first->request };
+        if( false == request.submitted ) {
+            continue;
+        }
+        if( ( now - request.submittime < Age )
+         && ( ( false == request.ahead ) || ( glm::length2( Camera - request.origin ) <= Distance * Distance ) ) ) {
+            continue;
+        }
+        if( true == texture_loader::instance().drop( request ) ) {
+            request.submitted = false;
+            ++count;
+        }
+    }
+    return count;
 }
 
 // debug performance string
 std::string
-texture_manager::info() const {
+texture_bank::info() const {
 
     // TODO: cache this data and update only during resource sweep
     std::size_t totaltexturecount{ m_textures.size() - 1 };
@@ -1888,6 +2111,10 @@ texture_manager::info() const {
 
     for( auto const& texture : m_textures ) {
 
+        if( texture.first->busy() ) {
+            // made by another thread at the moment, counted once it's done
+            continue;
+        }
         totaltexturesize += texture.first->size;
 #ifdef EU07_DEFERRED_TEXTURE_UPLOAD
 
@@ -1915,7 +2142,7 @@ texture_manager::info() const {
 
 // checks whether specified texture is in the texture bank. returns texture id, or npos.
 texture_handle
-texture_manager::find_in_databank( std::string const &Texturename ) const {
+texture_bank::find_in_databank( std::string const &Texturename ) const {
 
     std::vector<std::string> const filenames {
         Global.asCurrentTexturePath + Texturename,
@@ -1934,7 +2161,7 @@ texture_manager::find_in_databank( std::string const &Texturename ) const {
 
 // checks whether specified file exists.
 std::pair<std::string, std::string>
-texture_manager::find_on_disk( std::string const &Texturename ) {
+texture_bank::find_on_disk( std::string const &Texturename ) {
 
     std::vector<std::string> const filenames {
         Global.asCurrentTexturePath + Texturename,

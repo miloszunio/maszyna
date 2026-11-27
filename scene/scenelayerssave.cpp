@@ -24,7 +24,10 @@ http://mozilla.org/MPL/2.0/.
 #include "utilities/Globals.h"
 #include "utilities/Logs.h"
 #include "utilities/utilities.h"
+#include "utilities/translation.h"
+#include "editor/editorFormat.hpp"
 
+#include <format>
 #include <map>
 #include <optional>
 #include <set>
@@ -631,18 +634,86 @@ bool node_layers::compose(save_state &State, layer_handle const Layer, compositi
 }
 
 // writes changes made in the editor to the scenery files
-save_result node_layers::save(std::vector<std::string> const &Rootstatements, std::vector<std::string> const &Trailingstatements)
+namespace
+{
+
+// locations of the node definitions of specified kinds in the text of a scenery file: from "node" to the closing "end<kind>",
+// tokens split as the parser does it, comments skipped
+std::vector<source_span> node_definitions(std::string const &Text, std::set<std::string> const &Kinds)
+{
+	std::vector<source_span> result;
+	std::size_t position{0};
+	auto const size{Text.size()};
+	auto const separator = [&](std::size_t const At) { return Text[At] == ' ' || Text[At] == '\t' || Text[At] == '\n' || Text[At] == '\r' || Text[At] == ';'; };
+	auto const comment = [&](std::size_t const At) { return At + 1 < size && Text[At] == '/' && (Text[At + 1] == '/' || Text[At + 1] == '*'); };
+	// the next token: its range, false at the end of the text
+	auto const next = [&](std::size_t &Begin, std::size_t &End) {
+		while (position < size)
+		{
+			if (separator(position))
+				++position;
+			else if (comment(position))
+			{
+				auto const block{Text[position + 1] == '*'};
+				auto const close{block ? Text.find("*/", position + 2) : Text.find('\n', position + 2)};
+				position = close == std::string::npos ? size : close + (block ? 2 : 1);
+			}
+			else
+				break;
+		}
+		if (position >= size)
+			return false;
+		Begin = position;
+		while (position < size && false == separator(position) && false == comment(position))
+			++position;
+		End = position;
+		return true;
+	};
+	auto const word = [&](std::size_t const Begin, std::size_t const End) {
+		auto text{Text.substr(Begin, End - Begin)};
+		std::transform(text.begin(), text.end(), text.begin(), [](unsigned char const C) { return static_cast<char>(std::tolower(C)); });
+		return text;
+	};
+	std::size_t begin{0}, end{0};
+	while (next(begin, end))
+	{
+		if (word(begin, end) != "node")
+			continue;
+		auto const start{begin};
+		// range max, range min, name, type
+		auto complete{true};
+		for (int k = 0; k < 4 && complete; ++k)
+			complete = next(begin, end);
+		if (false == complete)
+			break;
+		auto const kind{word(begin, end)};
+		if (Kinds.count(kind) == 0)
+			continue;
+		auto const closing{"end" + kind};
+		while (next(begin, end))
+			if (word(begin, end) == closing)
+			{
+				result.push_back({static_cast<std::streamoff>(start), static_cast<std::streamoff>(end)});
+				break;
+			}
+	}
+	return result;
+}
+
+} // namespace
+
+save_result node_layers::save(std::vector<std::string> const &Rootstatements, std::vector<std::string> const &Trailingstatements, std::map<layer_handle, std::vector<std::string>> const &Layerstatements, node_blocks const *Blocks)
 {
 	save_result result;
 	if (m_layers.empty())
 	{
-		result.message = "The scenery wasn't opened for editing, there are no layers to save.";
+		result.message = STR_C("The scenery wasn't opened for editing, there are no layers to save");
 		return result;
 	}
 	auto const root{layer_handle{1}};
 	save_state state;
 	auto const fail = [&](std::string const &Message) {
-		result.message = "Scenery not saved: " + Message;
+		result.message = format(STR_C("Scenery not saved: %s"), Message.c_str());
 		ErrorLog(result.message);
 		return result;
 	};
@@ -965,10 +1036,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 	auto const path_text = [](TTrack &Path, glm::dvec3 const &Offset) {
 		auto const paths{Path.m_paths};
 		for (auto &path : Path.m_paths)
-		{
-			path.points[segment_data::point::start] -= Offset;
-			path.points[segment_data::point::end] -= Offset;
-		}
+			path.translate(-Offset);
 		std::string text;
 		Path.export_as_text(text);
 		Path.m_paths = paths;
@@ -1006,7 +1074,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 		}
 		if (false == writable(source.layer))
 		{
-			unwritten.push_back(path->name().empty() ? std::string{"(noname)"} : path->name());
+			unwritten.push_back(path->name().empty() ? std::string{STR_C("(no name)")} : path->name());
 			continue;
 		}
 		if (false == load(source.layer))
@@ -1317,6 +1385,48 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 		}
 	}
 
+	// the lines read from the letters the marks had before go to the mark they have now, also those the editor didn't change
+	for (auto const &[markedlayer, lines] : m_marked)
+	{
+		auto const target{resolve(markedlayer)};
+		if (layer(markedlayer).dead || false == is_output(target) || false == writable(markedlayer))
+		{
+			continue;
+		}
+		for (auto const &line : lines)
+		{
+			if (line.moved && m_marking.count({markedlayer, line.mark}) == 0)
+			{
+				push_edit(markedlayer, line.span, {}, nullptr);
+				markedtext[target].push_back(line.mark + ' ' + line.text);
+			}
+		}
+	}
+
+	// node definitions written anew as a whole: the old ones go, the new ones are added to the file like new definitions
+	std::map<layer_handle, std::vector<std::string>> blocktext;
+	if (Blocks != nullptr)
+	{
+		for (auto const &[blocklayer, lines] : Blocks->lines)
+		{
+			auto const target{resolve(blocklayer)};
+			if (false == is_output(target))
+			{
+				continue;
+			}
+			if (false == load(target))
+			{
+				return fail(state.error);
+			}
+			for (auto const &span : node_definitions(state.content[target], Blocks->kinds))
+			{
+				push_edit(target, span, {}, nullptr);
+			}
+			auto &text{blocktext[target]};
+			text.insert(text.end(), lines.begin(), lines.end());
+		}
+	}
+
 	// includes of templates
 	std::map<layer_handle, std::vector<instance_handle>> placed; // directives made in the editor, by target layer
 	for (std::size_t idx = 0; idx < m_instances.size(); ++idx)
@@ -1357,7 +1467,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 			if (false == included.context.matches(layer(target).context_insert()))
 			{
 				// shouldn't happen, merge of layers is refused when it'd lead to this
-				return fail("include \"" + *included.file + "\" was placed for different origin, rotation or scale than its layer file receives it with");
+				return fail(format(STR_C("include \"%s\" was placed for different origin, rotation or scale than its layer file receives it with"), included.file->c_str()));
 			}
 			placed[target].emplace_back(static_cast<instance_handle>(idx + 1));
 		}
@@ -1456,7 +1566,8 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 			continue;
 		}
 		if (layer(candidate).created || state.patches.count(candidate) != 0 || appended.count(candidate) != 0 || created.count(candidate) != 0 || placed.count(candidate) != 0 ||
-		    markedtext.count(candidate) != 0 || (candidate == root && (false == Rootstatements.empty() || false == Trailingstatements.empty())))
+		    markedtext.count(candidate) != 0 || (candidate == root && (false == Rootstatements.empty() || false == Trailingstatements.empty())) || Layerstatements.count(candidate) != 0 ||
+		    blocktext.count(candidate) != 0)
 		{
 			outputs.emplace_back(candidate);
 		}
@@ -1506,7 +1617,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 		if (layer(output).created)
 		{
 			// NOTE: the parser treats an empty file as a missing one
-			text.text = "// scenery layer created in the editor" + eol;
+			text.text = (layer(output).header.empty() ? std::string{"// scenery layer created in the editor"} : layer(output).header) + eol;
 		}
 		composition body;
 		if (false == compose(state, output, body, 0))
@@ -1567,6 +1678,22 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 			{
 				ensure_newline(added.text, eol);
 				added.text += statement + eol;
+			}
+		}
+		if (auto const lookup{Layerstatements.find(output)}; lookup != Layerstatements.end())
+		{
+			for (auto const &statement : lookup->second)
+			{
+				ensure_newline(added.text, eol);
+				added.text += statement + eol;
+			}
+		}
+		if (auto const lookup{blocktext.find(output)}; lookup != blocktext.end())
+		{
+			for (auto const &line : lookup->second)
+			{
+				ensure_newline(added.text, eol);
+				added.text += line + eol;
 			}
 		}
 		if (output == root && false == Trailingstatements.empty())
@@ -1634,7 +1761,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 				std::filesystem::remove(path(leftover) + ".tmp", error);
 			}
 			std::filesystem::remove(path(output) + ".tmp", error);
-			return fail("can't write file \"" + layer(output).name + "\"");
+			return fail(format(STR_C("can't write file \"%s\""), layer(output).name.c_str()));
 		}
 		written.emplace_back(output);
 	}
@@ -1642,8 +1769,8 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 	// without the copy nothing is replaced
 	{
 		auto const now{std::time(nullptr)};
-		char stamp[32];
-		std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", std::localtime(&now));
+		std::tm const local{local_tm(now)};
+		auto const stamp{std::format("{:04}{:02}{:02}-{:02}{:02}{:02}", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec)};
 		for (auto const output : written)
 		{
 			auto const filepath{path(output)};
@@ -1660,7 +1787,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 				{
 					std::filesystem::remove(path(leftover) + ".tmp", error);
 				}
-				return fail("can't make a backup of file \"" + layer(output).name + "\": " + copyerror.message());
+				return fail(format(STR_C("can't make a backup of file \"%s\": %s"), layer(output).name.c_str(), copyerror.message().c_str()));
 			}
 			WriteLog("Scenery save: the triangles of the ground go from \"" + layer(output).name + "\", its previous content is kept in \"" + backup + "\"");
 			result.backups.emplace_back(backup);
@@ -1699,7 +1826,7 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 				std::filesystem::remove(path(leftover) + ".tmp", error);
 			}
 			result.files.clear();
-			return fail("can't replace file \"" + layer(output).name + "\": " + cause);
+			return fail(format(STR_C("can't replace file \"%s\": %s"), layer(output).name.c_str(), cause.c_str()));
 		}
 		replaced.emplace_back(output);
 		result.files.emplace_back(layer(output).name);
@@ -1788,13 +1915,11 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 		stat(output);
 		scan(output);
 	}
-	for (auto const &marking : m_marking)
+	// the lines of the merged layers are now in the files of their targets, read again with them: all of them, the ones the
+	// editor didn't change too, or the next save would write the lines moved off the letters of the starters twice
+	for (auto marked{m_marked.begin()}; marked != m_marked.end();)
 	{
-		if (resolve(marking.first.first) != marking.first.first)
-		{
-			// the lines of the merged layer are now in the file of its target
-			m_marked.erase(marking.first.first);
-		}
+		marked = (resolve(marked->first) != marked->first ? m_marked.erase(marked) : std::next(marked));
 	}
 	m_marking.clear();
 	for (auto &included : m_instances)
@@ -1870,18 +1995,19 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 	result.success = true;
 	if (result.files.empty())
 	{
-		result.message = "No changes to save.";
+		result.message = STR_C("No changes to save");
 	}
 	else
 	{
-		result.message = "Saved: ";
+		std::string files;
 		for (auto const &file : result.files)
 		{
-			result.message += file + (&file != &result.files.back() ? ", " : "");
+			files += file + (&file != &result.files.back() ? ", " : "");
 		}
+		result.message = format(STR_C("Saved: %s"), files.c_str());
 		for (auto const &backup : result.backups)
 		{
-			result.message += ". Backup before the ground was taken out: " + std::filesystem::path(backup).filename().string();
+			result.message += format(STR_C(". Backup before the ground was taken out: %s"), std::filesystem::path(backup).filename().string().c_str());
 		}
 	}
 	if (false == unwritten.empty())
@@ -1895,8 +2021,8 @@ save_result node_layers::save(std::vector<std::string> const &Rootstatements, st
 		{
 			names += ", ...";
 		}
-		auto const warning{std::to_string(unwritten.size()) + " changed nodes not saved, their files are included with parameters or more than once: " + names};
-		WriteLog("Scenery save: " + warning, logtype::generic);
+		WriteLog("Scenery save: " + std::to_string(unwritten.size()) + " changed nodes not saved, their files are included with parameters or more than once: " + names, logtype::generic);
+		auto const warning{format(STR_C("Changed nodes left unsaved (their files are included with parameters or more than once): %zu, %s"), unwritten.size(), names.c_str())};
 		result.message = result.files.empty() ? warning : result.message + ". " + warning;
 	}
 	return result;

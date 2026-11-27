@@ -249,6 +249,8 @@ class TReservoir
 	/// </summary>
 	/// <param name="Press">Pressure in bar (atm).</param>
 	void CreatePress(double Press);
+	/// <summary>Returns reservoir capacity in liters.</summary>
+	double GetCap() const { return Cap; }
 	/// <summary>
 	/// Returns absolute (atmospheric) pressure inside the reservoir.
 	/// </summary>
@@ -264,6 +266,21 @@ class TReservoir
 	/// </summary>
 	/// <param name="dv">Volume change to add to dVol.</param>
 	void Flow(double dv);
+	/// <summary>
+	/// Pressure the reservoir will have once the flow accumulated for the step is applied (Vol + dVol) / Cap, in bar.
+	/// Of a vehicle whose physics sleeps, the flow keeps accumulating, as nothing applies it.
+	/// </summary>
+	double P_pending() const
+	{
+		return std::max(0.0, Vol + dVol) / Cap;
+	}
+	/// <summary>
+	/// Pressure the reservoir has now, without the flow accumulated for the step (Vol / Cap), in bar: P() of a const reservoir.
+	/// </summary>
+	double P_applied() const
+	{
+		return Vol / Cap;
+	}
 	/// <summary>
 	/// Applies the accumulated flow (dVol) to the volume and resets dVol.
 	/// Volume is clamped to be non-negative.
@@ -421,6 +438,10 @@ class TBrake
 	double GetVRP() const; // cisnienie komory wstepnej rozdzielacza
 	/// <summary>Returns control reservoir (ZS) pressure [bar]; defaults to the auxiliary reservoir for valves without a dedicated ZS.</summary>
 	virtual double GetCRP(); // cisnienie zbiornika sterujacego
+	/// <summary>Share of the full cylinder pressure the distributor settles at for the given share
+	/// of the full service pipe drop. Used only to predict the brake force; the default is proportional.</summary>
+	/// <param name="Ratio">Share of the full service brake pipe drop.</param>
+	virtual double GetBrakeRatio(double const Ratio) const { return Ratio; }
 	/// <summary>
 	/// Sets the brake delay (G/P/R/M) selector if requested mode is supported.
 	/// </summary>
@@ -443,6 +464,11 @@ class TBrake
 	/// <summary>Sets the rapid step ratio. Default no-op; overridden where supported.</summary>
 	/// <param name="RMR">Rapid ratio.</param>
 	virtual void SetRM(double const RMR) { /* no effect for this device type */ } // ustalenie przelozenia rapida
+	/// <summary>Share of the full cylinder pressure the distributor delivers at the given speed
+	/// while the vehicle is slowing down through it, for a vehicle set to R. Used only to predict
+	/// the brake force; the default is the approximation BrakeForceR() has always used.</summary>
+	/// <param name="Vel">Vehicle velocity [km/h].</param>
+	virtual double GetRapidRatio(double const Vel) const { return Vel < 40.0 ? 0.5 : 1.0; }
 	/// <summary>Sets the velocity threshold for the rapid step.</summary>
 	/// <param name="RVR">Velocity threshold (same unit as Vel passed to GetPF).</param>
 	virtual void SetRV(double const RVR)
@@ -594,6 +620,8 @@ class TESt : public TBrake
 	/// <param name="BCP">Brake cylinder (or impulse) pressure.</param>
 	/// <param name="dV1">In/out accumulator for the brake pipe flow correction.</param>
 	void CheckState(double BCP, double &dV1); // glowny przyrzad rozrzadczy
+	/// <summary>The state of a valve holding: braking on in steps, the filling stopped, or released.</summary>
+	void CheckStateHeld(double BCP, double VVP, double CVP);
 	/// <summary>Drives the releaser logic — bleeds the control reservoir while the releaser is engaged.</summary>
 	/// <param name="dt">Time step [s].</param>
 	void CheckReleaser(double dt); // odluzniacz
@@ -611,6 +639,15 @@ class TESt : public TBrake
 	/// <param name="BCP">Brake cylinder pressure.</param>
 	/// <returns>Dimensionless opening coefficient.</returns>
 	double BVs(double BCP) const; // napelniacz pomocniczego
+	/// <summary>
+	/// Refills the auxiliary reservoir (ZP) from the valve pre-chamber through the
+	/// check valve of the slide valve, opened as far as <see cref="BVs"/> says, while
+	/// the pre-chamber is above the reservoir. The flows wait for the caller's Act().
+	/// </summary>
+	/// <param name="BCP">Brake cylinder (or impulse-chamber) pressure for <see cref="BVs"/>.</param>
+	/// <param name="dt">Time step [s].</param>
+	/// <returns>Volume taken into the auxiliary reservoir, 0.96 of it drawn from the brake pipe.</returns>
+	double FillBrakeRes(double BCP, double dt) const; // napelnianie pomocniczego z rozdzielacza
 	/// <summary>Vents the valve, brake and control reservoirs to zero.</summary>
 	void ForceEmptiness() override; // wymuszenie bycia pustym
 
@@ -743,6 +780,12 @@ class TLSt : public TESt4R
 
 	/// <summary>Constructs the LSt distributor.</summary>
 	using TESt4R::TESt4R;
+
+  private:
+	// the parts of GetPF()
+	void UpdateStatusLSt(double BCP, double VVP, double CVP);
+	void ReleaserLSt(double BCP, double CVP, double dt);
+	void CylinderFlowLSt(double BCP, double BVP, double CVP, double dt, double Vel);
 };
 
 /// <summary>
@@ -783,6 +826,13 @@ class TEStED : public TLSt
 	/// <summary>Stores the load-weighing parameters.</summary>
 	void SetLP(double const TM, double const LM, double const TBP) override; // parametry przystawki wazacej
 
+  private:
+	// the parts of GetPF()
+	void UpdateStatus(double BCP, double VVP, double CVP, double MPP);
+	double IntermediateFlow(double BCP, double VVP, double CVP, double MPP, double BVP, double nastG) const;
+	void CylinderFlow(double BCP, double BVP, double dt, double Vel);
+
+  public:
 	/// <summary>Constructs the distributor and creates the intermediate reservoir.</summary>
 	inline TEStED(double i_mbp, double i_bcr, double i_bcd, double i_brc, int i_bcn, int i_BD, int i_mat, int i_ba, int i_nbpa) : TLSt(i_mbp, i_bcr, i_bcd, i_brc, i_bcn, i_BD, i_mat, i_ba, i_nbpa)
 	{
@@ -808,6 +858,10 @@ class TEStEP2 : public TLSt
 	double LoadC = 0.0;
 	/// <summary>EP intensity (-1..1).</summary>
 	double EPS = 0.0;
+
+  private:
+	// the part of GetPF()
+	void UpdateStatusEP2(double BCP, double VVP, double CVP);
 
   public:
 	/// <summary>Initialises the EP2-equipped distributor (impulse chamber, P delay).</summary>
@@ -965,6 +1019,10 @@ class TKE : public TBrake
 	double RM = 0.0; // przelozenie rapida
 	/// <summary>Auxiliary (local) brake pressure feeding the DCV.</summary>
 	double LBP = 0.0; // cisnienie hamulca pomocniczego
+
+	// the parts of GetPF() and CheckState()
+	double CylinderFlowKE(double IMP, double BCP, double BVP, double Vel, double dt);
+	void CheckStateHeld(double BCP, double VVP, double CVP);
 
   public:
 	/// <summary>Initialises the KE distributor (control / impulse / auxiliary reservoirs and BVM).</summary>
@@ -1144,6 +1202,10 @@ class TFV4aM : public TDriverHandle
 	double LPP_RP(double pos) const;
 	/// <summary>Returns true if pos is within ±0.5 of i_pos (detent comparison).</summary>
 	bool EQ(double pos, double i_pos) const;
+	// the parts of GetPF()
+	void DischargeChambers(double dt);
+	void UpdateWave(double pom, double dt);
+	void UpdateReductor(double i_bcp, double ep, double dt);
 
   public:
 	/// <summary>Computes brake pipe flow for the FV4a/M handle (interpolated BPT, wave modelling, accelerator).</summary>
@@ -1194,6 +1256,10 @@ class TMHZ_EN57 : public TDriverHandle
 	double LPP_RP(double pos) const;
 	/// <summary>Returns true if pos is within ±0.5 of i_pos.</summary>
 	bool EQ(double pos, double i_pos) const;
+	// the parts of GetPF()
+	void DischargeTimedReservoir(double i_bcp, double dt);
+	void ChargeTimedReservoir(double dt);
+	double SupplyPressure(double i_bcp, double HP);
 
   public:
 	/// <summary>Computes brake pipe flow for MHZ_EN57 (covers handle positions -1..10 with EP/pneumatic mix).</summary>
@@ -1438,8 +1504,6 @@ class TSt113 : public TH14K1
 	static double const BEP_K[/*?*/ /*-1..5*/ 5 - -1 + 1];
 	/// <summary>Lookup of bh_* function codes to handle position values.</summary>
 	static double const pos_table[11]; // = {-1, 5, -1, 0, 2, 3, 4, 5, 0, 0, 1};
-	/// <summary>Local control pressure (mirrors PP).</summary>
-	double CP = 0;
 
   public:
 	/// <summary>Computes brake pipe flow for the St113 handle (with EP).</summary>

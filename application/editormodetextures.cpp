@@ -85,32 +85,64 @@ std::uint64_t editor_mode::texture_thumbnail(texture_browser::item const &Item)
 	if (lookup == browser.thumbnails.end())
 	{
 		// reading a texture takes a moment, a few of them go in a frame
+		if (browser.loadsframe != ImGui::GetFrameCount())
+		{
+			browser.loadsframe = ImGui::GetFrameCount();
+			browser.loads = 0;
+		}
 		if (browser.loads >= 2)
 			return 0;
 		++browser.loads;
-		texture_handle texture{null_handle};
+		texture_browser::thumbnail thumbnail;
 		if (Item.material)
 		{
-			auto const material{GfxRenderer->Fetch_Material(Item.name)};
-			if (auto const *data{GfxRenderer->Material(material)}; material != null_handle && data != nullptr)
-				texture = data->GetTexture(0);
+			// a material reads all its textures, the normal maps and the rest with the one shown
+			thumbnail.material = GfxRenderer->Fetch_Material(Item.name);
+			if (auto const *data{GfxRenderer->Material(thumbnail.material)}; thumbnail.material != null_handle && data != nullptr)
+				thumbnail.texture = data->GetTexture(0);
 		}
 		else
-			texture = GfxRenderer->Fetch_Texture(Item.name, true);
-		lookup = browser.thumbnails.emplace(Item.name, texture).first;
+			thumbnail.texture = GfxRenderer->Fetch_Texture(Item.name, true);
+		lookup = browser.thumbnails.emplace(Item.name, thumbnail).first;
 	}
-	if (lookup->second == null_handle)
+	lookup->second.shown = ImGui::GetTime();
+	if (lookup->second.texture == null_handle)
 		return 0;
-	auto &texture{GfxRenderer->Texture(lookup->second)};
+	auto &texture{GfxRenderer->Texture(lookup->second.texture)};
 	if (false == texture.get_is_ready())
 		texture.create();
 	return texture.get_is_ready() ? static_cast<std::uint64_t>(texture.get_id()) : 0;
 }
 
+void editor_mode::thumbnails_trim()
+{
+	// a few seconds out of sight, so scrolling back and forth doesn't read them over and over
+	// all of them after the browser's Refresh, here before any image is drawn: not while the panels drawn earlier in the
+	// frame still refer to them
+	auto constexpr kept{3.0};
+	auto const now{ImGui::GetTime()};
+	auto &browser{m_textures};
+	for (auto entry{browser.thumbnails.begin()}; entry != browser.thumbnails.end();)
+	{
+		auto const &thumbnail{entry->second};
+		if (false == browser.refresh && ((thumbnail.texture == null_handle && thumbnail.material == null_handle) || now - thumbnail.shown < kept))
+		{
+			++entry;
+			continue;
+		}
+		// the scene's own textures stay; shown again, the image is read anew within the few a frame
+		if (thumbnail.material != null_handle)
+			GfxRenderer->Unload_Material(thumbnail.material);
+		else
+			GfxRenderer->Unload_Texture(thumbnail.texture);
+		entry = browser.thumbnails.erase(entry);
+	}
+	browser.refresh = false;
+}
+
 void editor_mode::render_texture_browser()
 {
 	auto &browser{m_textures};
-	browser.loads = 0;
 	if (false == browser.listed)
 	{
 		browser.listed = true;
@@ -121,16 +153,28 @@ void editor_mode::render_texture_browser()
 		for (std::filesystem::directory_iterator entry{std::string{paths::textures} + browser.folder, error}, end; false == static_cast<bool>(error) && entry != end; entry.increment(error))
 		{
 			auto const path{entry->path()};
-			if (entry->is_directory(error))
+			std::string name;
+			std::string extension;
+			std::string stem;
+			try
 			{
-				browser.folders.push_back(path.filename().string());
+				name = path.filename().string();
+				extension = lowercase(path.extension().string());
+				stem = path.stem().string();
+			}
+			catch (std::exception const &)
+			{
 				continue;
 			}
-			auto const extension{lowercase(path.extension().string())};
+			std::error_code status;
+			if (entry->is_directory(status))
+			{
+				browser.folders.push_back(name);
+				continue;
+			}
 			auto const material{extension == ".mat"};
 			if (false == material && false == texture_file(extension))
 				continue;
-			auto const stem{path.stem().string()};
 			auto &item{items[stem]};
 			item.name = browser.folder + stem;
 			item.label = stem;
@@ -157,7 +201,8 @@ void editor_mode::render_texture_browser()
 	if (ImGui::Button(STR_C("Refresh")))
 	{
 		browser.listed = false;
-		browser.thumbnails.clear();
+		// the images let go of at the start of the next frame, see thumbnails_trim()
+		browser.refresh = true;
 	}
 	ImGui::SameLine();
 	ImGui::TextUnformatted((std::string{paths::textures} + browser.folder).c_str());

@@ -101,6 +101,9 @@ public:
 		gfx::userdata_array userdata;
         // terrain file the shape comes from, see scene::terrain_file::reference_of(); 0: none, or not known (only the editor asks)
         std::uint16_t terrainfile { 0 };
+        // drawn pulled towards the camera in the depth buffer, over the surface it lies on: the photos of the editor laid on the
+        // terrain. not kept by serialize()
+        bool decal { false };
     // methods:
         // sends content of the struct to provided stream
         void
@@ -119,7 +122,7 @@ public:
         deserialize( std::istream &Input );
     // restores content of the node from provided input stream
     shape_node &
-        import( cParser &Input, scene::node_data const &Nodedata );
+        import_from( cParser &Input, scene::node_data const &Nodedata );
     // imports data from provided submodel
     shape_node &
         convert( TSubModel const *Submodel );
@@ -127,6 +130,9 @@ public:
     // relative to Origin. used by the editor's terrain to own editable geometry it can re-upload.
     shape_node &
         make_terrain( material_handle const Material, std::vector<world_vertex> Vertices, glm::dvec3 const Origin );
+    // see shapenode_data::decal
+    void
+        decal( bool const Decal ) { m_data.decal = Decal; }
     // adds content of provided node to already enclosed geometry. returns: true if merge could be performed
     bool
         merge( shape_node &Shape );
@@ -248,7 +254,7 @@ public:
         deserialize( std::istream &Input );
     // restores content of the node from provided input stream
     lines_node &
-        import( cParser &Input, scene::node_data const &Nodedata );
+        import_from( cParser &Input, scene::node_data const &Nodedata );
     // adds content of provided node to already enclosed geometry. returns: true if merge could be performed
     bool
         merge( lines_node &Lines );
@@ -345,6 +351,10 @@ private:
 
 
 
+// changes whenever a node is shown or hidden, or a model instance stops being drawn along with other instances of its
+// model. copies of these states (instance records of the renderer) are made anew once it changes
+inline unsigned int node_state_version { 1 };
+
 // base interface for nodes which can be actvated in scenario editor
 class basic_node {
 
@@ -376,6 +386,9 @@ public:
 	    location();
     float const &
         radius();
+    // the radius as worked out already, or worked out anew and not kept
+    float
+        radius() const;
     void
         visible( bool const Visible );
     bool
@@ -409,6 +422,7 @@ public:
 	bool m_dirty { false };
     bool m_layerhidden { false }; // the node was visible until the editor hid its scenery layer, or the include which defines it
     bool m_preview { false }; // the node was made by the editor to show an include it placed or changed, and is replaced when the include changes
+    bool m_catenary { false }; // a part the catenary assembled (world/catenary_scene.cpp): it's changed by the catenary tool, not edited as a node
     scene::layer_handle m_layer { null_handle }; // scenery layer this node belongs to, if any
     // include of an *.inc template which defines the node; 0 if the node is defined directly by a scenery layer file.
     // such nodes can't be rewritten one by one on scenery save. set only for scenery opened for editing
@@ -418,7 +432,7 @@ public:
 private:
 // methods
     // radius() subclass details, calculates node's bounding radius
-    virtual float radius_();
+    virtual float radius_() const;
     // serialize() subclass details, sends content of the subclass to provided stream
     virtual void serialize_( std::ostream &Output ) const = 0;
     // deserialize() subclass details, restores content of the subclass from provided stream
@@ -460,6 +474,9 @@ basic_node::location() {
 inline
 void
 basic_node::visible( bool const Visible ) {
+    if( Visible != m_visible ) {
+        ++node_state_version;
+    }
     m_visible = Visible;
 }
 

@@ -9,6 +9,8 @@ http://mozilla.org/MPL/2.0/.
 
 #include "stdafx.h"
 #include "utilities/Logs.h"
+#include "utilities/logfiles.h"
+#include "utilities/crashsignals.h"
 
 #include <format>
 
@@ -16,6 +18,7 @@ http://mozilla.org/MPL/2.0/.
 #include "winheaders.h"
 #include "utilities/utilities.h"
 #include "application/uilayer.h"
+#include "utilities/crashdump.h"
 #include <deque>
 
 std::ofstream output; // standardowy "log.txt", można go wyłączyć
@@ -73,12 +76,46 @@ std::deque<std::string> ErrorStack;
 
 // lock for log stacks
 std::mutex logMutex;
+namespace
+{
+// the log is written through the closing of the simulator, to the end: set once the closing has nothing more to tell
+std::atomic<bool> &log_stopped()
+{
+	static std::atomic<bool> stopped{false};
+	return stopped;
+}
+// set once the settings are read: the files are named by them (multiplelogs, the scenery)
+std::atomic<bool> &log_files_open()
+{
+	static std::atomic<bool> open{false};
+	return open;
+}
+} // namespace
+
+void StopLogService()
+{
+	log_stopped() = true;
+}
+
+void OpenLogFiles()
+{
+	log_files_open() = true;
+}
 
 
 void LogService()
 {
-	while (!Global.applicationQuitOrder)
+	// one more pass after the stop, so what came just before it gets written too
+	for (bool last{false}; false == last;)
 	{
+		last = log_stopped();
+		// what is logged before the settings are read waits for them, or it would open (and empty) the shared log.txt
+		// of a run that writes its own files in logs/. a start that stops before that writes it anyway
+		if (false == log_files_open() && false == last)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
+			continue;
+		}
 		{
 			// --- Obsługa InfoStack ---
 			while (!InfoStack.empty())
@@ -97,8 +134,11 @@ void LogService()
 				{
 					if (!output.is_open())
 					{
-						std::string filename = Global.MultipleLogs ? "logs/log (" + filename_scenery() + ") " + filename_date() + ".txt" : "log.txt";
+						std::string const filename { log_file_name(log_file::log, Global.MultipleLogs, filename_scenery(), filename_date()) };
 						output.open(filename, std::ios::trunc);
+						crashdump_set_log_file(crashdump_log_file::log, filename);
+						// the stack of a crash on Linux goes to the end of this file
+						crash_signals::set_log_path(filename);
 					}
 					output << msg << "\n";
 					output.flush();
@@ -109,8 +149,8 @@ void LogService()
 				if (log_scrollback.size() > 200)
 					log_scrollback.pop_front();
 
-				// log to console
-				if (Global.iWriteLogEnabled & 2)
+				// log to console; not in test mode, where the standard output carries the result of the test only
+				if ((Global.iWriteLogEnabled & 2) && false == Global.test.enabled)
 				{
 					if (isError)
 						printf("\033[1;37;41m%s\033[0m\n", msg.c_str());
@@ -134,8 +174,9 @@ void LogService()
 
 				if (!errors.is_open())
 				{
-					std::string filename = Global.MultipleLogs ? "logs/errors (" + filename_scenery() + ") " + filename_date() + ".txt" : "errors.txt";
+					std::string const filename { log_file_name(log_file::errors, Global.MultipleLogs, filename_scenery(), filename_date()) };
 					errors.open(filename, std::ios::trunc);
+					crashdump_set_log_file(crashdump_log_file::errors, filename);
 					errors << "EU07.EXE " + Global.asVersion << "\n";
 				}
 
@@ -144,7 +185,8 @@ void LogService()
 			}
 		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		if (!last)
+			std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
 }
 
@@ -172,6 +214,8 @@ void WriteLog(std::string_view str, logtype type, bool isError)
 	const auto message = FormatLogMessage(str);
 
 	std::scoped_lock lock(logMutex);
+	// at once rather than by the log service, which may not get to it before a crash
+	crashdump_note_log(message.data(), message.size());
 	InfoStack.emplace_back(message, isError);
 }
 

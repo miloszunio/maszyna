@@ -91,7 +91,7 @@ class sweep_node : public scene::basic_node
 
 	explicit sweep_node(scene::node_data const &Nodedata);
 
-	void import(cParser &Input, glm::dvec3 const &Offset);
+	void import_from(cParser &Input, glm::dvec3 const &Offset);
 	void define(state const &State);
 	state const &definition() const
 	{
@@ -145,7 +145,7 @@ class sweep_node : public scene::basic_node
 
   private:
 	void rebuild_samples();
-	float radius_() override;
+	float radius_() const override;
 	void serialize_(std::ostream &Output) const override;
 	void deserialize_(std::istream &Input) override;
 	void export_as_text_(std::ostream &Output) const override;
