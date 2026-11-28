@@ -53,7 +53,7 @@ add_executable(${UNIT_TESTS_NAME}
 	${UNIT_TEST_CASES})
 
 # the core library brings the game's build settings along
-target_link_libraries(${UNIT_TESTS_NAME} PRIVATE eu07_core)
+target_link_libraries(${UNIT_TESTS_NAME} PRIVATE eu07_core eu07_trees)
 # the script screen host, tested with the real runtimes (test_script_screen_host.cpp)
 target_sources(${UNIT_TESTS_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/scripting/scriptscreens.cpp")
 if (WITH_LUA)

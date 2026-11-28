@@ -1198,6 +1198,29 @@ if (MSVC)
 	add_dependencies(${PROJECT_NAME} eu07_starter)
 endif()
 
+# the tree generator (world/trees): engine-free, so the unit tests and eu07_treegen use it as it is. a seed gives the same tree on
+# every compiler only if a*b+c is never contracted into one instruction, which GCC and Clang do by default where there's FMA
+add_library(eu07_trees STATIC
+	"world/trees/treespecies.cpp"
+	"world/trees/treespeciesbuiltin.cpp"
+	"world/trees/treeskeleton.cpp"
+	"world/trees/treemesh.cpp"
+	"world/trees/treeexport.cpp")
+target_include_directories(eu07_trees PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" ${GLM_INCLUDE_DIR})
+if (MSVC)
+	target_compile_options(eu07_trees PRIVATE /utf-8 /fp:precise)
+else()
+	target_compile_options(eu07_trees PRIVATE -ffp-contract=off)
+endif()
+set_target_properties(eu07_trees PROPERTIES FOLDER "trees")
+
+option(WITH_TREEGEN "Build eu07_treegen, which writes trees of the generator as .t3d models" ON)
+if(WITH_TREEGEN)
+	add_executable(eu07_treegen "tools/treegen/treegen.cpp")
+	target_link_libraries(eu07_treegen PRIVATE eu07_trees)
+	set_target_properties(eu07_treegen PROPERTIES FOLDER "tools")
+endif()
+
 if(WITH_TESTS)
 	enable_testing()
 	add_subdirectory(tests/unit)
