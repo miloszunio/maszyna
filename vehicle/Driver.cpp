@@ -3244,6 +3244,8 @@ bool TController::PrepareEngine()
 	cue_action( driver_hint::cabactivation);
     cue_action( driver_hint::radiofuseon );
     cue_action( driver_hint::radioon );
+    // the heating of the windscreens, where the vehicle has it: the snow lying on them melts
+    mvOccupied->WindowHeatingSwitch( true );
 
     if( has_diesel_engine() ) {
         cue_action( driver_hint::oilpumpon );

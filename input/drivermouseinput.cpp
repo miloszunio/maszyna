@@ -646,6 +646,9 @@ drivermouse_input::default_bindings() {
         { "genset_sw:", {
             gensettoggle,
             none } },
+        { "windowheating_sw:", {
+            windowheatingtoggle,
+            none } },
         { "motorblowersfront_sw:", {
             motorblowerstogglefront,
             none } },

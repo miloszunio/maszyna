@@ -269,6 +269,7 @@ std::string locale::label_cab_control(std::string const &Label)
 	    { "oilfuelpump_sw:", STRN("oil and fuel pumps") },
 	    { "tractionmode_sw:", STRN("traction mode selector") },
 	    { "genset_sw:", STRN("diesel generator") },
+	    { "windowheating_sw:", STRN("windscreen heating") },
 	    { "motorblowersfront_sw:", STRN("motor blowers A") },
 	    { "motorblowersrear_sw:", STRN("motor blowers B") },
 	    { "motorblowersalloff_sw:", STRN("all motor blowers") },

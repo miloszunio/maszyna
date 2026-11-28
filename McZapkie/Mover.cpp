@@ -4494,6 +4494,21 @@ bool TMoverParameters::WaterHeaterSwitch(bool State, range_t const Notify)
 	return WaterHeater.is_enabled != initialstate;
 }
 
+bool TMoverParameters::WindowHeatingSwitch(bool const State)
+{
+	if (WindowHeating.is_enabled == State)
+	{
+		return false;
+	}
+	WindowHeating.is_enabled = State;
+	return true;
+}
+
+bool TMoverParameters::windows_heated() const
+{
+	return (false == WindowHeating.fitted) || (WindowHeating.is_enabled && (Power24vIsAvailable || Power110vIsAvailable));
+}
+
 // water circuits link state toggle
 bool TMoverParameters::WaterCircuitsLinkSwitch(bool State, range_t const Notify)
 {
@@ -13885,6 +13900,11 @@ void TMoverParameters::LoadFIZ_Clima(std::string const &line)
 	LoadFIZ_PowerParamsDecode(HeatingPowerSource, "H", line);
 	AlterHeatPowerSource.SourceType = LoadFIZ_SourceDecode(extract_value("AlterHeating", line));
 	LoadFIZ_PowerParamsDecode(AlterHeatPowerSource, "AlterH", line);
+	// the heating of the windscreens, optional: without it they are heated all the time
+	if (ToLower(extract_value("WindowHeating", line)) == "yes")
+	{
+		WindowHeating.fitted = true;
+	}
 }
 
 void TMoverParameters::LoadFIZ_Power(std::string const &Line)

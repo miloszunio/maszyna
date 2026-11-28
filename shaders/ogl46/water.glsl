@@ -65,6 +65,17 @@ float water_flake(float volume)
 	return 0.006 * pow(max(volume, 0.0), 1.0 / 3.0);
 }
 
+// seconds a flake of snow lying on a glass takes to melt into a drop. Warm: the temperature of the air, degrees Celsius; Shape:
+// 0 .. 1, of the flake; Heated: whether the glass is heated (as every glass was before the heating of the windscreens). A heated
+// glass melts it within seconds, faster in the air above zero; on one that isn't heated only the air melts it, in a minute or
+// three above zero, and below it the flake lies for minutes, the longer the colder
+float water_melt_time(float warm, float shape, bool heated)
+{
+	if (heated)
+		return (warm > 0.5) ? mix(3.0, 10.0, shape) / (1.0 + 0.25 * warm) : mix(15.0, 45.0, shape);
+	return (warm > 0.5) ? mix(60.0, 180.0, shape) / (1.0 + 0.15 * warm) : mix(300.0, 900.0, shape) * (1.0 + 0.05 * min(-warm, 20.0));
+}
+
 // where the grid of a glass begins in water_cells: the count of a cell at the base + the cell, its drops from the base +
 // WATER_GRID * WATER_GRID + the cell * WATER_CELL_DROPS
 uint water_grid_base(uint slot)

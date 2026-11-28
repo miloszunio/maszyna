@@ -459,6 +459,10 @@ enum class user_command
 	gensettoggle,
 	gensetenable,
 	gensetdisable,
+	// the heating of the windscreens
+	windowheatingtoggle,
+	windowheatingenable,
+	windowheatingdisable,
 	none = -1
 };
 

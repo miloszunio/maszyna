@@ -74,12 +74,12 @@ void main()
 	}
 	uint seed = water_pcg4d(uvec4(water_counts.x, slot, place, 9u)).x;
 
-	// a flake melts into a drop: the glass is warmed by the cab, the faster the warmer the air
+	// a flake melts into a drop: fast on a heated glass, slowly on one that isn't, the faster the warmer the air
 	bool flake = drop.motion.w < 1.0;
 	if (flake)
 	{
 		float warm = water_up.w;
-		float melt = (warm > 0.5) ? mix(3.0, 10.0, drop.motion.z) / (1.0 + 0.25 * warm) : mix(15.0, 45.0, drop.motion.z);
+		float melt = water_melt_time(warm, drop.motion.z, water_rain.w < 0.5);
 		drop.motion.w = min(drop.motion.w + seconds / melt, 1.0);
 		flake = drop.motion.w < 1.0;
 	}

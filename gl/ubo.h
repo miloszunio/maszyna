@@ -751,7 +751,7 @@ namespace gl
         glm::vec4 blades;
         glm::vec4 blades_before;
         // the drops of the rain: x the smallest diameter which lands as a drop of its own, mm (the smaller ones are the mist of the
-        // glass), y: 1 / the mean of the diameters above it, 1 / mm (they go as Marshall-Palmer), zw: unused
+        // glass), y: 1 / the mean of the diameters above it, 1 / mm (they go as Marshall-Palmer), z: unused, w: 1 when the glasses aren't heated (their flakes melt only in the air)
         glm::vec4 rain;
         // x: random seed of the step, y: the most landings tried on a glass in the step, z: the glass the passes for a single glass
         // work on (the baking of the mask of the wipers)

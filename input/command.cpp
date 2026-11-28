@@ -459,6 +459,9 @@ commanddescription_sequence Commands_descriptions = {
     {"gensettoggle", command_target::vehicle, command_mode::oneoff},
     {"gensetenable", command_target::vehicle, command_mode::oneoff},
     {"gensetdisable", command_target::vehicle, command_mode::oneoff},
+    {"windowheatingtoggle", command_target::vehicle, command_mode::oneoff},
+    {"windowheatingenable", command_target::vehicle, command_mode::oneoff},
+    {"windowheatingdisable", command_target::vehicle, command_mode::oneoff},
 };
 
 // Maps of command and coresponding strings
@@ -897,6 +900,9 @@ std::unordered_map<std::string, user_command> const commandMap = {
     {"gensettoggle", user_command::gensettoggle},
     {"gensetenable", user_command::gensetenable},
     {"gensetdisable", user_command::gensetdisable},
+    {"windowheatingtoggle", user_command::windowheatingtoggle},
+    {"windowheatingenable", user_command::windowheatingenable},
+    {"windowheatingdisable", user_command::windowheatingdisable},
 	{"none", user_command::none}};
 
 } // namespace simulation

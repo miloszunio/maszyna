@@ -34,7 +34,8 @@ layout(std140, binding = WATER_UBO_BINDING) uniform water_ubo
 	// the blades now and at the step before: 0 .. 1 across their sweep, below 0 where there's none
 	vec4 water_blades_now;
 	vec4 water_blades_before;
-	// x: the smallest diameter of a raindrop landing as a drop of its own, mm, y: 1 / the mean of the diameters above it, 1 / mm
+	// x: the smallest diameter of a raindrop landing as a drop of its own, mm, y: 1 / the mean of the diameters above it, 1 / mm,
+	// w: 1 when the glasses aren't heated (the flakes melt only in the air, water_melt_time())
 	vec4 water_rain;
 	// x: random seed of the step, y: the most landings tried on a glass, z: the glass a single glass pass works on
 	uvec4 water_counts;

@@ -7,7 +7,7 @@
 // the place of the blade over its sweep, 0 at rest .. 1 at the far end, at which it goes over the place). raindropsatlas and
 // raindrop_grid_size aren't used any more, they stay so the materials which name them still load. rain_scale (1 when not given)
 // scales the drops and the flakes. water_slot is given by the renderer (1 + the glass of the simulation, 0 none), not by the
-// material. the block of the scene: rain_params (x: how heavy the rain or snow is, z: 1 for snow, w: temperature of the air),
+// material. the block of the scene: rain_params (x: how heavy the rain or snow is, z: 1 for snow, 2 for snow on glasses not heated, w: temperature of the air),
 // wiper_pos, wiper_timer_out, wiper_timer_return (the blades of the vehicle of the camera) and rain_wind (the air against it).
 //
 // the glasses of the cab of the train are simulated (gfx::windscreen_water, water_*.comp, water.glsl): the raindrops land as often
@@ -978,7 +978,8 @@ void main()
 		}
 		else
 		{
-			// the flakes stick where they land and melt into drops: the glass is warmed by the cab, faster in the air above zero
+			// the flakes stick where they land and melt into drops: fast on a heated glass, slowly on one that isn't (rain_params.z
+			// 2), faster in the air above zero
 			float warm = rain_params.w;
 			float cell = 0.016 * rw_scale;
 			vec2 laid = rw_turn(glass, 0.83) + vec2(0.07, 0.61);
@@ -1002,7 +1003,7 @@ void main()
 					vec4 p = rw_random(c, 12u, uint(cycle));
 					vec2 offset = rw_turn(laid - (vec2(c) + p.xy) * cell, -0.83);
 					float diameter = mix(RW_SNOW_DIAMETER.x, RW_SNOW_DIAMETER.y, b.z) * rw_scale;
-					float melt = ((warm > 0.5) ? mix(3.0, 10.0, b.w) / (1.0 + 0.25 * warm) : mix(15.0, 45.0, b.w));
+					float melt = water_melt_time(warm, b.w, rain_params.z < 1.5);
 					if (age < melt)
 					{
 						float m = age / melt;

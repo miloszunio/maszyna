@@ -2242,6 +2242,15 @@ class TMoverParameters
 	bool GensetSelected() const { return TractionMode == traction_mode::genset; }
 	water_pump WaterPump;
 	water_heater WaterHeater;
+	// the heating of the windscreens of the cabs, which melts the snow lying on them (gfx::windscreen_water). Fitted where the
+	// .fiz says so (Clima: WindowHeating=Yes) or a cab of the vehicle has its switch (windowheating_sw: in the .mmd); a vehicle
+	// with neither has its windscreens heated all the time, as before the heating was there
+	struct window_heating
+	{
+		bool fitted{false};
+		bool is_enabled{false}; // switched on
+	};
+	window_heating WindowHeating;
 	bool WaterCircuitsLink{false}; // optional connection between water circuits
 	heat_data dizel_heat;
 	std::array<cooling_fan, 2> MotorBlowers;
@@ -2990,6 +2999,10 @@ class TMoverParameters
 	bool WaterPumpSwitchOff(bool State, range_t const Notify = range_t::consist); // water pump state toggle
 	bool WaterHeaterBreakerSwitch(bool State, range_t const Notify = range_t::consist); // water heater breaker state toggle
 	bool WaterHeaterSwitch(bool State, range_t const Notify = range_t::consist); // water heater state toggle
+	// the heating of the windscreens switched on or off, in this vehicle only; returns whether it changed
+	bool WindowHeatingSwitch(bool State);
+	// whether the windscreens are heated: always without the heating fitted, otherwise switched on and with the low voltage there
+	bool windows_heated() const;
 	bool WaterCircuitsLinkSwitch(bool State, range_t const Notify = range_t::consist); // water circuits link state toggle
 	bool FuelPumpSwitch(bool State, range_t const Notify = range_t::consist); // fuel pump state toggle
 	bool FuelPumpSwitchOff(bool State, range_t const Notify = range_t::consist); // fuel pump state toggle

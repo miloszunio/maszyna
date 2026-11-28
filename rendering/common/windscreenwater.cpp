@@ -76,6 +76,21 @@ glm::mat4 submodel_transform(TSubModel const *Submodel)
 
 } // namespace
 
+bool cab_windows_heated()
+{
+	auto const *vehicle{simulation::Train != nullptr ? simulation::Train->Dynamic() : nullptr};
+	return (vehicle == nullptr) || vehicle->MoverParameters->windows_heated();
+}
+
+float glass_precipitation()
+{
+	if (Global.Weather != "snow:")
+	{
+		return 0.f;
+	}
+	return cab_windows_heated() ? 1.f : 2.f;
+}
+
 bool windscreen_water::available()
 {
 	if (m_state == 0)
@@ -430,7 +445,8 @@ void windscreen_water::update(double const Seconds)
 	block.blades = blades;
 	block.blades_before = glm::vec4{
 	    m_bladesbefore.x < 0.f ? blades.x : m_bladesbefore.x, m_bladesbefore.y < 0.f ? blades.y : m_bladesbefore.y, m_bladesbefore.z < 0.f ? blades.z : m_bladesbefore.z, m_bladesbefore.w < 0.f ? blades.w : m_bladesbefore.w};
-	block.rain = glm::vec4{LEAST_DROP, lambda, 1.f, 0.f};
+	// w: 1 when the glasses aren't heated, the flakes on them melting only in the air
+	block.rain = glm::vec4{LEAST_DROP, lambda, 1.f, vehicle->MoverParameters->windows_heated() ? 0.f : 1.f};
 	block.counts = glm::uvec4{m_step * 2654435761u, most, 0u, 0u};
 	m_bladesbefore = blades;
 	gpu_step(block, most);

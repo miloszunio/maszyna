@@ -28,6 +28,12 @@ class TDynamicObject;
 namespace gfx
 {
 
+// whether the windscreens of the cab the train is driven from are heated (TMoverParameters::windows_heated()); true without one
+bool cab_windows_heated();
+// what falls on the windscreens, as the block of the scene gives it to mat_rain_windscreen (rain_params.z): 0 rain, 1 snow, 2
+// snow on windscreens which aren't heated
+float glass_precipitation();
+
 // the water on the windscreens of the cab of the train, simulated on the gpu, whichever api runs it.
 //
 // a glass is a material of mat_rain_windscreen (one with a mask of the wipers) in the model of the cab of the train, up to

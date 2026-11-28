@@ -1555,7 +1555,7 @@ void vulkan14_renderer::render_viewport(std::size_t const Index)
 		float percipitation_intensity = glm::saturate(Global.Overcast - 1.);
 		scene_ubs.rain_params.x = percipitation_intensity;
 		scene_ubs.rain_params.y = glm::mix(15., 1., percipitation_intensity);
-		scene_ubs.rain_params.z = (Global.Weather == "snow:" ? 1.f : 0.f); // flakes on the glass in place of the drops
+		scene_ubs.rain_params.z = gfx::glass_precipitation(); // flakes on the glass in place of the drops, 2 where it isn't heated
 		scene_ubs.rain_params.w = Global.AirTemperature; // how fast the flakes melt
 		{
 			// the air the drops on the glass are blown with: the wind as the particles drift with it, less the velocity of the

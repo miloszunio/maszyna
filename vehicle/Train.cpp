@@ -368,6 +368,9 @@ TTrain::commandhandler_map const TTrain::m_commandhandlers = {
     {user_command::gensettoggle, &TTrain::OnCommand_gensettoggle},
     {user_command::gensetenable, &TTrain::OnCommand_gensetenable},
     {user_command::gensetdisable, &TTrain::OnCommand_gensetdisable},
+    {user_command::windowheatingtoggle, &TTrain::OnCommand_windowheatingtoggle},
+    {user_command::windowheatingenable, &TTrain::OnCommand_windowheatingenable},
+    {user_command::windowheatingdisable, &TTrain::OnCommand_windowheatingdisable},
     {user_command::waterheaterbreakertoggle, &TTrain::OnCommand_waterheaterbreakertoggle},
     {user_command::waterheaterbreakerclose, &TTrain::OnCommand_waterheaterbreakerclose},
     {user_command::waterheaterbreakeropen, &TTrain::OnCommand_waterheaterbreakeropen},
@@ -4376,6 +4379,43 @@ void TTrain::OnCommand_gensetdisable(TTrain *Train, command_data const &Command)
 	{
 		Train->ggGensetButton.UpdateValue(0.0, Train->dsbSwitch);
 	}
+}
+
+// the heating of the windscreens of the vehicle the cab is in, a two-state switch
+void TTrain::OnCommand_windowheatingtoggle(TTrain *Train, command_data const &Command)
+{
+	if (Command.action != GLFW_PRESS)
+	{
+		return;
+	}
+	if (false == Train->mvOccupied->WindowHeating.is_enabled)
+	{
+		OnCommand_windowheatingenable(Train, Command);
+	}
+	else
+	{
+		OnCommand_windowheatingdisable(Train, Command);
+	}
+}
+
+void TTrain::OnCommand_windowheatingenable(TTrain *Train, command_data const &Command)
+{
+	if (Command.action != GLFW_PRESS)
+	{
+		return;
+	}
+	Train->ggWindowHeatingButton.UpdateValue(1.0, Train->dsbSwitch);
+	Train->mvOccupied->WindowHeatingSwitch(true);
+}
+
+void TTrain::OnCommand_windowheatingdisable(TTrain *Train, command_data const &Command)
+{
+	if (Command.action != GLFW_PRESS)
+	{
+		return;
+	}
+	Train->ggWindowHeatingButton.UpdateValue(0.0, Train->dsbSwitch);
+	Train->mvOccupied->WindowHeatingSwitch(false);
 }
 
 void TTrain::OnCommand_waterheaterbreakertoggle(TTrain *Train, command_data const &Command)
@@ -10243,6 +10283,7 @@ bool TTrain::Update(double const Deltatime)
 	ggOilFuelPumpButton.Update();
 	ggTractionModeSwitch.Update();
 	ggGensetButton.Update();
+	ggWindowHeatingButton.Update();
 	ggMotorBlowersFrontButton.Update();
 	ggMotorBlowersRearButton.Update();
 	ggMotorBlowersAllOffButton.Update();
@@ -11953,6 +11994,7 @@ void TTrain::clear_cab_controls()
 	ggOilFuelPumpButton.Clear();
 	ggTractionModeSwitch.Clear();
 	ggGensetButton.Clear();
+	ggWindowHeatingButton.Clear();
 	ggMotorBlowersFrontButton.Clear();
 	ggMotorBlowersRearButton.Clear();
 	ggMotorBlowersAllOffButton.Clear();
@@ -12320,6 +12362,8 @@ void TTrain::set_cab_controls(int const Cab)
 	{
 		ggGensetButton.PutValue(mvControlled->Genset.is_enabled ? 1.f : 0.f);
 	}
+	// heating of the windscreens
+	ggWindowHeatingButton.PutValue(mvOccupied->WindowHeating.is_enabled ? 1.f : 0.f);
 	// traction motor fans
 	if (ggMotorBlowersFrontButton.type() != TGaugeType::push)
 	{
@@ -12661,6 +12705,7 @@ bool TTrain::initialize_gauge(cParser &Parser, std::string const &Label, int con
 	                                                          {"oilfuelpump_sw:", ggOilFuelPumpButton},
 	                                                          {"tractionmode_sw:", ggTractionModeSwitch},
 	                                                          {"genset_sw:", ggGensetButton},
+	                                                          {"windowheating_sw:", ggWindowHeatingButton},
 	                                                          {"oilpressb:", ggOilPressB},
 	                                                          {"motorblowersfront_sw:", ggMotorBlowersFrontButton},
 	                                                          {"motorblowersrear_sw:", ggMotorBlowersRearButton},
@@ -12779,6 +12824,11 @@ bool TTrain::initialize_gauge(cParser &Parser, std::string const &Label, int con
 	                                                          {"pantvalvesupdate_bt:", ggPantValvesUpdate},
 	                                                          {"pantvalvesoff_bt:", ggPantValvesOff},
 	                                                          {"wipers_sw:", ggWiperSw}};
+	if (Label == "windowheating_sw:")
+	{
+		// a cab with the switch: the vehicle has the heating of the windscreens, which is off until switched on
+		mvOccupied->WindowHeating.fitted = true;
+	}
 	{
 		auto const lookup{gauges.find(Label)};
 		if (lookup != gauges.end())
