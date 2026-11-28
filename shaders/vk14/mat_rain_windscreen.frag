@@ -49,6 +49,7 @@ layout(location = 1) out vec4 out_motion;
 #pragma param(glossiness, 1, 3, 1, glossiness)
 #pragma param(raindrop_grid_size, 2, 0, 1, one)
 #pragma param(rain_scale, 2, 1, 1, one)
+#pragma param(water_slot, 2, 2, 1, zero)
 
 #include "light_common.glsl"
 #include "apply_fog.glsl"
