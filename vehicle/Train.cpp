@@ -2665,8 +2665,10 @@ void TTrain::OnCommand_wiperswitchincrease(TTrain *Train, command_data const &Co
 	if (Command.action == GLFW_PRESS)
 	{
 		Train->mvOccupied->wiperSwitchPos++;
-		if (Train->mvOccupied->wiperSwitchPos > Train->mvOccupied->WiperListSize - 1)
-			Train->mvOccupied->wiperSwitchPos = Train->mvOccupied->WiperListSize - 1;
+		// without a list of its own the switch runs the virtual wipers of the glasses (gfx::windscreen_water): off, slow, fast
+		auto const positions{Train->mvOccupied->WiperListSize > 0 ? Train->mvOccupied->WiperListSize : 3};
+		if (Train->mvOccupied->wiperSwitchPos > positions - 1)
+			Train->mvOccupied->wiperSwitchPos = positions - 1;
 
 		// Visual feedback
 		Train->ggWiperSw.UpdateValue(static_cast<float>(Train->mvOccupied->wiperSwitchPos), Train->dsbSwitch);

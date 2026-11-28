@@ -106,19 +106,14 @@ void main()
 			if ((moved * way <= 0.0) || (now >= 0.995) || (now <= 0.005))
 				carried = 0u;
 		}
-		// a blade goes over a drop which was ahead of it (by a little more than nothing: the water it left where it turned back at
-		// the end of its sweep isn't taken back) and is behind it now
-		else if ((carried == 0u) && (moved != 0.0) && (reached[k] >= 0.001) && ((mask[k] - before) * sign(moved) > 0.003) && ((mask[k] - now) * sign(moved) <= 0.0))
+		// a blade going over a drop in the step wipes it off the glass: all but WATER_WIPE_LEFT of them, which stay where they were
+		else if ((carried == 0u) && (moved != 0.0) && (reached[k] >= 0.001) && ((mask[k] - before) * sign(moved) >= 0.0) && ((mask[k] - now) * sign(moved) <= 0.0))
 		{
-			carried = uint(k + 1);
-			way = (moved > 0.0) ? 1.0 : -1.0;
-			// the blade doesn't take all of it: now and then a droplet stays behind
 			vec4 r = water_random(seed, 5u, place, slot);
-			if ((false == flake) && (drop.place.z > 1.0) && (r.x < 0.35))
+			if (r.x >= WATER_WIPE_LEFT)
 			{
-				float left = mix(0.02, 0.08, r.y);
-				if (water_add(slot, seed ^ 0x9e3779b9u, uv, left, 1.0, r.z, false))
-					drop.place.z -= left;
+				water_remove(index);
+				return;
 			}
 		}
 	}

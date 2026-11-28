@@ -330,10 +330,33 @@ rw_wipe_s rw_wipe(vec4 mask)
 	return wipe;
 }
 
+// the glass of the simulation the fragment is of, -1 when it isn't simulated: the mask of the wipers is then read from the
+// simulation, which has it from the material (baked) or worked out from the glass (gfx.windscreen.auto, a glass found by its shape)
+int rw_mask_slot = -1;
+
+// the mask of the wipers at a place of the glass
+vec4 rw_mask(vec2 coords)
+{
+	if (rw_mask_slot < 0)
+		return textureLod(wipermask, clamp(coords, vec2(0.0), vec2(1.0)), 0.0);
+	uint base = uint(rw_mask_slot) * uint(WATER_MAP * WATER_MAP);
+	vec2 p = clamp(coords, vec2(0.0), vec2(1.0)) * float(WATER_MAP) - 0.5;
+	ivec2 i = ivec2(floor(p));
+	vec2 f = p - vec2(i);
+	vec4 result = vec4(0.0);
+	for (int k = 0; k < 4; ++k)
+	{
+		ivec2 texel = clamp(i + ivec2(k & 1, k >> 1), ivec2(0), ivec2(WATER_MAP - 1));
+		float w = (((k & 1) != 0) ? f.x : 1.0 - f.x) * (((k >> 1) != 0) ? f.y : 1.0 - f.y);
+		result += water_blades[base + uint(texel.y * WATER_MAP + texel.x)] * w;
+	}
+	return result;
+}
+
 // a place of the glass a blade reaches
 bool rw_reached(vec2 coords)
 {
-	return any(greaterThanEqual(textureLod(wipermask, clamp(coords, vec2(0.0), vec2(1.0)), 0.0), vec4(0.001)));
+	return any(greaterThanEqual(rw_mask(coords), vec4(0.001)));
 }
 
 // the edge of the sweep of the blades, where they push the water out to: 0 where a blade reaches, else the share of the places
@@ -636,7 +659,6 @@ vec4 rw_over(vec4 over, vec4 under)
 void main()
 {
 	vec4 tex_color = texture(diffuse, f_coord);
-	vec4 mask = texture(wipermask, f_coord);
 
 	// the coordinates of the glass: metres along the axes of the model, so the water stays where it lies on the glass whatever the
 	// vehicle and the camera do. the axis of the model nearest to the vertical is up, the glass is projected along the
@@ -708,6 +730,11 @@ void main()
 	float uvdet = determinant(uvsteps);
 	bool simulated = (slot >= 0) && (slot < WATER_SLOTS) && (abs(uvdet) > 1e-24);
 	simulated = simulated && (water_header[clamp(slot, 0, WATER_SLOTS - 1)].x > 0.5);
+	rw_mask_slot = simulated ? slot : -1;
+	// the texture sampled in uniform control flow, for its derivatives
+	vec4 mask = texture(wipermask, f_coord);
+	if (simulated)
+		mask = rw_mask(f_coord);
 	mat2x3 puv = (abs(uvdet) > 1e-24) ? mat2x3(dpdx, dpdy) * inverse(uvsteps) : mat2x3(0.0);
 	vec3 trailfield = simulated ? rw_trail(uint(slot), f_coord, water_header[clamp(slot, 0, WATER_SLOTS - 1)].y) : vec3(0.0);
 	float trail = trailfield.x;
@@ -769,8 +796,8 @@ void main()
 			if (mask[blade] >= 0.001)
 			{
 				// the mask grows along the arcs; a step of a centimetre, so the steps of its values don't matter
-				float mu = textureLod(wipermask, f_coord + maskstep * vec2(0.01, 0.0), 0.0)[blade];
-				float mv = textureLod(wipermask, f_coord + maskstep * vec2(0.0, 0.01), 0.0)[blade];
+				float mu = rw_mask(f_coord + maskstep * vec2(0.01, 0.0))[blade];
+				float mv = rw_mask(f_coord + maskstep * vec2(0.0, 0.01))[blade];
 				vec2 arc = vec2(mu, mv) - mask[blade];
 				vec2 onscreen = inverse(steps) * vec2(-arc.y, arc.x);
 				if ((length(arc) > 1e-4) && (length(onscreen) > 1e-9))
@@ -1189,6 +1216,17 @@ void main()
 			}
 			vec3 flake = mix(vec3(0.92), vec3(0.62, 0.66, 0.7), wet);
 			vec3 color = flake * (outside * (0.35 * (1.0 - 0.5 * wet)) + ambient * (AMBIENT_SCALE * 0.7));
+			// and by the light coming through the glass: a flake scatters it on, mostly forward, so against a lit snowstorm it glows
+			// grey-white instead of standing dark against it. the light of the whole picture of the frame before (its smallest
+			// level), the same over the whole glass wherever the camera looks
+			vec3 through = vec3(0.0);
+			if (image)
+				through = textureLod(ssr_history, vec2(0.5), 12.0).rgb;
+			else
+				through = fog_color;
+			if (any(isnan(through)) || any(isinf(through)))
+				through = vec3(0.0);
+			color += flake * max(through, vec3(0.0)) * (0.8 * (1.0 - 0.4 * wet));
 			layer = rw_over(vec4(color, snowcover * mix(0.97, 0.6, wet)), layer);
 		}
 	}

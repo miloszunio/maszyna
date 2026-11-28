@@ -36,6 +36,7 @@ class opengl46_windscreen_water : public gfx::windscreen_water
 	bool gpu_init() override;
 	void gpu_setup(std::size_t Slot, std::vector<glm::vec4> const &Axes) override;
 	bool gpu_bake(std::size_t Slot, texture_handle Mask, gl::water_ubs const &Block) override;
+	void gpu_blades(std::size_t Slot, std::vector<glm::vec4> const &Blades) override;
 	void gpu_step(gl::water_ubs const &Block, std::uint32_t Tries) override;
 
   private:

@@ -13,6 +13,7 @@ http://mozilla.org/MPL/2.0/.
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <glm/glm.hpp>
 
@@ -24,6 +25,7 @@ struct opengl_material;
 class TModel3d;
 class TSubModel;
 class TDynamicObject;
+class TMoverParameters;
 
 namespace gfx
 {
@@ -52,6 +54,8 @@ class windscreen_water
 	struct host
 	{
 		std::function<opengl_material *(material_handle)> material;
+		// a material made from the text of a .mat (gfx.windscreen.auto: the glasses found by their shape get one of rain_windscreen)
+		std::function<material_handle(std::string const &, std::string const &)> create;
 	};
 
 	windscreen_water() = default;
@@ -83,6 +87,9 @@ class windscreen_water
 	// the mask of the wipers of a glass (a texture of the renderer) baked into its map; false when the texture isn't ready yet
 	// (tried again with the next frame)
 	virtual bool gpu_bake(std::size_t Slot, texture_handle Mask, gl::water_ubs const &Block) = 0;
+	// the mask of the wipers of a glass worked out from its shape put in its map in place of a baked one (gl::WATER_MAP x WATER_MAP
+	// texels, a blade a channel, as the bake leaves it)
+	virtual void gpu_blades(std::size_t Slot, std::vector<glm::vec4> const &Blades) = 0;
 	// the step of the simulation of the glasses Block says are simulated; Tries: the most landings tried on a glass
 	virtual void gpu_step(gl::water_ubs const &Block, std::uint32_t Tries) = 0;
 
@@ -95,16 +102,48 @@ class windscreen_water
 		float area{0.f}; // metres squared of the glass
 		double landings{0.0}; // the share of a landing left over from the steps before
 		bool baked{false};
+		bool found{false}; // found by its shape (gfx.windscreen.auto): its mask of the wipers is worked out, not baked
+	};
+	// what a glass found by its shape keeps until its wipers are worked out: the place in the model of the cab of each texel of
+	// its map, and whether the texel is on the glass
+	struct found_glass
+	{
+		std::size_t slot{0};
+		std::vector<glm::vec3> places;
+		std::vector<bool> on;
+		// each texel on the glass in the plane of the glass, metres across it and up it, worked out from the map (the steps along
+		// the glass for the steps of u and v) rather than from the places: two windscreens sharing their texture lie on the same
+		// texels, and the places of those are of whichever was laid last
+		std::vector<glm::vec2> flat;
+		bool planar{false};
 	};
 
 	// the glasses of the model of a cab found and set up
 	void build(TModel3d &Cab);
-	// the triangles of a glass laid into its map; Inside: a point inside the cab
-	void rasterize(TSubModel *Submodel, material_handle Material, glm::vec3 const &Inside, std::vector<glm::vec4> &Axes) const;
+	// the triangles of a glass laid into its map; Inside: a point inside the cab. Places: where each texel lies in the model of the
+	// cab, when wanted
+	void rasterize(TSubModel *Submodel, material_handle Material, glm::vec3 const &Inside, std::vector<glm::vec4> &Axes, std::vector<glm::vec3> *Places, glm::vec4 const &Outer) const;
+	// gfx.windscreen.auto: the glasses of a cab which has none of rain_windscreen, told by their shape (large translucent surfaces
+	// on the outside of the cab facing ahead or back), given a material of rain_windscreen with their own texture. Lower, Upper:
+	// the box around the model. returns the materials given
+	std::vector<material_handle> find_glasses(TSubModel *Root, glm::vec3 const &Lower, glm::vec3 const &Upper, float Least);
+	// the windscreens of the model of the vehicle seen from outside found the same way and given the material of rain_windscreen:
+	// not simulated, they draw the rain and the snow made up by the material, as the weather is, so the glass isn't clean outside
+	// while it's covered seen from the cab
+	void dress_outside(TModel3d &Model);
+	// the material of rain_windscreen for a glass of the material Source, one of each Kind (the windscreens, the side windows);
+	// null_handle when it can't be made
+	material_handle glass_material(material_handle Source, std::string const &Kind);
+	// the wipers of the vehicle laid over the glasses found by their shape: each blade a pivot under the bottom edge of its glass and
+	// an arc it sweeps, put in the maps of the glasses as the masks of the wipers
+	void lay_wipers(std::vector<found_glass> const &Glasses);
+	// the place of the virtual wipers over their sweep, 0..1, stepped by Seconds
+	float virtual_wipers(TMoverParameters const &Mover, double Seconds);
 	// the slots given to the materials of the glasses (every frame: a material made anew takes its default params)
 	void assign(bool Assigned);
 
 	host m_host;
+	texture_handle m_nowipers{null_handle}; // the mask of the materials made for the glasses found by their shape: no blade anywhere
 	int m_state{0}; // 0: not set up yet, 1: ready, -1: can't be used
 	TDynamicObject const *m_vehicle{nullptr};
 	TModel3d const *m_cab{nullptr};
@@ -112,6 +151,13 @@ class windscreen_water
 	std::size_t m_glasscount{0};
 	glm::vec4 m_bladesbefore{-1.f};
 	double m_time{0.0}; // seconds the simulation runs
+	std::vector<TModel3d const *> m_dressed; // the models of the vehicles seen from outside dressed already
+	bool m_virtualwipers{false};
+	std::size_t m_virtualblades{0}; // one on each windscreen found by its shape
+	// the glasses found by their shape: the windscreens (true) and the side windows (false); only their triangles at the outside of
+	// the cab are laid into their maps, the glasses of the gauges of the same submodel left out
+	std::unordered_map<material_handle, bool> m_foundahead; // the glasses found by their shape on a vehicle without wipers have virtual ones
+	double m_wiperphase{0.0}; // of their sweep there and back, 0..1
 	std::uint32_t m_step{0};
 	std::uint32_t m_tries{0}; // landings tried in the last step, all glasses
 };

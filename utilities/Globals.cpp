@@ -2241,6 +2241,7 @@ global_settings::ConfigParse_gfx_sky( cParser &Parser, std::string_view const To
     else if( Token == "gfx.lights.compartment.intensity" ) { readvalue( gfx_lights_compartment_intensity, 0.f, 100.f ); }
     else if( Token == "gfx.lights.cab.intensity" ) { readvalue( gfx_lights_cab_intensity, 0.f, 100.f ); }
     else if( Token == "gfx.lights.cab.bounce" ) { readvalue( gfx_lights_cab_bounce, 0.f, 1.f ); }
+    else if( Token == "gfx.windscreen.auto" ) { readswitch( gfx_windscreen_auto ); }
     else if( Token == "gfx.cabprobe" ) {
         // no/low/medium/high, or the number of the level
         Parser.getTokens( 1 );
@@ -2829,6 +2830,7 @@ global_settings::export_as_text( std::ostream &Output ) const {
     export_as_text( Output, "gfx.lights.compartment.intensity", gfx_lights_compartment_intensity );
     export_as_text( Output, "gfx.lights.cab.intensity", gfx_lights_cab_intensity );
     export_as_text( Output, "gfx.lights.cab.bounce", gfx_lights_cab_bounce );
+    export_as_text( Output, "gfx.windscreen.auto", gfx_windscreen_auto );
     export_as_text( Output, "gfx.lights.points.near", gfx_lights_points_near );
     export_as_text( Output, "gfx.lights.stars", gfx_lights_stars.empty() ? std::string{ "no" } : gfx_lights_stars );
     export_as_text( Output, "gfx.lights.freespot.mincone", gfx_lights_freespot_mincone );

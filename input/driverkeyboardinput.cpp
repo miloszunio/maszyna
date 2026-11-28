@@ -112,6 +112,8 @@ driverkeyboard_input::default_bindings() {
         { windowheatingtoggle, {GLFW_KEY_D | keymodifier::control | keymodifier::shift, ""} },
         // windowheatingenable,
         // windowheatingdisable,
+        { wiperswitchincrease, {GLFW_KEY_V | keymodifier::control | keymodifier::shift, ""} },
+        { wiperswitchdecrease, {GLFW_KEY_C | keymodifier::control | keymodifier::shift, ""} },
         { oilpumptoggle, {GLFW_KEY_F | keymodifier::shift, ""} },
         // oilpumpenable,
         // oilpumpdisable,

@@ -138,20 +138,37 @@ void windscreen_water::gpu_setup(std::size_t const Slot, std::vector<glm::vec4> 
 			commands->fill_buffer(m_storage->handle(), static_cast<VkDeviceSize>(parts[part].first), static_cast<VkDeviceSize>(parts[part].second), 0);
 		}
 	}
-	// the axes of the map copied after that, from a staging buffer kept until the gpu is done with the frame
-	auto const size{std::min<VkDeviceSize>(static_cast<VkDeviceSize>(parts[1].second), static_cast<VkDeviceSize>(Axes.size() * sizeof(glm::vec4)))};
-	auto staging{std::make_shared<buffer>()};
-	if ((false == staging->create(*m_memory, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, memory_kind::upload, "windscreen water map")) || (staging->mapped() == nullptr))
+	// the axes of the map copied after that
+	upload(commands, parts[1], Axes, "windscreen water map");
+}
+
+void windscreen_water::gpu_blades(std::size_t const Slot, std::vector<glm::vec4> const &Blades)
+{
+	auto const commands{m_host.commands()};
+	if ((commands == nullptr) || (false == m_full))
 	{
-		ErrorLog("windscreen water: no staging buffer for the map of a glass");
-		compute_barrier(commands);
 		return;
 	}
-	std::memcpy(staging->mapped(), Axes.data(), static_cast<std::size_t>(size));
+	begin(commands);
+	upload(commands, gl::water_slot_parts(Slot)[2], Blades, "windscreen water blades");
+}
+
+void windscreen_water::upload(command_stream *const Commands, std::pair<std::size_t, std::size_t> const &Part, std::vector<glm::vec4> const &Data, char const *Name)
+{
+	// from a staging buffer kept until the gpu is done with the frame
+	auto const size{std::min<VkDeviceSize>(static_cast<VkDeviceSize>(Part.second), static_cast<VkDeviceSize>(Data.size() * sizeof(glm::vec4)))};
+	auto staging{std::make_shared<buffer>()};
+	if ((false == staging->create(*m_memory, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, memory_kind::upload, Name)) || (staging->mapped() == nullptr))
+	{
+		ErrorLog(std::string{"windscreen water: no staging buffer for "} + Name);
+		compute_barrier(Commands);
+		return;
+	}
+	std::memcpy(staging->mapped(), Data.data(), static_cast<std::size_t>(size));
 	staging->flush(0, size);
 	VkBufferCopy2 region{};
 	region.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
-	region.dstOffset = static_cast<VkDeviceSize>(parts[1].first);
+	region.dstOffset = static_cast<VkDeviceSize>(Part.first);
 	region.size = size;
 	VkCopyBufferInfo2 copy{};
 	copy.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2;
@@ -159,8 +176,8 @@ void windscreen_water::gpu_setup(std::size_t const Slot, std::vector<glm::vec4> 
 	copy.dstBuffer = m_storage->handle();
 	copy.regionCount = 1;
 	copy.pRegions = &region;
-	commands->copy_buffer2(&copy);
-	compute_barrier(commands);
+	Commands->copy_buffer2(&copy);
+	compute_barrier(Commands);
 	m_deletions->push(m_uploads->current_value(), [staging]() {});
 }
 

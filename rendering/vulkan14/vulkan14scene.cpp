@@ -812,7 +812,8 @@ bool vulkan14_renderer::init_scene(std::string &Reason)
 			Reason = "no storage of the water on the windscreens";
 			return false;
 		}
-		scene.water.set_host({[this](material_handle const Material) { return &m_materials.material(Material); }});
+		scene.water.set_host({[this](material_handle const Material) { return &m_materials.material(Material); },
+		                      [this](std::string const &Name, std::string const &Definition) { return m_materials.create_from_text(Name, Definition); }});
 	}
 	scene.terrain->init(ctx.resources, [this](vk14::command_stream *const Commands, VkImageView const Target, VkFormat const Format, VkExtent2D const Extent, VkImageView const Source, VkSampler const Sampler) {
 		auto &scene{m_context->scene};

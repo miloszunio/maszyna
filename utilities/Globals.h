@@ -589,6 +589,9 @@ struct global_settings {
     float gfx_lights_freespot_intensity { 10.f }; // brightness of a light point of a model
     float gfx_lights_compartment_intensity { 1.f }; // brightness of the light of a lit vehicle compartment
     float gfx_lights_cab_intensity { 1.5f }; // brightness of the cab lamp
+    // gfx.windscreen.auto: the glasses of a cab without a material of rain_windscreen found by their shape and given one, with the
+    // wipers worked out from the glass (gfx::windscreen_water), so the rain and the snow land and run on them; off as before
+    bool gfx_windscreen_auto { false };
     float gfx_lights_cab_bounce { 0.3f }; // share of the former ambient light of the cab lamp kept, for the light which bounces around the cab
     // a light point of a scenery lamp shining downwards lights its surroundings also closer than its glare is seen from (the
     // minimal distance of its submodel, which many lamps have set for the glare seen from afar), so the lamp doesn't go out as the

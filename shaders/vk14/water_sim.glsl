@@ -52,8 +52,10 @@ const float WATER_HOLD = 0.5;
 const float WATER_VISCOUS = 1.3;
 // the share of the speed of the air the drops feel in the slow layer at the glass, and of the air meeting the glass head on
 // which turns up along it
-const float WATER_BOUNDARY = 0.3;
-const float WATER_HEAD_ON = 0.35;
+const float WATER_BOUNDARY = 0.5;
+const float WATER_HEAD_ON = 0.25;
+// the share of the water and the snow a blade of the wipers leaves on the glass where it goes over it
+const float WATER_WIPE_LEFT = 0.05;
 // the drops below this much water (mm3) dry at once; a raindrop or a droplet of a splash smaller than WATER_SEEN (0.5 mm across
 // its footprint, hardly a pixel) landing where there's no drop is left to the mist of the glass
 const float WATER_LEAST = 0.004;

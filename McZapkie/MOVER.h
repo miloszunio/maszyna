@@ -2052,7 +2052,7 @@ class TMoverParameters
 	TFFSchemeTable FFEDlist;
 	int FFEDListSize = 0;
 	TWiperSchemeTable WiperList;
-	int WiperListSize;
+	int WiperListSize{0};
 	int WiperDefaultPos{0};
 	int modernWpierListSize;
 

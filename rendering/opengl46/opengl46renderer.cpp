@@ -146,7 +146,8 @@ bool opengl46_renderer::Init(GLFWwindow *Window)
 	m_window = Window;
 
 	gl::glsl_common_setup();
-	m_windscreenwater.set_host({[this](material_handle const Material) { return &m_materials.material(Material); }});
+	m_windscreenwater.set_host({[this](material_handle const Material) { return &m_materials.material(Material); },
+	                            [this](std::string const &Name, std::string const &Definition) { return m_materials.create_from_text(Name, Definition); }});
 
 	if (true == Global.ScaleSpecularValues)
 	{

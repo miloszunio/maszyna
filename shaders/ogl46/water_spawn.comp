@@ -37,7 +37,7 @@ void main()
 	if (water_step.w > 0.5)
 	{
 		// a flake, a few mm of snow holding a little water
-		water_add(slot, seed, uv, mix(0.3, 2.5, s.x) * scale * scale * scale, 0.0, s.y, true);
+		water_add(slot, seed, uv, mix(0.1, 0.7, s.x) * scale * scale * scale, 0.0, s.y, true);
 		return;
 	}
 	// the diameter of the raindrop, mm: above the least landing as a drop of its own they go as Marshall-Palmer (exponential)

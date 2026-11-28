@@ -99,6 +99,16 @@ void opengl46_windscreen_water::gpu_setup(std::size_t const Slot, std::vector<gl
 	::glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
 }
 
+void opengl46_windscreen_water::gpu_blades(std::size_t const Slot, std::vector<glm::vec4> const &Blades)
+{
+	if (!m_storage)
+		return;
+	::glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
+	auto const blades{gl::water_slot_parts(Slot)[2]};
+	m_storage->update(Blades.data(), static_cast<GLintptr>(blades.first), static_cast<GLsizeiptr>(std::min(blades.second, Blades.size() * sizeof(glm::vec4))));
+	::glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
+}
+
 bool opengl46_windscreen_water::gpu_bake(std::size_t const Slot, texture_handle const Mask, gl::water_ubs const &Block)
 {
 	if ((!m_storage) || (Mask == null_handle))
